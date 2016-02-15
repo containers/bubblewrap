@@ -70,6 +70,37 @@ typedef int bool;
 static uid_t uid;
 static gid_t gid;
 static bool is_privileged;
+static const char *argv0;
+static int proc_fd = -1;
+
+static void
+strfreev (char **str_array)
+{
+  if (str_array)
+    {
+      int i;
+
+      for (i = 0; str_array[i] != NULL; i++)
+        free (str_array[i]);
+
+      free (str_array);
+    }
+}
+
+static inline void
+cleanup_freep (void *p)
+{
+  void **pp = (void**)p;
+  if (*pp)
+    free (*pp);
+}
+
+static inline void
+cleanup_strvp (void *p)
+{
+  void **pp = (void**)p;
+  strfreev (*pp);
+}
 
 static inline void
 cleanup_fdp (int *fdp)
@@ -83,7 +114,25 @@ cleanup_fdp (int *fdp)
     (void) close (fd);
 }
 
+#define cleanup_free __attribute__((cleanup(cleanup_freep)))
 #define cleanup_fd __attribute__((cleanup(cleanup_fdp)))
+#define cleanup_strv __attribute__((cleanup(cleanup_strvp)))
+
+static inline void *
+steal_pointer (void *pp)
+{
+  void **ptr = (void **) pp;
+  void *ref;
+
+  ref = *ptr;
+  *ptr = NULL;
+
+  return ref;
+}
+
+/* type safety */
+#define steal_pointer(pp) \
+  (0 ? (*(pp)) : (steal_pointer) (pp))
 
 static void
 die_with_error (const char *format, ...)
@@ -126,6 +175,15 @@ static void *
 xmalloc (size_t size)
 {
   void *res = malloc (size);
+  if (res == NULL)
+    die_oom ();
+  return res;
+}
+
+static void *
+xcalloc (size_t size)
+{
+  void *res = calloc (1, size);
   if (res == NULL)
     die_oom ();
   return res;
@@ -234,23 +292,20 @@ strdup_printf (const char *format,
   return buffer;
 }
 
-static const char *
-get_relative_path (const char *path)
-{
-  while (*path == '/')
-    path++;
-  return path;
-}
-
 static int
 fdwalk (int (*cb)(void *data, int fd), void *data)
 {
   int open_max;
   int fd;
+  int dfd;
   int res = 0;
   DIR *d;
 
-  if ((d = opendir ("/proc/self/fd")))
+  dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_PATH);
+  if (dfd == -1)
+    return -1;
+
+  if ((d = fdopendir (dfd)))
     {
       struct dirent *de;
 
@@ -303,11 +358,11 @@ static inline int raw_clone(unsigned long flags, void *child_stack) {
 }
 
 static void
-usage (char **argv)
+usage ()
 {
-  fprintf (stderr, "usage: %s [OPTIONS...] RUNTIMEPATH COMMAND [ARGS...]\n\n", argv[0]);
+  fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
 
-  fprintf (stderr, "TODO...."
+  fprintf (stderr, "TODO....\n"
            );
   exit (1);
 }
@@ -332,15 +387,15 @@ typedef enum {
 
 
 static char *
-load_file (const char *path)
+load_file_at (int dirfd, const char *path)
 {
   cleanup_fd int fd = -1;
-  char *data;
+  cleanup_free char *data = NULL;
   ssize_t data_read;
   ssize_t data_len;
   ssize_t res;
 
-  fd = open (path, O_CLOEXEC | O_RDONLY);
+  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
   if (fd == -1)
     return NULL;
 
@@ -361,12 +416,7 @@ load_file (const char *path)
       while (res < 0 && errno == EINTR);
 
       if (res < 0)
-        {
-          int errsv = errno;
-          free (data);
-          errno = errsv;
-          return NULL;
-        }
+        return NULL;
 
       data_read += res;
     }
@@ -374,7 +424,7 @@ load_file (const char *path)
 
   data[data_read] = 0;
 
-  return data;
+  return steal_pointer (&data);
 }
 
 static char *
@@ -440,23 +490,22 @@ static char *
 get_mountinfo (const char *mountpoint)
 {
   char *line_mountpoint, *line_mountpoint_end;
-  char *mountinfo;
-  char *free_me = NULL;
+  cleanup_free char *mountinfo = NULL;
+  cleanup_free char *free_me = NULL;
   char *line, *line_start;
   char *res = NULL;
   int i;
 
   if (mountpoint[0] != '/')
     {
-      char *cwd = getcwd(NULL, 0);
+      cleanup_free char *cwd = getcwd (NULL, 0);
       if (cwd == NULL)
         die_oom ();
 
       mountpoint = free_me = strconcat3 (cwd, "/", mountpoint);
-      free (cwd);
     }
 
-  mountinfo = load_file ("/proc/self/mountinfo");
+  mountinfo = load_file_at (proc_fd, "/self/mountinfo");
   if (mountinfo == NULL)
     return NULL;
 
@@ -464,7 +513,7 @@ get_mountinfo (const char *mountpoint)
 
   while (*line != 0)
     {
-      char *unescaped;
+      cleanup_free char *unescaped = NULL;
 
       line_start = line;
       for (i = 0; i < 4; i++)
@@ -477,17 +526,11 @@ get_mountinfo (const char *mountpoint)
       unescaped = unescape_mountpoint (line_mountpoint, line_mountpoint_end - line_mountpoint);
       if (strcmp (mountpoint, unescaped) == 0)
         {
-          free (unescaped);
           res = line_start;
           line[-1] = 0;
           break;
         }
-      free (unescaped);
     }
-
-  if (free_me)
-    free (free_me);
-  free (mountinfo);
 
   if (res)
     return xstrdup (res);
@@ -497,7 +540,8 @@ get_mountinfo (const char *mountpoint)
 static unsigned long
 get_mountflags (const char *mountpoint)
 {
-  char *line, *token, *end_token;
+  cleanup_free char *line = NULL;
+  char *token, *end_token;
   int i;
   unsigned long flags = 0;
   static const struct  { int flag; char *name; } flags_data[] = {
@@ -540,8 +584,6 @@ get_mountflags (const char *mountpoint)
       token = NULL;
   } while (token != NULL);
 
-  free (line);
-
   return flags;
 }
 
@@ -552,10 +594,10 @@ get_submounts (const char *parent_mount)
   char *mountpoint, *mountpoint_end;
   char **submounts;
   int i, n_submounts, submounts_size;
-  char *mountinfo;
+  cleanup_free char *mountinfo = NULL;
   char *line;
 
-  mountinfo = load_file ("/proc/self/mountinfo");
+  mountinfo = load_file_at (proc_fd, "self/mountinfo");
   if (mountinfo == NULL)
     return NULL;
 
@@ -567,7 +609,7 @@ get_submounts (const char *parent_mount)
 
   while (*line != 0)
     {
-      char *unescaped;
+      cleanup_free char *unescaped = NULL;
       for (i = 0; i < 4; i++)
         line = skip_token (line, TRUE);
       mountpoint = line;
@@ -589,12 +631,9 @@ get_submounts (const char *parent_mount)
             }
           submounts[n_submounts++] = xstrdup (unescaped + 1);
         }
-      free (unescaped);
     }
 
   submounts[n_submounts] = NULL;
-
-  free (mountinfo);
 
   return submounts;
 }
@@ -607,7 +646,6 @@ bind_mount (const char *src, const char *dest, bind_option_t options)
   bool devices = (options & BIND_DEVICES) != 0;
   bool recursive = (options & BIND_RECURSIVE) != 0;
   unsigned long current_flags;
-  char **submounts;
   int i;
 
   if (mount (src, dest, NULL, MS_MGC_VAL|MS_BIND|(recursive?MS_REC:0), NULL) != 0)
@@ -632,7 +670,7 @@ bind_mount (const char *src, const char *dest, bind_option_t options)
    */
   if (recursive)
     {
-      submounts = get_submounts (dest);
+      cleanup_strv char **submounts = get_submounts (dest);
       if (submounts == NULL)
         return 4;
 
@@ -642,10 +680,7 @@ bind_mount (const char *src, const char *dest, bind_option_t options)
           if (mount ("none", submounts[i],
                      NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0), NULL) != 0)
             return 5;
-          free (submounts[i]);
         }
-
-      free (submounts);
     }
 
   return 0;
@@ -667,7 +702,8 @@ mkdir_with_parents (const char *pathname,
                     int         mode,
                     bool        create_last)
 {
-  char *fn, *p;
+  cleanup_free char *fn = NULL;
+  char *p;
   struct stat buf;
 
   if (pathname == NULL || *pathname == '\0')
@@ -698,16 +734,10 @@ mkdir_with_parents (const char *pathname,
       if (stat (fn, &buf) !=  0)
         {
           if (mkdir (fn, mode) == -1 && errno != EEXIST)
-            {
-              int errsave = errno;
-              free (fn);
-              errno = errsave;
-              return -1;
-            }
+            return -1;
         }
       else if (!S_ISDIR (buf.st_mode))
         {
-          free (fn);
           errno = ENOTDIR;
           return -1;
         }
@@ -720,8 +750,6 @@ mkdir_with_parents (const char *pathname,
         }
     }
   while (p);
-
-  free (fn);
 
   return 0;
 }
@@ -1144,12 +1172,7 @@ do_init (int event_fd, pid_t initial_pid)
 {
   int initial_exit_status = 1;
 
-  /* Grab a read on all .ref files to make it possible to detect that
-     it is in use. This lock will automatically go away when this
-     process dies */
-  lock_all_dirs ();
-
-  while (1)
+  while (TRUE)
     {
       pid_t child;
       int status;
@@ -1243,54 +1266,73 @@ drop_caps (void)
     die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 }
 
+typedef enum {
+  SETUP_BIND_MOUNT,
+} SetupOpType;
+
+typedef struct _SetupOp SetupOp;
+
+struct _SetupOp {
+  SetupOpType type;
+  const char *source;
+  const char *dest;
+  SetupOp *next;
+};
+
+static SetupOp *ops = NULL;
+static SetupOp *last_op = NULL;
+
+static SetupOp *
+setup_op_new (SetupOpType type)
+{
+  SetupOp *op = xcalloc (sizeof (SetupOp));
+
+  op->type = type;
+  if (last_op != NULL)
+    last_op->next = op;
+  else
+    ops = op;
+
+  last_op = op;
+  return op;
+}
+
+static char *
+get_newroot_path (const char *path)
+{
+  while (*path == '/')
+    path++;
+  return strconcat ("newroot/", path);
+}
+
+static char *
+get_oldroot_path (const char *path)
+{
+  while (*path == '/')
+    path++;
+  return strconcat ("oldroot/", path);
+}
+
 int
 main (int argc,
       char **argv)
 {
   mode_t old_umask;
-  char *newroot;
-  char *runtime_path = NULL;
-  char *app_path = NULL;
+  cleanup_free char *base_path = NULL;
   char *chdir_path = NULL;
-  char *monitor_path = NULL;
-  char *app_id = NULL;
-  char *var_path = NULL;
-  char *pulseaudio_socket = NULL;
-  char *x11_socket = NULL;
-  char *wayland_socket = NULL;
-  char *system_dbus_socket = NULL;
-  char *session_dbus_socket = NULL;
-  char *xdg_runtime_dir;
-  char *tz_val;
-  char **args;
-  char *tmp;
-  int n_args;
-  bool devel = FALSE;
-  bool share_shm = FALSE;
   bool unshare_pid = FALSE;
   bool unshare_ipc = FALSE;
   bool unshare_net = FALSE;
   bool unshare_uts = FALSE;
-  bool mount_host_fs = FALSE;
-  bool mount_host_fs_ro = FALSE;
-  bool mount_home = FALSE;
-  bool mount_home_ro = FALSE;
-  bool lock_files = FALSE;
-  bool writable = FALSE;
-  bool writable_app = FALSE;
-  bool writable_exports = FALSE;
   int clone_flags;
   char *old_cwd = NULL;
-  int c, i;
   pid_t pid;
   int event_fd = -1;
   int sync_fd = -1;
-  char *endp;
-  char *uid_map, *gid_map;
   const char *new_cwd;
   uid_t ns_uid;
   gid_t ns_gid;
-  int proc_fd = -1;
+  SetupOp *op;
 
   /* Get the (optional) capabilities we need, drop root */
   acquire_caps ();
@@ -1302,6 +1344,7 @@ main (int argc,
   /* The initial code is run with high permissions
      (i.e. CAP_SYS_ADMIN), so take lots of care. */
 
+  argv0 = argv[0];
   argv++;
   argc--;
 
@@ -1336,6 +1379,20 @@ main (int argc,
           argv++;
           argc--;
         }
+      else if (strcmp (arg, "--mount-bind") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 3)
+            die ("--mount-bind takes two arguments");
+
+          op = setup_op_new (SETUP_BIND_MOUNT);
+          op->source = argv[1];
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
       else
@@ -1353,14 +1410,20 @@ main (int argc,
   uid = getuid ();
   gid = getgid ();
 
+  /* We need to read stuff from proc during the pivot_root dance, etc.
+     Lets keep a fd to it open */
+  proc_fd = open ("/proc", O_RDONLY | O_PATH);
+  if (proc_fd == -1)
+    die_with_error ("Can't open /proc");
+
   /* We need *some* mountpoint where we can mount the root tmpfs.
      We first try in /run, and if that fails, try in /tmp. */
-  newroot = strdup_printf ("/run/user/%d/.build-root", uid);
-  if (mkdir (newroot, 0755) && errno != EEXIST)
+  base_path = strdup_printf ("/run/user/%d/.build-root", uid);
+  if (mkdir (base_path, 0755) && errno != EEXIST)
     {
-      free (newroot);
-      newroot = "/tmp/.build-root";
-      if (mkdir (newroot, 0755) && errno != EEXIST)
+      free (base_path);
+      base_path = xstrdup ("/tmp/.build-root");
+      if (mkdir (base_path, 0755) && errno != EEXIST)
         die_with_error ("Creating root mountpoint failed");
     }
 
@@ -1400,6 +1463,8 @@ main (int argc,
 
   if (pid != 0)
     {
+      /* Initial launched process, wait for exec:ed command to exit */
+
       /* We don't need any caps in the launcher, drop them immediately. */
       drop_caps ();
       monitor_child (event_fd);
@@ -1410,6 +1475,9 @@ main (int argc,
   ns_gid = gid;
   if (!is_privileged)
     {
+      cleanup_free char *uid_map = NULL;
+      cleanup_free char *gid_map = NULL;
+
       /* This is a bit hacky, but we need to first map the real uid/gid to
          0, otherwise we can't mount the devpts filesystem because root is
          not mapped. Later we will create another child user namespace and
@@ -1417,14 +1485,9 @@ main (int argc,
       ns_uid = 0;
       ns_gid = 0;
 
-      proc_fd = open ("/proc", O_RDONLY | O_PATH);
-      if (proc_fd == -1)
-        die_with_error ("Can't open /proc");
-
       uid_map = strdup_printf ("%d %d 1\n", ns_uid, uid);
       if (!write_file_at (proc_fd, "self/uid_map", uid_map))
         die_with_error ("setting up uid map");
-      free (uid_map);
 
       if (!write_file_at (proc_fd, "self/setgroups", "deny\n"))
         die_with_error ("error writing to setgroups");
@@ -1432,7 +1495,6 @@ main (int argc,
       gid_map = strdup_printf ("%d %d 1\n", ns_gid, gid);
       if (!write_file_at (proc_fd, "self/gid_map", gid_map))
         die_with_error ("setting up gid map");
-      free (gid_map);
     }
 
   old_umask = umask (0);
@@ -1444,41 +1506,78 @@ main (int argc,
     die_with_error ("Failed to make / slave");
 
   /* Create a tmpfs which we will use as / in the namespace */
-  if (mount ("", newroot, "tmpfs", MS_NODEV|MS_NOSUID, NULL) != 0)
+  if (mount ("", base_path, "tmpfs", MS_NODEV|MS_NOSUID, NULL) != 0)
     die_with_error ("Failed to mount tmpfs");
 
   old_cwd = get_current_dir_name ();
 
   /* Chdir to the new root tmpfs mount. This will be the CWD during
-     the entire setup. So, relative paths are in the new root, but
-     absolute paths are an the old root. */
-  if (chdir (newroot) != 0)
-      die_with_error ("chdir");
+     the entire setup. Access old or new root via "oldroot" and "newroot". */
+  if (chdir (base_path) != 0)
+      die_with_error ("chdir base_path");
+
+  /* We create a subdir "$base_path/newroot" for the new root, that
+   * way we can pivot_root to base_path, and put the old root at
+   * "$base_path/oldroot". This avoids problems accessing the oldroot
+   * dir if the user requested to bind mount something over / */
+
+  if (mkdir ("newroot", 0755))
+    die_with_error ("Creating newroot failed");
+
+  if (mkdir ("oldroot", 0755))
+    die_with_error ("Creating oldroot failed");
+
+  if (pivot_root (base_path, "oldroot"))
+    die_with_error ("pivot_root");
+
+  if (chdir ("/") != 0)
+    die_with_error ("chhdir / (base path)");
+
+  for (op = ops; op != NULL; op = op->next)
+    {
+      cleanup_free char *source = NULL;
+      cleanup_free char *dest = NULL;
+      if (op->source)
+        source = get_oldroot_path (op->source);
+      if (op->dest)
+        dest = get_newroot_path (op->dest);
+      printf ("op: %s %s\n", op->source, op->dest);
+      switch (op->type) {
+      case SETUP_BIND_MOUNT:
+        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
+          die_with_error ("Can't mkdir parents of %s", op->dest);
+        if (bind_mount (source, dest, BIND_RECURSIVE) != 0)
+          die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
+        break;
+      default:
+        die ("Unexpected type %d", op->type);
+      }
+    }
+
+  /* The old root better be rprivate or we will send unmount events to the parent namespace */
+  if (mount ("oldroot", "oldroot", NULL, MS_REC|MS_PRIVATE, NULL) != 0)
+    die_with_error ("Failed to make old root rprivate");
+
+  if (umount2 ("oldroot", MNT_DETACH))
+    die_with_error ("unmount old root");
+
+  /* Now make /newroot the real root */
+  if (chdir ("/newroot") != 0)
+    die_with_error ("chdir newroot");
+  if (chroot("/newroot") != 0)
+    die_with_error ("chroot /newroot");
+  if (chdir ("/") != 0)
+    die_with_error ("chhdir /");
 
   if (unshare_net && loopback_setup () != 0)
     die ("Can't create loopback device");
 
-  if (mkdir (".oldroot", 0755))
-    die_with_error ("Creating .oldroot failed");
-
-  if (pivot_root (newroot, ".oldroot"))
-    die_with_error ("pivot_root");
-
-  chdir ("/");
-  new_cwd = "/";
-
-  /* The old root better be rprivate or we will send unmount events to the parent namespace */
-  if (mount (".oldroot", ".oldroot", NULL, MS_REC|MS_PRIVATE, NULL) != 0)
-    die_with_error ("Failed to make old root rprivate");
-
-  if (umount2 (".oldroot", MNT_DETACH))
-    die_with_error ("unmount oldroot");
-
-  umask (old_umask);
-
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
 
+  umask (old_umask);
+
+  new_cwd = "/";
   if (chdir_path)
     {
       if (chdir (chdir_path))
@@ -1513,16 +1612,32 @@ main (int argc,
 
   __debug__(("forking for child\n"));
 
-  pid = fork ();
-  if (pid == -1)
-    die_with_error("Can't fork for child");
-
-  if (pid == 0)
+  if (unshare_pid)
     {
-      __debug__(("launch executable %s\n", args[0]));
+      /* We have to have a pid 1 in the pid namespace, because otherwise
+         we'll get a bunch of zombies as nothing reaps them */
+
+      pid = fork ();
+      if (pid == -1)
+        die_with_error("Can't fork for pid 1");
+
+      if (pid != 0)
+        {
+          /* Close all extra fds in pid 1.
+             Any passed in fds have been passed on to the child anyway. */
+          {
+            int dont_close[] = { event_fd, sync_fd, -1 };
+            fdwalk (close_extra_fds, dont_close);
+          }
+
+          return do_init (event_fd, pid);
+        }
 
       if (ns_uid != uid || ns_gid != gid)
         {
+          cleanup_free char *uid_map = NULL;
+          cleanup_free char *gid_map = NULL;
+
           /* Now that devpts is mounted we can create a new userspace
              and map our uid 1:1 */
 
@@ -1532,35 +1647,26 @@ main (int argc,
           uid_map = strdup_printf ("%d 0 1\n", uid);
           if (!write_file_at (proc_fd, "self/uid_map", uid_map))
             die_with_error ("setting up uid map");
-          free (uid_map);
 
           gid_map = strdup_printf ("%d 0 1\n", gid);
           if (!write_file_at (proc_fd, "self/gid_map", gid_map))
             die_with_error ("setting up gid map");
-          free (gid_map);
         }
-
-      if (proc_fd != -1)
-        close (proc_fd);
-
-      if (sync_fd != -1)
-        close (sync_fd);
-
-      /* We want sigchild in the child */
-      unblock_sigchild ();
-
-      if (execvp (args[0], args) == -1)
-        die_with_error ("execvp %s", args[0]);
-
-      return 0;
     }
 
-  /* Close all extra fds in pid 1.
-     Any passed in fds have been passed on to the child anyway. */
-  {
-    int dont_close[] = { event_fd, sync_fd, -1 };
-    fdwalk (close_extra_fds, dont_close);
-  }
+  __debug__(("launch executable %s\n", argv[0]));
 
-  return do_init (event_fd, pid);
+  if (proc_fd != -1)
+    close (proc_fd);
+
+  if (sync_fd != -1)
+    close (sync_fd);
+
+  /* We want sigchild in the child */
+  unblock_sigchild ();
+
+  if (execvp (argv[0], argv) == -1)
+    die_with_error ("execvp %s", argv[0]);
+
+  return 0;
 }
