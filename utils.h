@@ -81,6 +81,10 @@ int   write_file_at  (int          dirfd,
 int   write_to_fd    (int          fd,
                       const char  *content,
                       ssize_t      len);
+int   create_file    (const char  *path,
+                      mode_t       mode,
+                      const char  *content);
+int   get_file_mode  (const char *pathname);
 int   mkdir_with_parents (const char *pathname,
                           int         mode,
                           bool        create_last);

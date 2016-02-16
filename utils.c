@@ -210,7 +210,7 @@ fdwalk (int proc_fd, int (*cb)(void *data, int fd), void *data)
 
   dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_PATH);
   if (dfd == -1)
-    return -1;
+    return res;
 
   if ((d = fdopendir (dfd)))
     {
@@ -254,6 +254,7 @@ fdwalk (int proc_fd, int (*cb)(void *data, int fd), void *data)
   return res;
 }
 
+/* Sets errno on error (!= 0), ENOSPC on short write */
 int
 write_to_fd (int         fd,
              const char *content,
@@ -267,7 +268,11 @@ write_to_fd (int         fd,
       if (res < 0 && errno == EINTR)
         continue;
       if (res <= 0)
-        return -1;
+        {
+          if (res == 0) /* Unexpected short write, should not happen when writing to a file */
+            errno = ENOSPC;
+          return -1;
+        }
       len -= res;
       content += res;
     }
@@ -275,12 +280,13 @@ write_to_fd (int         fd,
   return 0;
 }
 
+/* Sets errno on error (!= 0), ENOSPC on short write */
 int
 write_file_at (int dirfd,
                const char *path,
                const char *content)
 {
-  cleanup_fd int fd = -1;
+  int fd;
   bool res;
   int errsv;
 
@@ -293,20 +299,48 @@ write_file_at (int dirfd,
     res = write_to_fd (fd, content, strlen (content));
 
   errsv = errno;
+  close (fd);
   errno = errsv;
 
   return res;
 }
 
+/* Sets errno on error (!= 0), ENOSPC on short write */
+int
+create_file (const char *path,
+             mode_t      mode,
+             const char *content)
+{
+  int fd;
+  int res;
+  int errsv;
+
+  fd = creat (path, mode);
+  if (fd == -1)
+    return -1;
+
+  res = 0;
+  if (content)
+    res = write_to_fd (fd, content, strlen (content));
+
+  errsv = errno;
+  close (fd);
+  errno = errsv;
+
+  return res;
+}
+
+/* Sets errno on error (== NULL) */
 char *
 load_file_at (int dirfd,
               const char *path)
 {
-  cleanup_fd int fd = -1;
+  int fd;
   cleanup_free char *data = NULL;
   ssize_t data_read;
   ssize_t data_len;
   ssize_t res;
+  int errsv;
 
   fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
   if (fd == -1)
@@ -329,7 +363,12 @@ load_file_at (int dirfd,
       while (res < 0 && errno == EINTR);
 
       if (res < 0)
-        return NULL;
+        {
+          errsv = errno;
+          close (fd);
+          errno = errsv;
+          return NULL;
+        }
 
       data_read += res;
     }
@@ -337,9 +376,26 @@ load_file_at (int dirfd,
 
   data[data_read] = 0;
 
+  errsv = errno;
+  close (fd);
+  errno = errsv;
+
   return steal_pointer (&data);
 }
 
+/* Sets errno on error (< 0) */
+int
+get_file_mode (const char *pathname)
+{
+ struct stat buf;
+
+ if (stat (pathname, &buf) !=  0)
+   return -1;
+
+ return buf.st_mode & S_IFMT;
+}
+
+/* Sets errno on error (!= 0) */
 int
 mkdir_with_parents (const char *pathname,
                     int         mode,
