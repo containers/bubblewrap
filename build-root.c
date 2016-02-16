@@ -560,14 +560,23 @@ main (int argc,
     {
       cleanup_free char *source = NULL;
       cleanup_free char *dest = NULL;
+      int source_mode = 0;
       if (op->source)
-        source = get_oldroot_path (op->source);
+        {
+          source = get_oldroot_path (op->source);
+          source_mode = get_file_mode (source);
+          if (source_mode < 0)
+            die_with_error ("Can't get type of source %s", op->source);
+        }
       if (op->dest)
         dest = get_newroot_path (op->dest);
       switch (op->type) {
       case SETUP_BIND_MOUNT:
-        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
-          die_with_error ("Can't mkdir parents of %s", op->dest);
+        if (mkdir_with_parents (dest, 0755, source_mode == S_IFDIR) != 0)
+          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+        if (source_mode != S_IFDIR &&
+            create_file (dest, 0666, NULL) != 0)
+          die_with_error ("Can't create file at %s", op->dest);
         if (bind_mount (proc_fd, source, dest, BIND_RECURSIVE) != 0)
           die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
         break;
