@@ -44,6 +44,75 @@ static int proc_fd = -1;
 struct passwd *pwuid;
 struct group *grgid;
 
+typedef enum {
+  SETUP_BIND_MOUNT_DIR,
+  SETUP_RO_BIND_MOUNT_DIR,
+  SETUP_BIND_MOUNT,
+  SETUP_RO_BIND_MOUNT,
+  SETUP_DEV_BIND_MOUNT,
+  SETUP_MOUNT_PROC,
+  SETUP_MOUNT_DEV,
+  SETUP_MAKE_DIR,
+  SETUP_MAKE_FILE,
+  SETUP_MAKE_SYMLINK,
+  SETUP_MAKE_PASSWD,
+  SETUP_MAKE_GROUP,
+} SetupOpType;
+
+typedef struct _SetupOp SetupOp;
+
+struct _SetupOp {
+  SetupOpType type;
+  const char *source;
+  const char *dest;
+  int fd;
+  SetupOp *next;
+};
+
+typedef struct _LockFile LockFile;
+
+struct _LockFile {
+  const char *path;
+  LockFile *next;
+};
+
+static SetupOp *ops = NULL;
+static SetupOp *last_op = NULL;
+static LockFile *lock_files = NULL;
+static LockFile *last_lock_file = NULL;
+
+static SetupOp *
+setup_op_new (SetupOpType type)
+{
+  SetupOp *op = xcalloc (sizeof (SetupOp));
+
+  op->type = type;
+  op->fd = -1;
+  if (last_op != NULL)
+    last_op->next = op;
+  else
+    ops = op;
+
+  last_op = op;
+  return op;
+}
+
+static LockFile *
+lock_file_new (const char *path)
+{
+  LockFile *lock = xcalloc (sizeof (LockFile));
+
+  lock->path = path;
+  if (last_lock_file != NULL)
+    last_lock_file->next = lock;
+  else
+    lock_files = lock;
+
+  last_lock_file = lock;
+  return lock;
+}
+
+
 static void
 usage ()
 {
@@ -69,6 +138,7 @@ usage ()
            "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
            "	--make-passwd DEST	     Create trivial /etc/passwd file at DEST\n"
            "	--make-group DEST	     Create trivial /etc/group file at DEST\n"
+           "	--lock-file DEST	     Take a lock on DEST while container is running\n"
            );
   exit (1);
 }
@@ -197,6 +267,26 @@ static int
 do_init (int event_fd, pid_t initial_pid)
 {
   int initial_exit_status = 1;
+  LockFile *lock;
+
+  for (lock = lock_files; lock != NULL; lock = lock->next)
+    {
+      int fd = open (lock->path, O_RDONLY | O_CLOEXEC);
+      struct flock l = {0};
+
+      if (fd == -1)
+        die_with_error ("Unable to open lock file %s", lock->path);
+
+      l.l_type = F_RDLCK;
+      l.l_whence = SEEK_SET;
+      l.l_start = 0;
+      l.l_len = 0;
+
+      if (fcntl (fd, F_SETLK, &l) < 0)
+        die_with_error ("Unable to lock file %s", lock->path);
+
+      /* Keep fd open to hang on to lock */
+    }
 
   while (TRUE)
     {
@@ -290,50 +380,6 @@ drop_caps (void)
 
   if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
     die_with_error ("prctl(PR_SET_DUMPABLE) failed");
-}
-
-typedef enum {
-  SETUP_BIND_MOUNT_DIR,
-  SETUP_RO_BIND_MOUNT_DIR,
-  SETUP_BIND_MOUNT,
-  SETUP_RO_BIND_MOUNT,
-  SETUP_DEV_BIND_MOUNT,
-  SETUP_MOUNT_PROC,
-  SETUP_MOUNT_DEV,
-  SETUP_MAKE_DIR,
-  SETUP_MAKE_FILE,
-  SETUP_MAKE_SYMLINK,
-  SETUP_MAKE_PASSWD,
-  SETUP_MAKE_GROUP,
-} SetupOpType;
-
-typedef struct _SetupOp SetupOp;
-
-struct _SetupOp {
-  SetupOpType type;
-  const char *source;
-  const char *dest;
-  int fd;
-  SetupOp *next;
-};
-
-static SetupOp *ops = NULL;
-static SetupOp *last_op = NULL;
-
-static SetupOp *
-setup_op_new (SetupOpType type)
-{
-  SetupOp *op = xcalloc (sizeof (SetupOp));
-
-  op->type = type;
-  op->fd = -1;
-  if (last_op != NULL)
-    last_op->next = op;
-  else
-    ops = op;
-
-  last_op = op;
-  return op;
 }
 
 static char *
@@ -610,6 +656,16 @@ main (int argc,
 
           op = setup_op_new (SETUP_MAKE_GROUP);
           op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--lock-file") == 0)
+        {
+          if (argc < 2)
+            die ("--lock-file takes an argument");
+
+          (void)lock_file_new (argv[1]);
 
           argv += 1;
           argc -= 1;
@@ -1097,7 +1153,7 @@ main (int argc,
 
   __debug__(("forking for child\n"));
 
-  if (unshare_pid)
+  if (unshare_pid || lock_files != NULL)
     {
       /* We have to have a pid 1 in the pid namespace, because
        * otherwise we'll get a bunch of zombies as nothing reaps

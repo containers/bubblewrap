@@ -31,7 +31,9 @@ EOF
 
 ./build-root \
     --mount-ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
+    --lock-file /usr/.ref \
     --mount-ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \
+    --lock-file /app/.ref \
     --mount-dev /dev \
     --mount-proc /proc \
     --make-dir /tmp \
@@ -64,8 +66,5 @@ EOF
 
 
 # TODO:
-# /etc/* symlinks to /usr/etc/* (use same for extra root dirs)
-# Lock files
 # dbus proxy + sync_fd
-# copy file (-M) (e.g. xauth, xdg-user-dir conf, app-info)
-# clean commandlines (pass via file/fd?)
+# clean commandlines (pass args via file/fd?)
