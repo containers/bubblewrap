@@ -56,6 +56,8 @@ usage ()
            "	--mount-bind SRC DEST	Bind mount the host path SRC on DEST in the sandbox\n"
            "	--mount-proc DEST	Mount procfs on DEST in the sandbox\n"
            "	--mount-dev DEST	Mount new dev on DEST in the sandbox\n"
+           "	--make-dir DEST		Create dir at DEST in the sandbox\n"
+           "	--make-symlink SRC DEST	Create symlink at DEST in the sandbox with target SRC\n"
            );
   exit (1);
 }
@@ -281,8 +283,10 @@ drop_caps (void)
 
 typedef enum {
   SETUP_BIND_MOUNT,
-  SETUP_BIND_PROC,
-  SETUP_BIND_DEV,
+  SETUP_MOUNT_PROC,
+  SETUP_MOUNT_DEV,
+  SETUP_MAKE_DIR,
+  SETUP_MAKE_SYMLINK,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -442,7 +446,7 @@ main (int argc,
           if (argc < 2)
             die ("--mount-proc takes an argument");
 
-          op = setup_op_new (SETUP_BIND_PROC);
+          op = setup_op_new (SETUP_MOUNT_PROC);
           op->dest = argv[1];
 
           argv += 1;
@@ -455,11 +459,38 @@ main (int argc,
           if (argc < 2)
             die ("--mount-dev takes an argument");
 
-          op = setup_op_new (SETUP_BIND_DEV);
+          op = setup_op_new (SETUP_MOUNT_DEV);
           op->dest = argv[1];
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--make-dir") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 2)
+            die ("--make-dir takes an argument");
+
+          op = setup_op_new (SETUP_MAKE_DIR);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--make-symlink") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 3)
+            die ("--make-symlink takes two arguments");
+
+          op = setup_op_new (SETUP_MAKE_SYMLINK);
+          op->source = argv[1];
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
         }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
@@ -598,7 +629,8 @@ main (int argc,
       int source_mode = 0;
       int i;
 
-      if (op->source)
+      if (op->source &&
+          op->type != SETUP_MAKE_SYMLINK)
         {
           source = get_oldroot_path (op->source);
           source_mode = get_file_mode (source);
@@ -621,7 +653,7 @@ main (int argc,
           die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
         break;
 
-      case SETUP_BIND_PROC:
+      case SETUP_MOUNT_PROC:
         if (mkdir_with_parents (dest, 0755, TRUE) != 0)
           die_with_error ("Can't mkdir %s (or parents)", op->dest);
 
@@ -652,7 +684,7 @@ main (int argc,
 
         break;
 
-      case SETUP_BIND_DEV:
+      case SETUP_MOUNT_DEV:
         if (mkdir_with_parents (dest, 0755, TRUE) != 0)
           die_with_error ("Can't mkdir %s (or parents)", op->dest);
 
@@ -708,6 +740,20 @@ main (int argc,
           }
 
         break;
+
+      case SETUP_MAKE_DIR:
+        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
+          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+        break;
+
+      case SETUP_MAKE_SYMLINK:
+        if (mkdir_with_parents (dest, 0755, FALSE) != 0)
+          die_with_error ("Can't mkdir parents of %s", op->dest);
+
+        if (symlink (op->source, dest) != 0)
+          die_with_error ("Can't make symlink at %s", op->dest);
+        break;
+
       default:
         die ("Unexpected type %d", op->type);
       }
