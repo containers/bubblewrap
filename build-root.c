@@ -673,15 +673,26 @@ main (int argc,
           if (source_mode < 0)
             die_with_error ("Can't get type of source %s", op->source);
         }
+
       if (op->dest)
-        dest = get_newroot_path (op->dest);
+        {
+          dest = get_newroot_path (op->dest);
+          if (mkdir_with_parents (dest, 0755, FALSE) != 0)
+            die_with_error ("Can't mkdir parents for %s", op->dest);
+        }
+
       switch (op->type) {
       case SETUP_BIND_MOUNT:
-        if (mkdir_with_parents (dest, 0755, source_mode == S_IFDIR) != 0)
-          die_with_error ("Can't mkdir %s (or parents)", op->dest);
-        if (source_mode != S_IFDIR &&
-            create_file (dest, 0666, NULL) != 0)
-          die_with_error ("Can't create file at %s", op->dest);
+        if (source_mode == S_IFDIR)
+          {
+            if (mkdir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
+          }
+        else
+          {
+            if (create_file (dest, 0666, NULL) != 0)
+              die_with_error ("Can't create file at %s", op->dest);
+          }
 
         /* We always bind directories recursively, otherwise this would let us
            access files that are otherwise covered on the host */
@@ -690,8 +701,8 @@ main (int argc,
         break;
 
       case SETUP_MOUNT_PROC:
-        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
-          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+        if (mkdir (dest, 0755) != 0)
+          die_with_error ("Can't mkdir %s", op->dest);
 
         if (unshare_pid)
           {
@@ -721,8 +732,8 @@ main (int argc,
         break;
 
       case SETUP_MOUNT_DEV:
-        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
-          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+        if (mkdir (dest, 0755) != 0)
+          die_with_error ("Can't mkdir %s", op->dest);
 
         if (mount ("tmpfs", dest,
                    "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") < 0)
@@ -786,22 +797,17 @@ main (int argc,
         break;
 
       case SETUP_MAKE_DIR:
-        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
-          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+        if (mkdir (dest, 0755) != 0)
+          die_with_error ("Can't mkdir %s", op->dest);
+
         break;
 
       case SETUP_MAKE_SYMLINK:
-        if (mkdir_with_parents (dest, 0755, FALSE) != 0)
-          die_with_error ("Can't mkdir parents of %s", op->dest);
-
         if (symlink (op->source, dest) != 0)
           die_with_error ("Can't make symlink at %s", op->dest);
         break;
 
       case SETUP_MAKE_PASSWD:
-        if (mkdir_with_parents (dest, 0755, FALSE) != 0)
-          die_with_error ("Can't mkdir parents of %s", op->dest);
-
         {
           cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
           cleanup_free char *content =
@@ -815,14 +821,11 @@ main (int argc,
 
           if (create_file (dest, 0755, content) != 0)
             die_with_error ("creating passwd at %s", op->dest);
-        }
 
+        }
         break;
 
       case SETUP_MAKE_GROUP:
-        if (mkdir_with_parents (dest, 0755, FALSE) != 0)
-          die_with_error ("Can't mkdir parents of %s", op->dest);
-
         {
           cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
           cleanup_free char *group_name = grgid ? xstrdup (grgid->gr_name) : strdup_printf ("%d", gid);
@@ -835,7 +838,6 @@ main (int argc,
           if (create_file (dest, 0755, content) != 0)
             die_with_error ("creating passwd at %s", op->dest);
         }
-
         break;
 
       default:
