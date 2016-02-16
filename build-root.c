@@ -1313,6 +1313,29 @@ get_oldroot_path (const char *path)
   return strconcat ("oldroot/", path);
 }
 
+static void
+write_uid_gid_map (uid_t sandbox_uid,
+                   uid_t parent_uid,
+                   uid_t sandbox_gid,
+                   uid_t parent_gid,
+                   bool deny_groups)
+{
+  cleanup_free char *uid_map = NULL;
+  cleanup_free char *gid_map = NULL;
+
+  uid_map = strdup_printf ("%d %d 1\n", sandbox_uid, parent_uid);
+  if (!write_file_at (proc_fd, "self/uid_map", uid_map))
+    die_with_error ("setting up uid map");
+
+  if (deny_groups &&
+      !write_file_at (proc_fd, "self/setgroups", "deny\n"))
+    die_with_error ("error writing to setgroups");
+
+  gid_map = strdup_printf ("%d %d 1\n", sandbox_gid, parent_gid);
+  if (!write_file_at (proc_fd, "self/gid_map", gid_map))
+    die_with_error ("setting up gid map");
+}
+
 int
 main (int argc,
       char **argv)
@@ -1475,9 +1498,6 @@ main (int argc,
   ns_gid = gid;
   if (!is_privileged)
     {
-      cleanup_free char *uid_map = NULL;
-      cleanup_free char *gid_map = NULL;
-
       /* This is a bit hacky, but we need to first map the real uid/gid to
          0, otherwise we can't mount the devpts filesystem because root is
          not mapped. Later we will create another child user namespace and
@@ -1485,16 +1505,9 @@ main (int argc,
       ns_uid = 0;
       ns_gid = 0;
 
-      uid_map = strdup_printf ("%d %d 1\n", ns_uid, uid);
-      if (!write_file_at (proc_fd, "self/uid_map", uid_map))
-        die_with_error ("setting up uid map");
-
-      if (!write_file_at (proc_fd, "self/setgroups", "deny\n"))
-        die_with_error ("error writing to setgroups");
-
-      gid_map = strdup_printf ("%d %d 1\n", ns_gid, gid);
-      if (!write_file_at (proc_fd, "self/gid_map", gid_map))
-        die_with_error ("setting up gid map");
+      write_uid_gid_map (ns_uid, uid,
+                         ns_gid, gid,
+                         TRUE);
     }
 
   old_umask = umask (0);
@@ -1541,7 +1554,6 @@ main (int argc,
         source = get_oldroot_path (op->source);
       if (op->dest)
         dest = get_newroot_path (op->dest);
-      printf ("op: %s %s\n", op->source, op->dest);
       switch (op->type) {
       case SETUP_BIND_MOUNT:
         if (mkdir_with_parents (dest, 0755, TRUE) != 0)
@@ -1560,6 +1572,20 @@ main (int argc,
 
   if (umount2 ("oldroot", MNT_DETACH))
     die_with_error ("unmount old root");
+
+  if (ns_uid != uid || ns_gid != gid)
+    {
+      /* Now that devpts is mounted and we've no need for mount
+         permissions we can create a new userspace and map our uid
+         1:1 */
+
+      if (unshare (CLONE_NEWUSER))
+        die_with_error ("unshare user ns");
+
+      write_uid_gid_map (uid, ns_uid,
+                         gid, ns_gid,
+                         FALSE);
+    }
 
   /* Now make /newroot the real root */
   if (chdir ("/newroot") != 0)
@@ -1614,8 +1640,9 @@ main (int argc,
 
   if (unshare_pid)
     {
-      /* We have to have a pid 1 in the pid namespace, because otherwise
-         we'll get a bunch of zombies as nothing reaps them */
+      /* We have to have a pid 1 in the pid namespace, because
+       * otherwise we'll get a bunch of zombies as nothing reaps
+       * them */
 
       pid = fork ();
       if (pid == -1)
@@ -1631,26 +1658,6 @@ main (int argc,
           }
 
           return do_init (event_fd, pid);
-        }
-
-      if (ns_uid != uid || ns_gid != gid)
-        {
-          cleanup_free char *uid_map = NULL;
-          cleanup_free char *gid_map = NULL;
-
-          /* Now that devpts is mounted we can create a new userspace
-             and map our uid 1:1 */
-
-          if (unshare (CLONE_NEWUSER))
-            die_with_error ("unshare user ns");
-
-          uid_map = strdup_printf ("%d 0 1\n", uid);
-          if (!write_file_at (proc_fd, "self/uid_map", uid_map))
-            die_with_error ("setting up uid map");
-
-          gid_map = strdup_printf ("%d 0 1\n", gid);
-          if (!write_file_at (proc_fd, "self/gid_map", gid_map))
-            die_with_error ("setting up gid map");
         }
     }
 
