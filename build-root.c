@@ -63,6 +63,7 @@ usage ()
            "	--mount-proc DEST	  Mount procfs on DEST in the sandbox\n"
            "	--mount-dev DEST	  Mount new dev on DEST in the sandbox\n"
            "	--make-dir DEST		  Create dir at DEST in the sandbox\n"
+           "	--make-file FD DEST	  Copy from FD to dest DEST in the sandbox\n"
            "	--make-symlink SRC DEST	  Create symlink at DEST in the sandbox with target SRC\n"
            "	--make-passwd DEST	  Create trivial /etc/passwd file at DEST in the sandbox\n"
            "	--make-group DEST	  Create trivial /etc/group file at DEST in the sandbox\n"
@@ -296,6 +297,7 @@ typedef enum {
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
   SETUP_MAKE_DIR,
+  SETUP_MAKE_FILE,
   SETUP_MAKE_SYMLINK,
   SETUP_MAKE_PASSWD,
   SETUP_MAKE_GROUP,
@@ -307,6 +309,7 @@ struct _SetupOp {
   SetupOpType type;
   const char *source;
   const char *dest;
+  int fd;
   SetupOp *next;
 };
 
@@ -319,6 +322,7 @@ setup_op_new (SetupOpType type)
   SetupOp *op = xcalloc (sizeof (SetupOp));
 
   op->type = type;
+  op->fd = -1;
   if (last_op != NULL)
     last_op->next = op;
   else
@@ -517,6 +521,26 @@ main (int argc,
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--make-file") == 0)
+        {
+          SetupOp *op;
+          int file_fd;
+          char *endptr;
+
+          if (argc < 3)
+            die ("--make-file takes two arguments");
+
+          file_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          op = setup_op_new (SETUP_MAKE_FILE);
+          op->fd = file_fd;
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
         }
       else if (strcmp (arg, "--make-symlink") == 0)
         {
@@ -838,6 +862,21 @@ main (int argc,
         if (mkdir (dest, 0755) != 0)
           die_with_error ("Can't mkdir %s", op->dest);
 
+        break;
+
+      case SETUP_MAKE_FILE:
+        {
+          cleanup_fd int dest_fd = -1;
+
+          dest_fd = creat (dest, 0666);
+          if (dest_fd == -1)
+            die_with_error ("Can't create file %s", op->dest);
+
+          if (copy_file_data (op->fd, dest_fd) != 0)
+            die_with_error ("Can't write data to file %s", op->dest);
+
+          close (op->fd);
+        }
         break;
 
       case SETUP_MAKE_SYMLINK:

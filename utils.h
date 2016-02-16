@@ -81,6 +81,11 @@ int   write_file_at  (int          dirfd,
 int   write_to_fd    (int          fd,
                       const char  *content,
                       ssize_t      len);
+int   copy_file_data (int          sfd,
+                      int          dfd);
+int   copy_file      (const char  *src_path,
+                      const char  *dst_path,
+                      mode_t       mode);
 int   create_file    (const char  *path,
                       mode_t       mode,
                       const char  *content);

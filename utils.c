@@ -330,6 +330,71 @@ create_file (const char *path,
   return res;
 }
 
+#define BUFSIZE	8192
+/* Sets errno on error (!= 0), ENOSPC on short write */
+int
+copy_file_data (int     sfd,
+                int     dfd)
+{
+  char buffer[BUFSIZE];
+  ssize_t bytes_read;
+
+  while (TRUE)
+    {
+      bytes_read = read (sfd, buffer, BUFSIZE);
+      if (bytes_read == -1)
+        {
+          if (errno == EINTR)
+            continue;
+
+          return -1;
+        }
+
+      if (bytes_read == 0)
+        break;
+
+      if (write_to_fd (dfd, buffer, bytes_read) != 0)
+        return -1;
+    }
+
+  return 0;
+}
+
+/* Sets errno on error (!= 0), ENOSPC on short write */
+int
+copy_file (const char *src_path,
+           const char *dst_path,
+           mode_t      mode)
+{
+  int sfd;
+  int dfd;
+  int res;
+  int errsv;
+
+  sfd = open (src_path, O_CLOEXEC | O_RDONLY);
+  if (sfd == -1)
+    return -1;
+
+  dfd = creat (dst_path, mode);
+  if (dfd == -1)
+    {
+      errsv = errno;
+      close (sfd);
+      errno = errsv;
+      return -1;
+    }
+
+  res = copy_file_data (sfd, dfd);
+
+  errsv = errno;
+  close (sfd);
+  close (dfd);
+  errno = errsv;
+
+  return res;
+}
+
+
 /* Sets errno on error (== NULL) */
 char *
 load_file_at (int dirfd,
