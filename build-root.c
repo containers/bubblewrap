@@ -692,7 +692,6 @@ main (int argc,
                    "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") < 0)
           die_with_error ("Can't mount tmpfs for dev at %s", op->dest);
 
-        /* TODO: shm, pts, console */
         static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
         for (i = 0; i < N_ELEMENTS (devnodes); i++)
           {
@@ -715,11 +714,20 @@ main (int argc,
 
         {
           cleanup_free char *pts = strconcat (dest, "/pts");
+          cleanup_free char *ptmx = strconcat (dest, "/ptmx");
+          cleanup_free char *shm = strconcat (dest, "/shm");
+
+          if (mkdir (shm, 0755) == -1)
+            die_with_error ("Can't create %s/shm", op->dest);
+
           if (mkdir (pts, 0755) == -1)
             die_with_error ("Can't create %s/devpts", op->dest);
           if (mount ("devpts", pts,
                      "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=620") < 0)
             die_with_error ("Can't mount devpts for %s", op->dest);
+
+          if (symlink ("pts/ptmx", ptmx) != 0)
+            die_with_error ("Can't make symlink at %s/ptmx", op->dest);
         }
 
         /* If stdout is a tty, that means the sandbox can write to the
