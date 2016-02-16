@@ -44,7 +44,15 @@ usage ()
 {
   fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
 
-  fprintf (stderr, "TODO....\n"
+  fprintf (stderr,
+           "	--help			Print this help\n"
+           "	--version		Print version\n"
+           "	--unshare-ipc		Create new ipc namesapce\n"
+           "	--unshare-pid		Create new pid namesapce\n"
+           "	--unshare-net		Create new network namesapce\n"
+           "	--unshare-uts		Create new uts namesapce\n"
+           "	--chdir DIR		Change directory to DIR in the sandbox\n"
+           "	--mount-bind SRC DEST	Bind mount the host path SRC on DEST in the sandbox\n"
            );
   exit (1);
 }
@@ -430,7 +438,7 @@ main (int argc,
   if (argc == 0)
     usage ();
 
-  __debug__(("Creating xdg-app-root dir\n"));
+  __debug__(("Creating build-root dir\n"));
 
   uid = getuid ();
   gid = getgid ();
@@ -630,7 +638,7 @@ main (int argc,
 
   /* We can't pass regular LD_LIBRARY_PATH, as it would affect the
      setuid helper aspect, so we use _LD_LIBRARY_PATH */
-  if (getenv("_LD_LIBRARY_PATH"))
+  if (getenv ("_LD_LIBRARY_PATH"))
     {
       xsetenv ("LD_LIBRARY_PATH", getenv("_LD_LIBRARY_PATH"), 1);
       xunsetenv ("_LD_LIBRARY_PATH");
