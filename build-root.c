@@ -317,7 +317,7 @@ do_init (int event_fd, pid_t initial_pid)
   return initial_exit_status;
 }
 
-#define REQUIRED_CAPS (CAP_TO_MASK(CAP_SYS_ADMIN))
+#define REQUIRED_CAPS (CAP_TO_MASK(CAP_SYS_ADMIN)|CAP_TO_MASK(CAP_SYS_CHROOT))
 
 static void
 acquire_caps (void)
@@ -1123,7 +1123,7 @@ main (int argc,
   /* Now make /newroot the real root */
   if (chdir ("/newroot") != 0)
     die_with_error ("chdir newroot");
-  if (chroot("/newroot") != 0)
+  if (chroot ("/newroot") != 0)
     die_with_error ("chroot /newroot");
   if (chdir ("/") != 0)
     die_with_error ("chhdir /");
