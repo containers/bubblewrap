@@ -8,6 +8,8 @@ bin_PROGRAMS = build-root
 
 build_root_SOURCES = \
 	build-root.c \
+	bind-mount.h \
+	bind-mount.c \
 	network.h \
 	network.c \
 	utils.h \
