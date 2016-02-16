@@ -312,7 +312,7 @@ get_newroot_path (const char *path)
 {
   while (*path == '/')
     path++;
-  return strconcat ("newroot/", path);
+  return strconcat ("/newroot/", path);
 }
 
 static char *
@@ -320,7 +320,7 @@ get_oldroot_path (const char *path)
 {
   while (*path == '/')
     path++;
-  return strconcat ("oldroot/", path);
+  return strconcat ("/oldroot/", path);
 }
 
 static void

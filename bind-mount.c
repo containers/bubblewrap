@@ -95,7 +95,7 @@ get_mountinfo (int proc_fd,
       mountpoint = free_me = strconcat3 (cwd, "/", mountpoint);
     }
 
-  mountinfo = load_file_at (proc_fd, "/self/mountinfo");
+  mountinfo = load_file_at (proc_fd, "self/mountinfo");
   if (mountinfo == NULL)
     return NULL;
 
