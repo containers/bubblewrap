@@ -18,18 +18,8 @@
 
 #include "config.h"
 
-#include <arpa/inet.h>
-#include <getopt.h>
-#include <grp.h>
-#include <linux/loop.h>
-#include <linux/netlink.h>
-#include <linux/rtnetlink.h>
-#include <net/if.h>
-#include <netinet/in.h>
 #include <poll.h>
-#include <pwd.h>
 #include <sched.h>
-#include <signal.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -37,9 +27,9 @@
 #include <sys/signalfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
-#include <sys/utsname.h>
 
 #include "utils.h"
+#include "network.h"
 
 /* Globals to avoid having to use getuid(), since the uid/gid changes during runtime */
 static uid_t uid;
@@ -556,176 +546,6 @@ create_file (const char *path,
   return res;
 }
 
-static void *
-add_rta (struct nlmsghdr *header,
-         int              type,
-         size_t           size)
-{
-  struct rtattr *rta;
-  size_t rta_size = RTA_LENGTH(size);
-
-  rta = (struct rtattr*)((char *)header + NLMSG_ALIGN(header->nlmsg_len));
-  rta->rta_type = type;
-  rta->rta_len = rta_size;
-
-  header->nlmsg_len = NLMSG_ALIGN(header->nlmsg_len) + rta_size;
-
-  return RTA_DATA(rta);
-}
-
-static int
-rtnl_send_request (int              rtnl_fd,
-                   struct nlmsghdr *header)
-{
-  struct sockaddr_nl dst_addr = { AF_NETLINK, 0 };
-  ssize_t sent;
-
-  sent = sendto (rtnl_fd, (void *)header, header->nlmsg_len, 0,
-                 (struct sockaddr *)&dst_addr, sizeof (dst_addr));
-  if (sent < 0)
-    return 1;
-
-  return 0;
-}
-
-static int
-rtnl_read_reply (int rtnl_fd,
-                 int seq_nr)
-{
-  char buffer[1024];
-  ssize_t received;
-  struct nlmsghdr *rheader;
-
-  while (1)
-    {
-      received = recv (rtnl_fd, buffer, sizeof(buffer), 0);
-      if (received < 0)
-        return 1;
-
-      rheader = (struct nlmsghdr *)buffer;
-      while (received >= NLMSG_HDRLEN)
-        {
-          if (rheader->nlmsg_seq != seq_nr)
-            return 1;
-          if (rheader->nlmsg_pid != getpid ())
-            return 1;
-          if (rheader->nlmsg_type == NLMSG_ERROR)
-            {
-              uint32_t *err = NLMSG_DATA(rheader);
-              if (*err == 0)
-                return 0;
-
-              return 1;
-            }
-          if (rheader->nlmsg_type == NLMSG_DONE)
-            return 0;
-
-          rheader = NLMSG_NEXT(rheader, received);
-        }
-    }
-}
-
-static int
-rtnl_do_request (int              rtnl_fd,
-                 struct nlmsghdr *header)
-{
-  if (!rtnl_send_request (rtnl_fd, header))
-    return 1;
-
-  if (!rtnl_read_reply (rtnl_fd, header->nlmsg_seq))
-    return 1;
-
-  return 0;
-}
-
-static struct nlmsghdr *
-rtnl_setup_request (char *buffer,
-                    int   type,
-                    int   flags,
-                    size_t size)
-{
-  struct nlmsghdr *header;
-  size_t len = NLMSG_LENGTH (size);
-  static uint32_t counter = 0;
-
-  memset (buffer, 0, len);
-
-  header = (struct nlmsghdr *)buffer;
-  header->nlmsg_len = len;
-  header->nlmsg_type = type;
-  header->nlmsg_flags = flags | NLM_F_REQUEST;
-  header->nlmsg_seq = counter++;
-  header->nlmsg_pid = getpid ();
-
-  return (struct nlmsghdr *)header;
-}
-
-static int
-loopback_setup (void)
-{
-  int r, if_loopback;
-  cleanup_fd int rtnl_fd = -1;
-  char buffer[1024];
-  struct sockaddr_nl src_addr = { AF_NETLINK, 0 };
-  struct nlmsghdr *header;
-  struct ifaddrmsg *addmsg;
-  struct ifinfomsg *infomsg;
-  struct in_addr *ip_addr;
-
-  src_addr.nl_pid = getpid ();
-
-  if_loopback = (int) if_nametoindex ("lo");
-  if (if_loopback <= 0)
-    return -1;
-
-  rtnl_fd = socket (PF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE);
-  if (rtnl_fd < 0)
-    return -1;
-
-  r = bind (rtnl_fd, (struct sockaddr *)&src_addr, sizeof (src_addr));
-  if (r < 0)
-    return -1;
-
-  header = rtnl_setup_request (buffer, RTM_NEWADDR,
-                               NLM_F_CREATE|NLM_F_EXCL|NLM_F_ACK,
-                               sizeof (struct ifaddrmsg));
-  addmsg = NLMSG_DATA(header);
-
-  addmsg->ifa_family = AF_INET;
-  addmsg->ifa_prefixlen = 8;
-  addmsg->ifa_flags = IFA_F_PERMANENT;
-  addmsg->ifa_scope = RT_SCOPE_HOST;
-  addmsg->ifa_index = if_loopback;
-
-  ip_addr = add_rta (header, IFA_LOCAL, sizeof (*ip_addr));
-  ip_addr->s_addr = htonl(INADDR_LOOPBACK);
-
-  ip_addr = add_rta (header, IFA_ADDRESS, sizeof (*ip_addr));
-  ip_addr->s_addr = htonl(INADDR_LOOPBACK);
-
-  assert (header->nlmsg_len < sizeof (buffer));
-
-  if (rtnl_do_request (rtnl_fd, header))
-    return -1;
-
-  header = rtnl_setup_request (buffer, RTM_NEWLINK,
-                               NLM_F_ACK,
-                               sizeof (struct ifinfomsg));
-  infomsg = NLMSG_DATA(header);
-
-  infomsg->ifi_family = AF_UNSPEC;
-  infomsg->ifi_type = 0;
-  infomsg->ifi_index = if_loopback;
-  infomsg->ifi_flags = IFF_UP;
-  infomsg->ifi_change = IFF_UP;
-
-  assert (header->nlmsg_len < sizeof (buffer));
-
-  if (rtnl_do_request (rtnl_fd, header))
-    return -1;
-
-  return 0;
-}
 
 static void
 block_sigchild (void)

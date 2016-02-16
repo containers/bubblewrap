@@ -8,6 +8,8 @@ bin_PROGRAMS = build-root
 
 build_root_SOURCES = \
 	build-root.c \
+	network.h \
+	network.c \
 	utils.h \
 	utils.c \
 	$(NULL)
