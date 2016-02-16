@@ -50,21 +50,22 @@ usage ()
   fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
 
   fprintf (stderr,
-           "	--help			 Print this help\n"
-           "	--version		 Print version\n"
-           "	--unshare-ipc		 Create new ipc namesapce\n"
-           "	--unshare-pid		 Create new pid namesapce\n"
-           "	--unshare-net		 Create new network namesapce\n"
-           "	--unshare-uts		 Create new uts namesapce\n"
-           "	--chdir DIR		 Change directory to DIR in the sandbox\n"
-           "	--mount-bind SRC DEST	 Bind mount the host path SRC on DEST in the sandbox\n"
-           "	--mount-ro-bind SRC DEST Bind mount the host path SRC readonly on DEST in the sandbox\n"
-           "	--mount-proc DEST	 Mount procfs on DEST in the sandbox\n"
-           "	--mount-dev DEST	 Mount new dev on DEST in the sandbox\n"
-           "	--make-dir DEST		 Create dir at DEST in the sandbox\n"
-           "	--make-symlink SRC DEST	 Create symlink at DEST in the sandbox with target SRC\n"
-           "	--make-passwd DEST	 Create trivial /etc/passwd file at DEST in the sandbox\n"
-           "	--make-group DEST	 Create trivial /etc/group file at DEST in the sandbox\n"
+           "	--help			  Print this help\n"
+           "	--version		  Print version\n"
+           "	--unshare-ipc		  Create new ipc namesapce\n"
+           "	--unshare-pid		  Create new pid namesapce\n"
+           "	--unshare-net		  Create new network namesapce\n"
+           "	--unshare-uts		  Create new uts namesapce\n"
+           "	--chdir DIR		  Change directory to DIR in the sandbox\n"
+           "	--mount-bind SRC DEST	  Bind mount the host path SRC on DEST in the sandbox\n"
+           "	--mount-dev-bind SRC DEST Bind mount the host path SRC on DEST in the sandbox, allowing device access\n"
+           "	--mount-ro-bind SRC DEST  Bind mount the host path SRC readonly on DEST in the sandbox\n"
+           "	--mount-proc DEST	  Mount procfs on DEST in the sandbox\n"
+           "	--mount-dev DEST	  Mount new dev on DEST in the sandbox\n"
+           "	--make-dir DEST		  Create dir at DEST in the sandbox\n"
+           "	--make-symlink SRC DEST	  Create symlink at DEST in the sandbox with target SRC\n"
+           "	--make-passwd DEST	  Create trivial /etc/passwd file at DEST in the sandbox\n"
+           "	--make-group DEST	  Create trivial /etc/group file at DEST in the sandbox\n"
            );
   exit (1);
 }
@@ -291,6 +292,7 @@ drop_caps (void)
 typedef enum {
   SETUP_BIND_MOUNT,
   SETUP_RO_BIND_MOUNT,
+  SETUP_DEV_BIND_MOUNT,
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
   SETUP_MAKE_DIR,
@@ -457,6 +459,20 @@ main (int argc,
             die ("--mount-ro-bind takes two arguments");
 
           op = setup_op_new (SETUP_RO_BIND_MOUNT);
+          op->source = argv[1];
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--mount-dev-bind") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 3)
+            die ("--mount-dev-bind takes two arguments");
+
+          op = setup_op_new (SETUP_DEV_BIND_MOUNT);
           op->source = argv[1];
           op->dest = argv[2];
 
@@ -699,6 +715,7 @@ main (int argc,
 
       switch (op->type) {
       case SETUP_RO_BIND_MOUNT:
+      case SETUP_DEV_BIND_MOUNT:
       case SETUP_BIND_MOUNT:
         if (source_mode == S_IFDIR)
           {
@@ -715,7 +732,9 @@ main (int argc,
            access files that are otherwise covered on the host */
         if (bind_mount (proc_fd, source, dest,
                         BIND_RECURSIVE |
-                        (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) ) != 0)
+                        (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
+                        (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0)
+                        ) != 0)
           die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
         break;
 
