@@ -37,6 +37,7 @@ static uid_t uid;
 static gid_t gid;
 static bool is_privileged;
 static const char *argv0;
+static const char *host_tty_dev;
 static int proc_fd = -1;
 
 static void
@@ -54,6 +55,7 @@ usage ()
            "	--chdir DIR		Change directory to DIR in the sandbox\n"
            "	--mount-bind SRC DEST	Bind mount the host path SRC on DEST in the sandbox\n"
            "	--mount-proc DEST	Mount procfs on DEST in the sandbox\n"
+           "	--mount-dev DEST	Mount new dev on DEST in the sandbox\n"
            );
   exit (1);
 }
@@ -280,6 +282,7 @@ drop_caps (void)
 typedef enum {
   SETUP_BIND_MOUNT,
   SETUP_BIND_PROC,
+  SETUP_BIND_DEV,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -380,6 +383,10 @@ main (int argc,
      (i.e. CAP_SYS_ADMIN), so take lots of care. */
 
   argv0 = argv[0];
+
+  if (isatty (1))
+    host_tty_dev = ttyname (1);
+
   argv++;
   argc--;
 
@@ -433,9 +440,22 @@ main (int argc,
           SetupOp *op;
 
           if (argc < 2)
-            die ("--mount-proc takes two arguments");
+            die ("--mount-proc takes an argument");
 
           op = setup_op_new (SETUP_BIND_PROC);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--mount-dev") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 2)
+            die ("--mount-dev takes an argument");
+
+          op = setup_op_new (SETUP_BIND_DEV);
           op->dest = argv[1];
 
           argv += 1;
@@ -576,6 +596,8 @@ main (int argc,
       cleanup_free char *source = NULL;
       cleanup_free char *dest = NULL;
       int source_mode = 0;
+      int i;
+
       if (op->source)
         {
           source = get_oldroot_path (op->source);
@@ -598,6 +620,7 @@ main (int argc,
         if (bind_mount (proc_fd, source, dest, BIND_RECURSIVE) != 0)
           die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
         break;
+
       case SETUP_BIND_PROC:
         if (mkdir_with_parents (dest, 0755, TRUE) != 0)
           die_with_error ("Can't mkdir %s (or parents)", op->dest);
@@ -615,20 +638,74 @@ main (int argc,
               die_with_error ("Can't bind mount proc on %s", op->dest);
           }
 
+        /* There are a bunch of weird old subdirs of /proc that could potentially be
+           problematic (for instance /proc/sysrq-trigger lets you shut down the machine
+           if you have write access). We should not have access to these as a non-privileged
+           user, but lets cover the anyway just to make sure */
+        const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
+        for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
+          {
+            cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
+            if (bind_mount (proc_fd, subdir, subdir, BIND_READONLY | BIND_RECURSIVE) != 0)
+              die_with_error ("Can't cover %s/%s", op->dest, cover_proc_dirs[i]);
+          }
+
+        break;
+
+      case SETUP_BIND_DEV:
+        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
+          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+
+        if (mount ("tmpfs", dest,
+                   "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") < 0)
+          die_with_error ("Can't mount tmpfs for dev at %s", op->dest);
+
+        /* TODO: shm, pts, console */
+        static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
+        for (i = 0; i < N_ELEMENTS (devnodes); i++)
+          {
+            cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
+            cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
+            if (create_file (node_dest, 0666, NULL) != 0)
+              die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
+            if (bind_mount (proc_fd, node_src, node_dest, 0) != 0)
+              die_with_error ("Can't bind mount %s/%s", op->dest, devnodes[i]);
+          }
+
+        static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
+        for (i = 0; i < N_ELEMENTS (stdionodes); i++)
+          {
+            cleanup_free char *target = strdup_printf ("/proc/self/fd/%d", i);
+            cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
+            if (symlink (target, node_dest) < 0)
+              die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
+          }
+
         {
-          /* There are a bunch of weird old subdirs of /proc that could potentially be
-             problematic (for instance /proc/sysrq-trigger lets you shut down the machine
-             if you have write access). We should not have access to these as a non-privileged
-             user, but lets cover the anyway just to make sure */
-          const char *cover_proc_dirs[] = { "/sys", "/sysrq-trigger", "/irq", "/bus" };
-          int i;
-          for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
-            {
-              cleanup_free char *subdir = strconcat (dest, cover_proc_dirs[i]);
-              if (bind_mount (proc_fd, subdir, subdir, BIND_READONLY | BIND_RECURSIVE) != 0)
-                die_with_error ("Can't cover proc%s", cover_proc_dirs[i]);
-            }
+          cleanup_free char *pts = strconcat (dest, "/pts");
+          if (mkdir (pts, 0755) == -1)
+            die_with_error ("Can't create %s/devpts", op->dest);
+          if (mount ("devpts", pts,
+                     "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=620") < 0)
+            die_with_error ("Can't mount devpts for %s", op->dest);
         }
+
+        /* If stdout is a tty, that means the sandbox can write to the
+           outside-sandbox tty. In that case we also creata a /dev/console
+           that points to this tty device. This should not cause any more
+           access than we already have, and it makes ttyname() work in the
+           sandbox. */
+        if (host_tty_dev != NULL && *host_tty_dev != 0)
+          {
+            cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
+            cleanup_free char *dest_console = strconcat (dest, "/console");
+
+            if (create_file (dest_console, 0666, NULL) != 0)
+              die_with_error ("creating %s/console", op->dest);
+
+            if (bind_mount (proc_fd, src_tty_dev, dest_console, BIND_DEVICES))
+              die_with_error ("mount %s/console", op->dest);
+          }
 
         break;
       default:
