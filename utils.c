@@ -112,6 +112,13 @@ strfreev (char **str_array)
     }
 }
 
+bool
+has_prefix (const char *str,
+            const char *prefix)
+{
+  return strncmp (str, prefix, strlen (prefix)) == 0;
+}
+
 void
 xsetenv (const char *name, const char *value, int overwrite)
 {
@@ -245,6 +252,149 @@ fdwalk (int proc_fd, int (*cb)(void *data, int fd), void *data)
       break;
 
   return res;
+}
+
+int
+write_to_fd (int         fd,
+             const char *content,
+             ssize_t     len)
+{
+  ssize_t res;
+
+  while (len > 0)
+    {
+      res = write (fd, content, len);
+      if (res < 0 && errno == EINTR)
+        continue;
+      if (res <= 0)
+        return -1;
+      len -= res;
+      content += res;
+    }
+
+  return 0;
+}
+
+int
+write_file_at (int dirfd,
+               const char *path,
+               const char *content)
+{
+  cleanup_fd int fd = -1;
+  bool res;
+  int errsv;
+
+  fd = openat (dirfd, path, O_RDWR | O_CLOEXEC, 0);
+  if (fd == -1)
+    return -1;
+
+  res = 0;
+  if (content)
+    res = write_to_fd (fd, content, strlen (content));
+
+  errsv = errno;
+  errno = errsv;
+
+  return res;
+}
+
+char *
+load_file_at (int dirfd,
+              const char *path)
+{
+  cleanup_fd int fd = -1;
+  cleanup_free char *data = NULL;
+  ssize_t data_read;
+  ssize_t data_len;
+  ssize_t res;
+
+  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
+  if (fd == -1)
+    return NULL;
+
+  data_read = 0;
+  data_len = 4080;
+  data = xmalloc (data_len);
+
+  do
+    {
+      if (data_len >= data_read + 1)
+        {
+          data_len *= 2;
+          data = xrealloc (data, data_len);
+        }
+
+      do
+        res = read (fd, data + data_read, data_len - data_read - 1);
+      while (res < 0 && errno == EINTR);
+
+      if (res < 0)
+        return NULL;
+
+      data_read += res;
+    }
+  while (res > 0);
+
+  data[data_read] = 0;
+
+  return steal_pointer (&data);
+}
+
+int
+mkdir_with_parents (const char *pathname,
+                    int         mode,
+                    bool        create_last)
+{
+  cleanup_free char *fn = NULL;
+  char *p;
+  struct stat buf;
+
+  if (pathname == NULL || *pathname == '\0')
+    {
+      errno = EINVAL;
+      return -1;
+    }
+
+  fn = xstrdup (pathname);
+
+  p = fn;
+  while (*p == '/')
+    p++;
+
+  do
+    {
+      while (*p && *p != '/')
+        p++;
+
+      if (!*p)
+        p = NULL;
+      else
+        *p = '\0';
+
+      if (!create_last && p == NULL)
+        break;
+
+      if (stat (fn, &buf) !=  0)
+        {
+          if (mkdir (fn, mode) == -1 && errno != EEXIST)
+            return -1;
+        }
+      else if (!S_ISDIR (buf.st_mode))
+        {
+          errno = ENOTDIR;
+          return -1;
+        }
+
+      if (p)
+        {
+          *p++ = '/';
+          while (*p && *p == '/')
+            p++;
+        }
+    }
+  while (p);
+
+  return 0;
 }
 
 int

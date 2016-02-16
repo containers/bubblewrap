@@ -55,48 +55,6 @@ typedef enum {
   BIND_RECURSIVE = (1<<3),
 } bind_option_t;
 
-
-static char *
-load_file_at (int dirfd, const char *path)
-{
-  cleanup_fd int fd = -1;
-  cleanup_free char *data = NULL;
-  ssize_t data_read;
-  ssize_t data_len;
-  ssize_t res;
-
-  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
-  if (fd == -1)
-    return NULL;
-
-  data_read = 0;
-  data_len = 4080;
-  data = xmalloc (data_len);
-
-  do
-    {
-      if (data_len >= data_read + 1)
-        {
-          data_len *= 2;
-          data = xrealloc (data, data_len);
-        }
-
-      do
-        res = read (fd, data + data_read, data_len - data_read - 1);
-      while (res < 0 && errno == EINTR);
-
-      if (res < 0)
-        return NULL;
-
-      data_read += res;
-    }
-  while (res > 0);
-
-  data[data_read] = 0;
-
-  return steal_pointer (&data);
-}
-
 static char *
 skip_line (char *line)
 {
@@ -119,13 +77,6 @@ skip_token (char *line, bool eat_whitespace)
     line++;
 
   return line;
-}
-
-static bool
-str_has_prefix (const char *str,
-                const char *prefix)
-{
-  return strncmp (str, prefix, strlen (prefix)) == 0;
 }
 
 static char *
@@ -291,7 +242,7 @@ get_submounts (const char *parent_mount)
       unescaped = unescape_mountpoint (mountpoint, -1);
 
       if (*unescaped == '/' &&
-          str_has_prefix (unescaped + 1, parent_mount) &&
+          has_prefix (unescaped + 1, parent_mount) &&
           *(unescaped + 1 + strlen (parent_mount)) == '/')
         {
           if (n_submounts + 1 >= submounts_size)
@@ -367,84 +318,6 @@ stat_is_dir (const char *pathname)
  return S_ISDIR (buf.st_mode);
 }
 
-static int
-mkdir_with_parents (const char *pathname,
-                    int         mode,
-                    bool        create_last)
-{
-  cleanup_free char *fn = NULL;
-  char *p;
-  struct stat buf;
-
-  if (pathname == NULL || *pathname == '\0')
-    {
-      errno = EINVAL;
-      return 1;
-    }
-
-  fn = xstrdup (pathname);
-
-  p = fn;
-  while (*p == '/')
-    p++;
-
-  do
-    {
-      while (*p && *p != '/')
-        p++;
-
-      if (!*p)
-        p = NULL;
-      else
-        *p = '\0';
-
-      if (!create_last && p == NULL)
-        break;
-
-      if (stat (fn, &buf) !=  0)
-        {
-          if (mkdir (fn, mode) == -1 && errno != EEXIST)
-            return -1;
-        }
-      else if (!S_ISDIR (buf.st_mode))
-        {
-          errno = ENOTDIR;
-          return -1;
-        }
-
-      if (p)
-        {
-          *p++ = '/';
-          while (*p && *p == '/')
-            p++;
-        }
-    }
-  while (p);
-
-  return 0;
-}
-
-static bool
-write_to_file (int         fd,
-               const char *content,
-               ssize_t     len)
-{
-  ssize_t res;
-
-  while (len > 0)
-    {
-      res = write (fd, content, len);
-      if (res < 0 && errno == EINTR)
-        continue;
-      if (res <= 0)
-        return FALSE;
-      len -= res;
-      content += res;
-    }
-
-  return TRUE;
-}
-
 #define BUFSIZE	8192
 static bool
 copy_file_data (int     sfd,
@@ -467,7 +340,7 @@ copy_file_data (int     sfd,
       if (bytes_read == 0)
         break;
 
-      if (!write_to_file (dfd, buffer, bytes_read))
+      if (write_to_fd (dfd, buffer, bytes_read) != 0)
         return FALSE;
     }
 
@@ -501,29 +374,6 @@ copy_file (const char *src_path,
 }
 
 static bool
-write_file_at (int dirfd,
-               const char *path,
-               const char *content)
-{
-  cleanup_fd int fd = -1;
-  bool res;
-  int errsv;
-
-  fd = openat (dirfd, path, O_RDWR | O_CLOEXEC, 0);
-  if (fd == -1)
-    return FALSE;
-
-  res = TRUE;
-  if (content)
-    res = write_to_file (fd, content, strlen (content));
-
-  errsv = errno;
-  errno = errsv;
-
-  return res;
-}
-
-static bool
 create_file (const char *path,
              mode_t      mode,
              const char *content)
@@ -538,14 +388,13 @@ create_file (const char *path,
 
   res = TRUE;
   if (content)
-    res = write_to_file (fd, content, strlen (content));
+    res = write_to_fd (fd, content, strlen (content));
 
   errsv = errno;
   errno = errsv;
 
   return res;
 }
-
 
 static void
 block_sigchild (void)
@@ -824,15 +673,15 @@ write_uid_gid_map (uid_t sandbox_uid,
   cleanup_free char *gid_map = NULL;
 
   uid_map = strdup_printf ("%d %d 1\n", sandbox_uid, parent_uid);
-  if (!write_file_at (proc_fd, "self/uid_map", uid_map))
+  if (write_file_at (proc_fd, "self/uid_map", uid_map) != 0)
     die_with_error ("setting up uid map");
 
   if (deny_groups &&
-      !write_file_at (proc_fd, "self/setgroups", "deny\n"))
+      write_file_at (proc_fd, "self/setgroups", "deny\n") != 0)
     die_with_error ("error writing to setgroups");
 
   gid_map = strdup_printf ("%d %d 1\n", sandbox_gid, parent_gid);
-  if (!write_file_at (proc_fd, "self/gid_map", gid_map))
+  if (write_file_at (proc_fd, "self/gid_map", gid_map) != 0)
     die_with_error ("setting up gid map");
 }
 

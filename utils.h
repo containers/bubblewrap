@@ -46,7 +46,6 @@ typedef int bool;
 #define PIPE_READ_END 0
 #define PIPE_WRITE_END 1
 
-void  strfreev       (char       **str_array);
 void  die_with_error (const char  *format,
                       ...);
 void  die            (const char  *format,
@@ -57,6 +56,7 @@ void *xcalloc        (size_t       size);
 void *xrealloc       (void        *ptr,
                       size_t       size);
 char *xstrdup        (const char  *str);
+void  strfreev       (char       **str_array);
 void  xsetenv        (const char  *name,
                       const char  *value,
                       int          overwrite);
@@ -68,9 +68,22 @@ char *strconcat3     (const char  *s1,
                       const char  *s3);
 char* strdup_printf  (const char  *format,
                       ...);
+bool  has_prefix     (const char  *str,
+                      const char  *prefix);
 int   fdwalk         (int          proc_fd,
                       int        (*cb)(void *data, int fd),
                       void        *data);
+char *load_file_at   (int          dirfd,
+                      const char  *path);
+int   write_file_at  (int          dirfd,
+                      const char  *path,
+                      const char  *content);
+int   write_to_fd    (int          fd,
+                      const char  *content,
+                      ssize_t      len);
+int   mkdir_with_parents (const char *pathname,
+                          int         mode,
+                          bool        create_last);
 
 /* syscall wrappers */
 int   raw_clone      (unsigned long flags,
