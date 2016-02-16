@@ -20,6 +20,8 @@
 
 #include <poll.h>
 #include <sched.h>
+#include <pwd.h>
+#include <grp.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -39,6 +41,8 @@ static bool is_privileged;
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
+struct passwd *pwuid;
+struct group *grgid;
 
 static void
 usage ()
@@ -58,6 +62,8 @@ usage ()
            "	--mount-dev DEST	Mount new dev on DEST in the sandbox\n"
            "	--make-dir DEST		Create dir at DEST in the sandbox\n"
            "	--make-symlink SRC DEST	Create symlink at DEST in the sandbox with target SRC\n"
+           "	--make-passwd DEST	Create trivial /etc/passwd file at DEST in the sandbox\n"
+           "	--make-group DEST	Create trivial /etc/group file at DEST in the sandbox\n"
            );
   exit (1);
 }
@@ -287,6 +293,8 @@ typedef enum {
   SETUP_MOUNT_DEV,
   SETUP_MAKE_DIR,
   SETUP_MAKE_SYMLINK,
+  SETUP_MAKE_PASSWD,
+  SETUP_MAKE_GROUP,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -492,6 +500,32 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
+      else if (strcmp (arg, "--make-passwd") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 2)
+            die ("--make-passwd takes an argument");
+
+          op = setup_op_new (SETUP_MAKE_PASSWD);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--make-group") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 2)
+            die ("--make-group takes an argument");
+
+          op = setup_op_new (SETUP_MAKE_GROUP);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
       else
@@ -508,6 +542,8 @@ main (int argc,
 
   uid = getuid ();
   gid = getgid ();
+  pwuid = getpwuid (uid);
+  grgid = getgrgid (gid);
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
@@ -760,6 +796,46 @@ main (int argc,
 
         if (symlink (op->source, dest) != 0)
           die_with_error ("Can't make symlink at %s", op->dest);
+        break;
+
+      case SETUP_MAKE_PASSWD:
+        if (mkdir_with_parents (dest, 0755, FALSE) != 0)
+          die_with_error ("Can't mkdir parents of %s", op->dest);
+
+        {
+          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
+          cleanup_free char *content =
+            strdup_printf ("%s:x:%d:%d:%s:%s:%s\n"
+                           "nfsnobody:x:65534:65534:Unmapped user:/:/sbin/nologin\n",
+                           user_name,
+                           uid, gid,
+                           pwuid ? pwuid->pw_gecos : "",
+                           pwuid ? pwuid->pw_dir : "/",
+                           pwuid ? pwuid->pw_shell : "/bin/sh");
+
+          if (create_file (dest, 0755, content) != 0)
+            die_with_error ("creating passwd at %s", op->dest);
+        }
+
+        break;
+
+      case SETUP_MAKE_GROUP:
+        if (mkdir_with_parents (dest, 0755, FALSE) != 0)
+          die_with_error ("Can't mkdir parents of %s", op->dest);
+
+        {
+          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
+          cleanup_free char *group_name = grgid ? xstrdup (grgid->gr_name) : strdup_printf ("%d", gid);
+          cleanup_free char *content =
+            content = strdup_printf ("%s:x:%d:%s\n"
+                                     "nfsnobody:x:65534:\n",
+                                     group_name,
+                                     gid, user_name);
+
+          if (create_file (dest, 0755, content) != 0)
+            die_with_error ("creating passwd at %s", op->dest);
+        }
+
         break;
 
       default:
