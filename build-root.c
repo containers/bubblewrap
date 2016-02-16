@@ -8,7 +8,7 @@
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the GNU
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
@@ -18,53 +18,28 @@
 
 #include "config.h"
 
-#include <assert.h>
 #include <arpa/inet.h>
-#include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <getopt.h>
+#include <grp.h>
 #include <linux/loop.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <poll.h>
+#include <pwd.h>
 #include <sched.h>
 #include <signal.h>
-#include <poll.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/syscall.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/eventfd.h>
 #include <sys/signalfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/utsname.h>
-#include <unistd.h>
-#include <pwd.h>
-#include <grp.h>
 
-#if 0
-#define __debug__(x) printf x
-#else
-#define __debug__(x)
-#endif
-
-#define N_ELEMENTS(arr)		(sizeof (arr) / sizeof ((arr)[0]))
-
-#define TRUE 1
-#define FALSE 0
-typedef int bool;
-
-#define READ_END 0
-#define WRITE_END 1
+#include "utils.h"
 
 /* Globals to avoid having to use getuid(), since the uid/gid changes during runtime */
 static uid_t uid;
@@ -74,290 +49,6 @@ static const char *argv0;
 static int proc_fd = -1;
 
 static void
-strfreev (char **str_array)
-{
-  if (str_array)
-    {
-      int i;
-
-      for (i = 0; str_array[i] != NULL; i++)
-        free (str_array[i]);
-
-      free (str_array);
-    }
-}
-
-static inline void
-cleanup_freep (void *p)
-{
-  void **pp = (void**)p;
-  if (*pp)
-    free (*pp);
-}
-
-static inline void
-cleanup_strvp (void *p)
-{
-  void **pp = (void**)p;
-  strfreev (*pp);
-}
-
-static inline void
-cleanup_fdp (int *fdp)
-{
-  int fd;
-
-  assert (fdp);
-
-  fd = *fdp;
-  if (fd != -1)
-    (void) close (fd);
-}
-
-#define cleanup_free __attribute__((cleanup(cleanup_freep)))
-#define cleanup_fd __attribute__((cleanup(cleanup_fdp)))
-#define cleanup_strv __attribute__((cleanup(cleanup_strvp)))
-
-static inline void *
-steal_pointer (void *pp)
-{
-  void **ptr = (void **) pp;
-  void *ref;
-
-  ref = *ptr;
-  *ptr = NULL;
-
-  return ref;
-}
-
-/* type safety */
-#define steal_pointer(pp) \
-  (0 ? (*(pp)) : (steal_pointer) (pp))
-
-static void
-die_with_error (const char *format, ...)
-{
-  va_list args;
-  int errsv;
-
-  errsv = errno;
-
-  va_start (args, format);
-  vfprintf (stderr, format, args);
-  va_end (args);
-
-  fprintf (stderr, ": %s\n", strerror (errsv));
-
-  exit (1);
-}
-
-static void
-die (const char *format, ...)
-{
-  va_list args;
-
-  va_start (args, format);
-  vfprintf (stderr, format, args);
-  va_end (args);
-
-  fprintf (stderr, "\n");
-
-  exit (1);
-}
-
-static void
-die_oom (void)
-{
-  die ("Out of memory");
-}
-
-static void *
-xmalloc (size_t size)
-{
-  void *res = malloc (size);
-  if (res == NULL)
-    die_oom ();
-  return res;
-}
-
-static void *
-xcalloc (size_t size)
-{
-  void *res = calloc (1, size);
-  if (res == NULL)
-    die_oom ();
-  return res;
-}
-
-static void *
-xrealloc (void *ptr, size_t size)
-{
-  void *res = realloc (ptr, size);
-  if (size != 0 && res == NULL)
-    die_oom ();
-  return res;
-}
-
-static char *
-xstrdup (const char *str)
-{
-  char *res;
-
-  assert (str != NULL);
-
-  res = strdup (str);
-  if (res == NULL)
-    die_oom ();
-
-  return res;
-}
-
-static void
-xsetenv (const char *name, const char *value, int overwrite)
-{
-  if (setenv (name, value, overwrite))
-    die ("setenv failed");
-}
-
-static void
-xunsetenv (const char *name)
-{
-  if (unsetenv(name))
-    die ("unsetenv failed");
-}
-
-static char *
-strconcat (const char *s1,
-           const char *s2)
-{
-  size_t len = 0;
-  char *res;
-
-  if (s1)
-    len += strlen (s1);
-  if (s2)
-    len += strlen (s2);
-
-  res = xmalloc (len + 1);
-  *res = 0;
-  if (s1)
-    strcat (res, s1);
-  if (s2)
-    strcat (res, s2);
-
-  return res;
-}
-
-static char *
-strconcat3 (const char *s1,
-            const char *s2,
-            const char *s3)
-{
-  size_t len = 0;
-  char *res;
-
-  if (s1)
-    len += strlen (s1);
-  if (s2)
-    len += strlen (s2);
-  if (s3)
-    len += strlen (s3);
-
-  res = xmalloc (len + 1);
-  *res = 0;
-  if (s1)
-    strcat (res, s1);
-  if (s2)
-    strcat (res, s2);
-  if (s3)
-    strcat (res, s3);
-
-  return res;
-}
-
-static char*
-strdup_printf (const char *format,
-               ...)
-{
-  char *buffer = NULL;
-  va_list args;
-
-  va_start (args, format);
-  vasprintf (&buffer, format, args);
-  va_end (args);
-
-  if (buffer == NULL)
-    die_oom ();
-
-  return buffer;
-}
-
-static int
-fdwalk (int (*cb)(void *data, int fd), void *data)
-{
-  int open_max;
-  int fd;
-  int dfd;
-  int res = 0;
-  DIR *d;
-
-  dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_PATH);
-  if (dfd == -1)
-    return -1;
-
-  if ((d = fdopendir (dfd)))
-    {
-      struct dirent *de;
-
-      while ((de = readdir (d)))
-        {
-          long l;
-          char *e = NULL;
-
-          if (de->d_name[0] == '.')
-            continue;
-
-          errno = 0;
-          l = strtol (de->d_name, &e, 10);
-          if (errno != 0 || !e || *e)
-            continue;
-
-          fd = (int) l;
-
-          if ((long) fd != l)
-            continue;
-
-          if (fd == dirfd (d))
-            continue;
-
-          if ((res = cb (data, fd)) != 0)
-            break;
-        }
-
-      closedir (d);
-      return res;
-  }
-
-  open_max = sysconf (_SC_OPEN_MAX);
-
-  for (fd = 0; fd < open_max; fd++)
-    if ((res = cb (data, fd)) != 0)
-      break;
-
-  return res;
-}
-
-static inline int raw_clone(unsigned long flags, void *child_stack) {
-#if defined(__s390__) || defined(__CRIS__)
-        /* On s390 and cris the order of the first and second arguments
-         * of the raw clone() system call is reversed. */
-        return (int) syscall(__NR_clone, child_stack, flags);
-#else
-        return (int) syscall(__NR_clone, flags, child_stack);
-#endif
-}
-
-static void
 usage ()
 {
   fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
@@ -365,17 +56,6 @@ usage ()
   fprintf (stderr, "TODO....\n"
            );
   exit (1);
-}
-
-static int
-pivot_root (const char * new_root, const char * put_old)
-{
-#ifdef __NR_pivot_root
-  return syscall(__NR_pivot_root, new_root, put_old);
-#else
-  errno = ENOSYS;
-  return -1;
-#endif
 }
 
 typedef enum {
@@ -1110,7 +790,7 @@ monitor_child (int event_fd)
 
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
-  fdwalk (close_extra_fds, dont_close);
+  fdwalk (proc_fd, close_extra_fds, dont_close);
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
@@ -1654,7 +1334,7 @@ main (int argc,
              Any passed in fds have been passed on to the child anyway. */
           {
             int dont_close[] = { event_fd, sync_fd, -1 };
-            fdwalk (close_extra_fds, dont_close);
+            fdwalk (proc_fd, close_extra_fds, dont_close);
           }
 
           return do_init (event_fd, pid);
