@@ -849,12 +849,12 @@ main (int argc,
       case SETUP_BIND_MOUNT:
         if (source_mode == S_IFDIR)
           {
-            if (mkdir (dest, 0755) != 0)
+            if (mkdir (dest, 0755) != 0 && errno != EEXIST)
               die_with_error ("Can't mkdir %s", op->dest);
           }
         else
           {
-            if (create_file (dest, 0666, NULL) != 0)
+            if (create_file (dest, 0666, NULL) != 0 && errno != EEXIST)
               die_with_error ("Can't create file at %s", op->dest);
           }
 
@@ -874,8 +874,8 @@ main (int argc,
           die_with_error ("Source %s is not a directory", op->dest);
 
         /* Ensure the target dir exists */
-        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
-          die_with_error ("Can't mkdir parents for %s", op->dest);
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
 
         {
           DIR *dir;
@@ -940,7 +940,7 @@ main (int argc,
         break;
 
       case SETUP_MOUNT_PROC:
-        if (mkdir (dest, 0755) != 0)
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
 
         if (unshare_pid)
@@ -971,7 +971,7 @@ main (int argc,
         break;
 
       case SETUP_MOUNT_DEV:
-        if (mkdir (dest, 0755) != 0)
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
 
         if (mount ("tmpfs", dest,
@@ -1036,7 +1036,7 @@ main (int argc,
         break;
 
       case SETUP_MAKE_DIR:
-        if (mkdir (dest, 0755) != 0)
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
 
         break;
