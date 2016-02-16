@@ -138,7 +138,8 @@ usage ()
            "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
            "	--make-passwd DEST	     Create trivial /etc/passwd file at DEST\n"
            "	--make-group DEST	     Create trivial /etc/group file at DEST\n"
-           "	--lock-file DEST	     Take a lock on DEST while container is running\n"
+           "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
+           "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
            );
   exit (1);
 }
@@ -670,6 +671,23 @@ main (int argc,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--sync-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--sync-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          sync_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
       else
@@ -1153,11 +1171,13 @@ main (int argc,
 
   __debug__(("forking for child\n"));
 
-  if (unshare_pid || lock_files != NULL)
+  if (unshare_pid || lock_files != NULL || sync_fd != -1)
     {
       /* We have to have a pid 1 in the pid namespace, because
        * otherwise we'll get a bunch of zombies as nothing reaps
-       * them */
+       * them. Alternatively if we're using sync_fd or lock_files we
+       * need some process to own these.
+       */
 
       pid = fork ();
       if (pid == -1)
@@ -1165,10 +1185,19 @@ main (int argc,
 
       if (pid != 0)
         {
-          /* Close all extra fds in pid 1.
-             Any passed in fds have been passed on to the child anyway. */
+          /* Close fds in pid 1, except stdio and optionally event_fd
+             (for syncing pid2 lifetime with monitor_child) and
+             sync_fd (for syncing sandbox lifetime with outside
+             process).
+             Any other fds will been passed on to the child though. */
           {
-            int dont_close[] = { event_fd, sync_fd, -1 };
+            int dont_close[3];
+            int j = 0;
+            if (event_fd != -1)
+              dont_close[j++] = event_fd;
+            if (sync_fd != -1)
+              dont_close[j++] = sync_fd;
+            dont_close[j++] = -1;
             fdwalk (proc_fd, close_extra_fds, dont_close);
           }
 

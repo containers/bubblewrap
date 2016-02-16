@@ -66,5 +66,5 @@ EOF
 
 
 # TODO:
-# dbus proxy + sync_fd
 # clean commandlines (pass args via file/fd?)
+# seccomp
