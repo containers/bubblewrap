@@ -53,6 +53,7 @@ usage ()
            "	--unshare-uts		Create new uts namesapce\n"
            "	--chdir DIR		Change directory to DIR in the sandbox\n"
            "	--mount-bind SRC DEST	Bind mount the host path SRC on DEST in the sandbox\n"
+           "	--mount-proc DEST	Mount procfs on DEST in the sandbox\n"
            );
   exit (1);
 }
@@ -278,6 +279,7 @@ drop_caps (void)
 
 typedef enum {
   SETUP_BIND_MOUNT,
+  SETUP_BIND_PROC,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -425,6 +427,19 @@ main (int argc,
 
           argv += 2;
           argc -= 2;
+        }
+      else if (strcmp (arg, "--mount-proc") == 0)
+        {
+          SetupOp *op;
+
+          if (argc < 2)
+            die ("--mount-proc takes two arguments");
+
+          op = setup_op_new (SETUP_BIND_PROC);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
         }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
@@ -577,8 +592,44 @@ main (int argc,
         if (source_mode != S_IFDIR &&
             create_file (dest, 0666, NULL) != 0)
           die_with_error ("Can't create file at %s", op->dest);
+
+        /* We always bind directories recursively, otherwise this would let us
+           access files that are otherwise covered on the host */
         if (bind_mount (proc_fd, source, dest, BIND_RECURSIVE) != 0)
           die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
+        break;
+      case SETUP_BIND_PROC:
+        if (mkdir_with_parents (dest, 0755, TRUE) != 0)
+          die_with_error ("Can't mkdir %s (or parents)", op->dest);
+
+        if (unshare_pid)
+          {
+            /* Our own procfs */
+            if (mount ("proc", dest, "proc", MS_MGC_VAL|MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL) < 0)
+              die_with_error ("Can't mount procfs at %s", op->dest);
+          }
+        else
+          {
+            /* Use system procfs, as we share pid namespace anyway */
+            if (bind_mount (proc_fd, "oldroot/proc", dest, BIND_RECURSIVE) != 0)
+              die_with_error ("Can't bind mount proc on %s", op->dest);
+          }
+
+        {
+          /* There are a bunch of weird old subdirs of /proc that could potentially be
+             problematic (for instance /proc/sysrq-trigger lets you shut down the machine
+             if you have write access). We should not have access to these as a non-privileged
+             user, but lets cover the anyway just to make sure */
+          const char *cover_proc_dirs[] = { "/sys", "/sysrq-trigger", "/irq", "/bus" };
+          int i;
+          for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
+            {
+              cleanup_free char *subdir = strconcat (dest, cover_proc_dirs[i]);
+              if (bind_mount (proc_fd, subdir, subdir, BIND_READONLY | BIND_RECURSIVE) != 0)
+                die_with_error ("Can't cover proc%s", cover_proc_dirs[i]);
+            }
+        }
+
         break;
       default:
         die ("Unexpected type %d", op->type);
