@@ -121,10 +121,10 @@ usage ()
   fprintf (stderr,
            "	--help			     Print this help\n"
            "	--version		     Print version\n"
-           "	--unshare-ipc		     Create new ipc namesapce\n"
-           "	--unshare-pid		     Create new pid namesapce\n"
-           "	--unshare-net		     Create new network namesapce\n"
-           "	--unshare-uts		     Create new uts namesapce\n"
+           "	--unshare-ipc		     Create new ipc namespace\n"
+           "	--unshare-pid		     Create new pid namespace\n"
+           "	--unshare-net		     Create new network namespace\n"
+           "	--unshare-uts		     Create new uts namespace\n"
            "	--chdir DIR		     Change directory to DIR\n"
            "	--mount-bind SRC DEST	     Bind mount the host path SRC on DEST\n"
            "	--mount-dev-bind SRC DEST    Bind mount the host path SRC on DEST, allowing device access\n"
@@ -263,7 +263,7 @@ monitor_child (int event_fd)
  * the monitor so that it can return it to the original spawner.
  *
  * When there are no other processes in the sandbox the wait will return
- *  ECHILD, and we then exit pid1 to clean up the sandbox. */
+ * ECHILD, and we then exit pid1 to clean up the sandbox. */
 static int
 do_init (int event_fd, pid_t initial_pid)
 {
