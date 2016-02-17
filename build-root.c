@@ -121,10 +121,10 @@ usage ()
   fprintf (stderr,
            "	--help			     Print this help\n"
            "	--version		     Print version\n"
-           "	--unshare-ipc		     Create new ipc namesapce\n"
-           "	--unshare-pid		     Create new pid namesapce\n"
-           "	--unshare-net		     Create new network namesapce\n"
-           "	--unshare-uts		     Create new uts namesapce\n"
+           "	--unshare-ipc		     Create new ipc namespace\n"
+           "	--unshare-pid		     Create new pid namespace\n"
+           "	--unshare-net		     Create new network namespace\n"
+           "	--unshare-uts		     Create new uts namespace\n"
            "	--chdir DIR		     Change directory to DIR\n"
            "	--mount-bind SRC DEST	     Bind mount the host path SRC on DEST\n"
            "	--mount-dev-bind SRC DEST    Bind mount the host path SRC on DEST, allowing device access\n"
@@ -188,9 +188,9 @@ close_extra_fds (void *data, int fd)
 
 /* This stays around for as long as the initial process in the app does
  * and when that exits it exits, propagating the exit status. We do this
- * by having pid1 in the sandbox detect this exit and tell the monitor
+ * by having pid 1 in the sandbox detect this exit and tell the monitor
  * the exit status via a eventfd. We also track the exit of the sandbox
- * pid1 via a signalfd for SIGCHLD, and exit with an error in this case.
+ * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static void
 monitor_child (int event_fd)
@@ -233,7 +233,7 @@ monitor_child (int event_fd)
       if (res == -1 && errno != EINTR)
         die_with_error ("poll");
 
-      /* Always read from the eventfd first, if pid2 died then pid1 often
+      /* Always read from the eventfd first, if pid 2 died then pid 1 often
        * dies too, and we could race, reporting that first and we'd lose
        * the real exit status. */
       if (event_fd != -1)
@@ -257,13 +257,13 @@ monitor_child (int event_fd)
     }
 }
 
-/* This is pid1 in the app sandbox. It is needed because we're using
+/* This is pid 1 in the app sandbox. It is needed because we're using
  * pid namespaces, and someone has to reap zombies in it. We also detect
  * when the initial process (pid 2) dies and report its exit status to
  * the monitor so that it can return it to the original spawner.
  *
  * When there are no other processes in the sandbox the wait will return
- *  ECHILD, and we then exit pid1 to clean up the sandbox. */
+ * ECHILD, and we then exit pid 1 to clean up the sandbox. */
 static int
 do_init (int event_fd, pid_t initial_pid)
 {
@@ -959,7 +959,7 @@ main (int argc,
         /* There are a bunch of weird old subdirs of /proc that could potentially be
            problematic (for instance /proc/sysrq-trigger lets you shut down the machine
            if you have write access). We should not have access to these as a non-privileged
-           user, but lets cover the anyway just to make sure */
+           user, but lets cover them anyway just to make sure */
         const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
         for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
           {
@@ -1017,7 +1017,7 @@ main (int argc,
         }
 
         /* If stdout is a tty, that means the sandbox can write to the
-           outside-sandbox tty. In that case we also creata a /dev/console
+           outside-sandbox tty. In that case we also create a /dev/console
            that points to this tty device. This should not cause any more
            access than we already have, and it makes ttyname() work in the
            sandbox. */
@@ -1186,7 +1186,7 @@ main (int argc,
       if (pid != 0)
         {
           /* Close fds in pid 1, except stdio and optionally event_fd
-             (for syncing pid2 lifetime with monitor_child) and
+             (for syncing pid 2 lifetime with monitor_child) and
              sync_fd (for syncing sandbox lifetime with outside
              process).
              Any other fds will been passed on to the child though. */
