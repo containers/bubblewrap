@@ -1,4 +1,4 @@
-/* build-root
+/* bubblewrap
  * Copyright (C) 2016 Alexander Larsson
  *
  * This program is free software; you can redistribute it and/or
@@ -700,7 +700,7 @@ main (int argc,
   if (argc == 0)
     usage ();
 
-  __debug__(("Creating build-root dir\n"));
+  __debug__(("Creating root mount point\n"));
 
   uid = getuid ();
   gid = getgid ();
@@ -715,11 +715,11 @@ main (int argc,
 
   /* We need *some* mountpoint where we can mount the root tmpfs.
      We first try in /run, and if that fails, try in /tmp. */
-  base_path = strdup_printf ("/run/user/%d/.build-root", uid);
+  base_path = strdup_printf ("/run/user/%d/.bubblewrap", uid);
   if (mkdir (base_path, 0755) && errno != EEXIST)
     {
       free (base_path);
-      base_path = xstrdup ("/tmp/.build-root");
+      base_path = strdup_printf ("/tmp/.bubblewrap-%d", uid);
       if (mkdir (base_path, 0755) && errno != EEXIST)
         die_with_error ("Creating root mountpoint failed");
     }
@@ -750,7 +750,7 @@ main (int argc,
       if (!is_privileged)
         {
           if (errno == EINVAL)
-            die ("Creating new namespace failed, likely because the kernel does not support user namespaces. Give the build-root setuid root or cap_sys_admin+ep rights, or switch to a kernel with user namespace support.");
+            die ("Creating new namespace failed, likely because the kernel does not support user namespaces. Give bubblewrap setuid root or cap_sys_admin+ep rights, or switch to a kernel with user namespace support.");
           else if (errno == EPERM)
             die ("No permissions to creating new namespace, likely because the kernel does not allow non-privileged user namespaces. On e.g. debian this can be enabled with 'sysctl kernel.unprivileged_userns_clone=1'.");
         }

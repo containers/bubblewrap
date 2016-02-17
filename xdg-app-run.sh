@@ -29,7 +29,7 @@ runtime=runtime/org.gnome.Platform/x86_64/master
 EOF
 
 
-./build-root \
+./bubblewrap \
     --mount-ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
     --lock-file /usr/.ref \
     --mount-ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \

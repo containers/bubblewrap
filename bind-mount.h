@@ -1,4 +1,4 @@
-/* build-root
+/* bubblewrap
  * Copyright (C) 2016 Alexander Larsson
  *
  * This program is free software; you can redistribute it and/or

@@ -4,10 +4,10 @@ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
 AM_CPPFLAGS = -DDATADIR='"$(datadir)"' -DLIBEXECDIR='"$(libexecdir)"'
 AM_CFLAGS = $(WARN_CFLAGS)
 
-bin_PROGRAMS = build-root
+bin_PROGRAMS = bubblewrap
 
-build_root_SOURCES = \
-	build-root.c \
+bubblewrap_SOURCES = \
+	bubblewrap.c \
 	bind-mount.h \
 	bind-mount.c \
 	network.h \
@@ -16,5 +16,5 @@ build_root_SOURCES = \
 	utils.c \
 	$(NULL)
 
-build_root_CFLAGS = $(AM_CFLAGS)
-build_root_LDFLAGS =
+bubblewrap_CFLAGS = $(AM_CFLAGS)
+bubblewrap_LDFLAGS =
