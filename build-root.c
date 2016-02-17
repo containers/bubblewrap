@@ -959,7 +959,7 @@ main (int argc,
         /* There are a bunch of weird old subdirs of /proc that could potentially be
            problematic (for instance /proc/sysrq-trigger lets you shut down the machine
            if you have write access). We should not have access to these as a non-privileged
-           user, but lets cover the anyway just to make sure */
+           user, but lets cover them anyway just to make sure */
         const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
         for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
           {
@@ -1017,7 +1017,7 @@ main (int argc,
         }
 
         /* If stdout is a tty, that means the sandbox can write to the
-           outside-sandbox tty. In that case we also creata a /dev/console
+           outside-sandbox tty. In that case we also create a /dev/console
            that points to this tty device. This should not cause any more
            access than we already have, and it makes ttyname() work in the
            sandbox. */
@@ -1186,7 +1186,7 @@ main (int argc,
       if (pid != 0)
         {
           /* Close fds in pid 1, except stdio and optionally event_fd
-             (for syncing pid2 lifetime with monitor_child) and
+             (for syncing pid 2 lifetime with monitor_child) and
              sync_fd (for syncing sandbox lifetime with outside
              process).
              Any other fds will been passed on to the child though. */
