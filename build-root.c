@@ -188,9 +188,9 @@ close_extra_fds (void *data, int fd)
 
 /* This stays around for as long as the initial process in the app does
  * and when that exits it exits, propagating the exit status. We do this
- * by having pid1 in the sandbox detect this exit and tell the monitor
+ * by having pid 1 in the sandbox detect this exit and tell the monitor
  * the exit status via a eventfd. We also track the exit of the sandbox
- * pid1 via a signalfd for SIGCHLD, and exit with an error in this case.
+ * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static void
 monitor_child (int event_fd)
@@ -233,7 +233,7 @@ monitor_child (int event_fd)
       if (res == -1 && errno != EINTR)
         die_with_error ("poll");
 
-      /* Always read from the eventfd first, if pid2 died then pid1 often
+      /* Always read from the eventfd first, if pid 2 died then pid 1 often
        * dies too, and we could race, reporting that first and we'd lose
        * the real exit status. */
       if (event_fd != -1)
@@ -257,13 +257,13 @@ monitor_child (int event_fd)
     }
 }
 
-/* This is pid1 in the app sandbox. It is needed because we're using
+/* This is pid 1 in the app sandbox. It is needed because we're using
  * pid namespaces, and someone has to reap zombies in it. We also detect
  * when the initial process (pid 2) dies and report its exit status to
  * the monitor so that it can return it to the original spawner.
  *
  * When there are no other processes in the sandbox the wait will return
- * ECHILD, and we then exit pid1 to clean up the sandbox. */
+ * ECHILD, and we then exit pid 1 to clean up the sandbox. */
 static int
 do_init (int event_fd, pid_t initial_pid)
 {
