@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Use bubblewrap to run /bin/sh in the host's rootfs.
 set -euo pipefail
-exec bubblewrap --mount-ro-bind /usr /usr \
+exec bwrap --mount-ro-bind /usr /usr \
 	   --make-dir /tmp \
 	   --mount-proc /proc \
 	   --mount-dev /dev \

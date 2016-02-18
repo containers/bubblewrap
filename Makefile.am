@@ -4,9 +4,9 @@ ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
 AM_CPPFLAGS = -DDATADIR='"$(datadir)"' -DLIBEXECDIR='"$(libexecdir)"'
 AM_CFLAGS = $(WARN_CFLAGS)
 
-bin_PROGRAMS = bubblewrap
+bin_PROGRAMS = bwrap
 
-bubblewrap_SOURCES = \
+bwrap_SOURCES = \
 	bubblewrap.c \
 	bind-mount.h \
 	bind-mount.c \
@@ -16,5 +16,5 @@ bubblewrap_SOURCES = \
 	utils.c \
 	$(NULL)
 
-bubblewrap_CFLAGS = $(AM_CFLAGS)
-bubblewrap_LDFLAGS =
+bwrap_CFLAGS = $(AM_CFLAGS)
+bwrap_LDFLAGS =
