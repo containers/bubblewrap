@@ -422,6 +422,291 @@ write_uid_gid_map (uid_t sandbox_uid,
     die_with_error ("setting up gid map");
 }
 
+static void
+setup_newroot (bool unshare_pid)
+{
+  SetupOp *op;
+
+  for (op = ops; op != NULL; op = op->next)
+    {
+      cleanup_free char *source = NULL;
+      cleanup_free char *dest = NULL;
+      int source_mode = 0;
+      int i;
+
+      if (op->source &&
+          op->type != SETUP_MAKE_SYMLINK)
+        {
+          source = get_oldroot_path (op->source);
+          source_mode = get_file_mode (source);
+          if (source_mode < 0)
+            die_with_error ("Can't get type of source %s", op->source);
+        }
+
+      if (op->dest)
+        {
+          dest = get_newroot_path (op->dest);
+          if (mkdir_with_parents (dest, 0755, FALSE) != 0)
+            die_with_error ("Can't mkdir parents for %s", op->dest);
+        }
+
+      switch (op->type) {
+      case SETUP_RO_BIND_MOUNT:
+      case SETUP_DEV_BIND_MOUNT:
+      case SETUP_BIND_MOUNT:
+        if (source_mode == S_IFDIR)
+          {
+            if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+              die_with_error ("Can't mkdir %s", op->dest);
+          }
+        else
+          {
+            if (create_file (dest, 0666, NULL) != 0 && errno != EEXIST)
+              die_with_error ("Can't create file at %s", op->dest);
+          }
+
+        /* We always bind directories recursively, otherwise this would let us
+           access files that are otherwise covered on the host */
+        if (bind_mount (proc_fd, source, dest,
+                        BIND_RECURSIVE |
+                        (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
+                        (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0)
+                        ) != 0)
+          die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
+        break;
+
+      case SETUP_RO_BIND_MOUNT_DIR:
+      case SETUP_BIND_MOUNT_DIR:
+        if (source_mode != S_IFDIR)
+          die_with_error ("Source %s is not a directory", op->dest);
+
+        /* Ensure the target dir exists */
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
+
+        {
+          DIR *dir;
+          struct dirent *dirent;
+
+          dir = opendir (source);
+          if (dir == NULL)
+            die_with_error ("Can't opendir %s", op->source);
+
+          while ((dirent = readdir (dir)))
+            {
+              cleanup_free char *dst_path = NULL;
+              cleanup_free char *src_path = NULL;
+              struct stat st;
+
+              dst_path = strconcat3 (dest, "/", dirent->d_name);
+              if (lstat (dst_path, &st) == 0)
+                continue; /* Already exists, don't overwrite */
+
+              src_path = strconcat3 (source, "/", dirent->d_name);
+              if (lstat (src_path, &st) != 0)
+                die_with_error ("can't get info for %s", src_path);;
+
+              /* For symlinks we copy the actual symlink value, because
+               * some things may rely on the file type */
+              if (S_ISLNK (st.st_mode))
+                {
+                  cleanup_free char *target = NULL;
+                  ssize_t r;
+
+                  target = xmalloc (st.st_size + 1);
+                  r = readlink (src_path, target, st.st_size);
+                  if (r == -1)
+                    die_with_error ("readlink %s", dst_path);
+                  target[r] = 0;
+
+                  if (symlink (target, dst_path) != 0)
+                    die_with_error ("symlink %s", dst_path);
+                }
+              else
+                {
+                  if (S_ISDIR(st.st_mode))
+                    {
+                      if (mkdir (dst_path, 0755) != 0)
+                        die_with_error ("Can't mkdir %s", dst_path);
+                    }
+                  else
+                    {
+                      if (create_file (dst_path, 0666, NULL) != 0)
+                        die_with_error ("Can't create file at %s", dst_path);
+                    }
+
+                  /* We always bind directories recursively, otherwise this would let us
+                     access files that are otherwise covered on the host */
+                  if (bind_mount (proc_fd, src_path, dst_path, BIND_RECURSIVE |
+                                  (op->type == SETUP_RO_BIND_MOUNT_DIR ? BIND_READONLY : 0)) != 0)
+                    die_with_error ("Can't bind mount %s on %s", src_path, dst_path);
+                }
+            }
+        }
+
+        break;
+
+      case SETUP_MOUNT_PROC:
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
+
+        if (unshare_pid)
+          {
+            /* Our own procfs */
+            if (mount ("proc", dest, "proc", MS_MGC_VAL|MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL) < 0)
+              die_with_error ("Can't mount procfs at %s", op->dest);
+          }
+        else
+          {
+            /* Use system procfs, as we share pid namespace anyway */
+            if (bind_mount (proc_fd, "oldroot/proc", dest, BIND_RECURSIVE) != 0)
+              die_with_error ("Can't bind mount proc on %s", op->dest);
+          }
+
+        /* There are a bunch of weird old subdirs of /proc that could potentially be
+           problematic (for instance /proc/sysrq-trigger lets you shut down the machine
+           if you have write access). We should not have access to these as a non-privileged
+           user, but lets cover them anyway just to make sure */
+        const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
+        for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
+          {
+            cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
+            if (bind_mount (proc_fd, subdir, subdir, BIND_READONLY | BIND_RECURSIVE) != 0)
+              die_with_error ("Can't cover %s/%s", op->dest, cover_proc_dirs[i]);
+          }
+
+        break;
+
+      case SETUP_MOUNT_DEV:
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
+
+        if (mount ("tmpfs", dest,
+                   "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") < 0)
+          die_with_error ("Can't mount tmpfs for dev at %s", op->dest);
+
+        static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
+        for (i = 0; i < N_ELEMENTS (devnodes); i++)
+          {
+            cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
+            cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
+            if (create_file (node_dest, 0666, NULL) != 0)
+              die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
+            if (bind_mount (proc_fd, node_src, node_dest, 0) != 0)
+              die_with_error ("Can't bind mount %s/%s", op->dest, devnodes[i]);
+          }
+
+        static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
+        for (i = 0; i < N_ELEMENTS (stdionodes); i++)
+          {
+            cleanup_free char *target = strdup_printf ("/proc/self/fd/%d", i);
+            cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
+            if (symlink (target, node_dest) < 0)
+              die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
+          }
+
+        {
+          cleanup_free char *pts = strconcat (dest, "/pts");
+          cleanup_free char *ptmx = strconcat (dest, "/ptmx");
+          cleanup_free char *shm = strconcat (dest, "/shm");
+
+          if (mkdir (shm, 0755) == -1)
+            die_with_error ("Can't create %s/shm", op->dest);
+
+          if (mkdir (pts, 0755) == -1)
+            die_with_error ("Can't create %s/devpts", op->dest);
+          if (mount ("devpts", pts,
+                     "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=620") < 0)
+            die_with_error ("Can't mount devpts for %s", op->dest);
+
+          if (symlink ("pts/ptmx", ptmx) != 0)
+            die_with_error ("Can't make symlink at %s/ptmx", op->dest);
+        }
+
+        /* If stdout is a tty, that means the sandbox can write to the
+           outside-sandbox tty. In that case we also create a /dev/console
+           that points to this tty device. This should not cause any more
+           access than we already have, and it makes ttyname() work in the
+           sandbox. */
+        if (host_tty_dev != NULL && *host_tty_dev != 0)
+          {
+            cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
+            cleanup_free char *dest_console = strconcat (dest, "/console");
+
+            if (create_file (dest_console, 0666, NULL) != 0)
+              die_with_error ("creating %s/console", op->dest);
+
+            if (bind_mount (proc_fd, src_tty_dev, dest_console, BIND_DEVICES))
+              die_with_error ("mount %s/console", op->dest);
+          }
+
+        break;
+
+      case SETUP_MAKE_DIR:
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
+
+        break;
+
+      case SETUP_MAKE_FILE:
+        {
+          cleanup_fd int dest_fd = -1;
+
+          dest_fd = creat (dest, 0666);
+          if (dest_fd == -1)
+            die_with_error ("Can't create file %s", op->dest);
+
+          if (copy_file_data (op->fd, dest_fd) != 0)
+            die_with_error ("Can't write data to file %s", op->dest);
+
+          close (op->fd);
+        }
+        break;
+
+      case SETUP_MAKE_SYMLINK:
+        if (symlink (op->source, dest) != 0)
+          die_with_error ("Can't make symlink at %s", op->dest);
+        break;
+
+      case SETUP_MAKE_PASSWD:
+        {
+          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
+          cleanup_free char *content =
+            strdup_printf ("%s:x:%d:%d:%s:%s:%s\n"
+                           "nfsnobody:x:65534:65534:Unmapped user:/:/sbin/nologin\n",
+                           user_name,
+                           uid, gid,
+                           pwuid ? pwuid->pw_gecos : "",
+                           pwuid ? pwuid->pw_dir : "/",
+                           pwuid ? pwuid->pw_shell : "/bin/sh");
+
+          if (create_file (dest, 0755, content) != 0)
+            die_with_error ("creating passwd at %s", op->dest);
+
+        }
+        break;
+
+      case SETUP_MAKE_GROUP:
+        {
+          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
+          cleanup_free char *group_name = grgid ? xstrdup (grgid->gr_name) : strdup_printf ("%d", gid);
+          cleanup_free char *content =
+            content = strdup_printf ("%s:x:%d:%s\n"
+                                     "nfsnobody:x:65534:\n",
+                                     group_name,
+                                     gid, user_name);
+
+          if (create_file (dest, 0755, content) != 0)
+            die_with_error ("creating passwd at %s", op->dest);
+        }
+        break;
+
+      default:
+        die ("Unexpected type %d", op->type);
+      }
+    }
+}
+
 int
 main (int argc,
       char **argv)
@@ -797,284 +1082,7 @@ main (int argc,
   if (chdir ("/") != 0)
     die_with_error ("chhdir / (base path)");
 
-  for (op = ops; op != NULL; op = op->next)
-    {
-      cleanup_free char *source = NULL;
-      cleanup_free char *dest = NULL;
-      int source_mode = 0;
-      int i;
-
-      if (op->source &&
-          op->type != SETUP_MAKE_SYMLINK)
-        {
-          source = get_oldroot_path (op->source);
-          source_mode = get_file_mode (source);
-          if (source_mode < 0)
-            die_with_error ("Can't get type of source %s", op->source);
-        }
-
-      if (op->dest)
-        {
-          dest = get_newroot_path (op->dest);
-          if (mkdir_with_parents (dest, 0755, FALSE) != 0)
-            die_with_error ("Can't mkdir parents for %s", op->dest);
-        }
-
-      switch (op->type) {
-      case SETUP_RO_BIND_MOUNT:
-      case SETUP_DEV_BIND_MOUNT:
-      case SETUP_BIND_MOUNT:
-        if (source_mode == S_IFDIR)
-          {
-            if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-              die_with_error ("Can't mkdir %s", op->dest);
-          }
-        else
-          {
-            if (create_file (dest, 0666, NULL) != 0 && errno != EEXIST)
-              die_with_error ("Can't create file at %s", op->dest);
-          }
-
-        /* We always bind directories recursively, otherwise this would let us
-           access files that are otherwise covered on the host */
-        if (bind_mount (proc_fd, source, dest,
-                        BIND_RECURSIVE |
-                        (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
-                        (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0)
-                        ) != 0)
-          die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
-        break;
-
-      case SETUP_RO_BIND_MOUNT_DIR:
-      case SETUP_BIND_MOUNT_DIR:
-        if (source_mode != S_IFDIR)
-          die_with_error ("Source %s is not a directory", op->dest);
-
-        /* Ensure the target dir exists */
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        {
-          DIR *dir;
-          struct dirent *dirent;
-
-          dir = opendir (source);
-          if (dir == NULL)
-            die_with_error ("Can't opendir %s", op->source);
-
-          while ((dirent = readdir (dir)))
-            {
-              cleanup_free char *dst_path = NULL;
-              cleanup_free char *src_path = NULL;
-              struct stat st;
-
-              dst_path = strconcat3 (dest, "/", dirent->d_name);
-              if (lstat (dst_path, &st) == 0)
-                continue; /* Already exists, don't overwrite */
-
-              src_path = strconcat3 (source, "/", dirent->d_name);
-              if (lstat (src_path, &st) != 0)
-                die_with_error ("can't get info for %s", src_path);;
-
-              /* For symlinks we copy the actual symlink value, because
-               * some things may rely on the file type */
-              if (S_ISLNK (st.st_mode))
-                {
-                  cleanup_free char *target = NULL;
-                  ssize_t r;
-
-                  target = xmalloc (st.st_size + 1);
-                  r = readlink (src_path, target, st.st_size);
-                  if (r == -1)
-                    die_with_error ("readlink %s", dst_path);
-                  target[r] = 0;
-
-                  if (symlink (target, dst_path) != 0)
-                    die_with_error ("symlink %s", dst_path);
-                }
-              else
-                {
-                  if (S_ISDIR(st.st_mode))
-                    {
-                      if (mkdir (dst_path, 0755) != 0)
-                        die_with_error ("Can't mkdir %s", dst_path);
-                    }
-                  else
-                    {
-                      if (create_file (dst_path, 0666, NULL) != 0)
-                        die_with_error ("Can't create file at %s", dst_path);
-                    }
-
-                  /* We always bind directories recursively, otherwise this would let us
-                     access files that are otherwise covered on the host */
-                  if (bind_mount (proc_fd, src_path, dst_path, BIND_RECURSIVE |
-                                  (op->type == SETUP_RO_BIND_MOUNT_DIR ? BIND_READONLY : 0)) != 0)
-                    die_with_error ("Can't bind mount %s on %s", src_path, dst_path);
-                }
-            }
-        }
-
-        break;
-
-      case SETUP_MOUNT_PROC:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        if (unshare_pid)
-          {
-            /* Our own procfs */
-            if (mount ("proc", dest, "proc", MS_MGC_VAL|MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL) < 0)
-              die_with_error ("Can't mount procfs at %s", op->dest);
-          }
-        else
-          {
-            /* Use system procfs, as we share pid namespace anyway */
-            if (bind_mount (proc_fd, "oldroot/proc", dest, BIND_RECURSIVE) != 0)
-              die_with_error ("Can't bind mount proc on %s", op->dest);
-          }
-
-        /* There are a bunch of weird old subdirs of /proc that could potentially be
-           problematic (for instance /proc/sysrq-trigger lets you shut down the machine
-           if you have write access). We should not have access to these as a non-privileged
-           user, but lets cover them anyway just to make sure */
-        const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
-        for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
-          {
-            cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
-            if (bind_mount (proc_fd, subdir, subdir, BIND_READONLY | BIND_RECURSIVE) != 0)
-              die_with_error ("Can't cover %s/%s", op->dest, cover_proc_dirs[i]);
-          }
-
-        break;
-
-      case SETUP_MOUNT_DEV:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        if (mount ("tmpfs", dest,
-                   "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") < 0)
-          die_with_error ("Can't mount tmpfs for dev at %s", op->dest);
-
-        static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
-        for (i = 0; i < N_ELEMENTS (devnodes); i++)
-          {
-            cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
-            cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
-            if (create_file (node_dest, 0666, NULL) != 0)
-              die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
-            if (bind_mount (proc_fd, node_src, node_dest, 0) != 0)
-              die_with_error ("Can't bind mount %s/%s", op->dest, devnodes[i]);
-          }
-
-        static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
-        for (i = 0; i < N_ELEMENTS (stdionodes); i++)
-          {
-            cleanup_free char *target = strdup_printf ("/proc/self/fd/%d", i);
-            cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
-            if (symlink (target, node_dest) < 0)
-              die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
-          }
-
-        {
-          cleanup_free char *pts = strconcat (dest, "/pts");
-          cleanup_free char *ptmx = strconcat (dest, "/ptmx");
-          cleanup_free char *shm = strconcat (dest, "/shm");
-
-          if (mkdir (shm, 0755) == -1)
-            die_with_error ("Can't create %s/shm", op->dest);
-
-          if (mkdir (pts, 0755) == -1)
-            die_with_error ("Can't create %s/devpts", op->dest);
-          if (mount ("devpts", pts,
-                     "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=620") < 0)
-            die_with_error ("Can't mount devpts for %s", op->dest);
-
-          if (symlink ("pts/ptmx", ptmx) != 0)
-            die_with_error ("Can't make symlink at %s/ptmx", op->dest);
-        }
-
-        /* If stdout is a tty, that means the sandbox can write to the
-           outside-sandbox tty. In that case we also create a /dev/console
-           that points to this tty device. This should not cause any more
-           access than we already have, and it makes ttyname() work in the
-           sandbox. */
-        if (host_tty_dev != NULL && *host_tty_dev != 0)
-          {
-            cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
-            cleanup_free char *dest_console = strconcat (dest, "/console");
-
-            if (create_file (dest_console, 0666, NULL) != 0)
-              die_with_error ("creating %s/console", op->dest);
-
-            if (bind_mount (proc_fd, src_tty_dev, dest_console, BIND_DEVICES))
-              die_with_error ("mount %s/console", op->dest);
-          }
-
-        break;
-
-      case SETUP_MAKE_DIR:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        break;
-
-      case SETUP_MAKE_FILE:
-        {
-          cleanup_fd int dest_fd = -1;
-
-          dest_fd = creat (dest, 0666);
-          if (dest_fd == -1)
-            die_with_error ("Can't create file %s", op->dest);
-
-          if (copy_file_data (op->fd, dest_fd) != 0)
-            die_with_error ("Can't write data to file %s", op->dest);
-
-          close (op->fd);
-        }
-        break;
-
-      case SETUP_MAKE_SYMLINK:
-        if (symlink (op->source, dest) != 0)
-          die_with_error ("Can't make symlink at %s", op->dest);
-        break;
-
-      case SETUP_MAKE_PASSWD:
-        {
-          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
-          cleanup_free char *content =
-            strdup_printf ("%s:x:%d:%d:%s:%s:%s\n"
-                           "nfsnobody:x:65534:65534:Unmapped user:/:/sbin/nologin\n",
-                           user_name,
-                           uid, gid,
-                           pwuid ? pwuid->pw_gecos : "",
-                           pwuid ? pwuid->pw_dir : "/",
-                           pwuid ? pwuid->pw_shell : "/bin/sh");
-
-          if (create_file (dest, 0755, content) != 0)
-            die_with_error ("creating passwd at %s", op->dest);
-
-        }
-        break;
-
-      case SETUP_MAKE_GROUP:
-        {
-          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
-          cleanup_free char *group_name = grgid ? xstrdup (grgid->gr_name) : strdup_printf ("%d", gid);
-          cleanup_free char *content =
-            content = strdup_printf ("%s:x:%d:%s\n"
-                                     "nfsnobody:x:65534:\n",
-                                     group_name,
-                                     gid, user_name);
-
-          if (create_file (dest, 0755, content) != 0)
-            die_with_error ("creating passwd at %s", op->dest);
-        }
-        break;
-
-      default:
-        die ("Unexpected type %d", op->type);
-      }
-    }
+  setup_newroot (unshare_pid);
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
   if (mount ("oldroot", "oldroot", NULL, MS_REC|MS_PRIVATE, NULL) != 0)
