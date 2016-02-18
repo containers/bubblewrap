@@ -81,6 +81,21 @@ static SetupOp *last_op = NULL;
 static LockFile *lock_files = NULL;
 static LockFile *last_lock_file = NULL;
 
+enum {
+  PRIV_SEP_OP_DONE,
+  PRIV_SEP_OP_BIND_MOUNT,
+  PRIV_SEP_OP_PROC_MOUNT,
+  PRIV_SEP_OP_TMPFS_MOUNT,
+  PRIV_SEP_OP_DEVPTS_MOUNT,
+};
+
+typedef struct {
+  uint32_t op;
+  uint32_t flags;
+  uint32_t arg1_offset;
+  uint32_t arg2_offset;
+} PrivSepOp;
+
 static SetupOp *
 setup_op_new (SetupOpType type)
 {
@@ -423,7 +438,81 @@ write_uid_gid_map (uid_t sandbox_uid,
 }
 
 static void
-setup_newroot (bool unshare_pid)
+privileged_op (int privileged_op_socket,
+               uint32_t op,
+               uint32_t flags,
+               const char *arg1,
+               const char *arg2)
+{
+  if (privileged_op_socket != -1)
+    {
+      uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
+      PrivSepOp *op_buffer = (PrivSepOp *)buffer;
+      size_t buffer_size = sizeof (PrivSepOp);
+      uint32_t arg1_offset = 0, arg2_offset = 0;
+      if (arg1 != NULL)
+        {
+          arg1_offset = buffer_size;
+          buffer_size += strlen (arg1) + 1;
+        }
+      if (arg2 != NULL)
+        {
+          arg2_offset = buffer_size;
+          buffer_size += strlen (arg2) + 1;
+        }
+
+      if (buffer_size >= sizeof (buffer))
+        die ("privilege separation operation to large");
+
+      op_buffer->op = op;
+      op_buffer->flags = flags;
+      op_buffer->arg1_offset = arg1_offset;
+      op_buffer->arg2_offset = arg2_offset;
+      if (arg1 != NULL)
+        strcpy ((char *)buffer + arg1_offset, arg1);
+      if (arg2 != NULL)
+        strcpy ((char *)buffer + arg2_offset, arg2);
+
+      if (write (privileged_op_socket, buffer, buffer_size) != buffer_size)
+        die ("Can't write to privileged_op_socket");
+
+      if (read (privileged_op_socket, buffer, 1) != 1)
+        die ("Can't read from privileged_op_socket");
+
+      return;
+    }
+
+  switch (op)
+    {
+    case PRIV_SEP_OP_DONE:
+      break;
+    case PRIV_SEP_OP_BIND_MOUNT:
+      /* We always bind directories recursively, otherwise this would let us
+         access files that are otherwise covered on the host */
+      if (bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags) != 0)
+        die_with_error ("Can't bind mount %s on %s", arg1, arg2);
+      break;
+    case PRIV_SEP_OP_PROC_MOUNT:
+      if (mount ("proc", arg1, "proc", MS_MGC_VAL|MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL) != 0)
+        die_with_error ("Can't mount proc on %s", arg1);
+      break;
+    case PRIV_SEP_OP_TMPFS_MOUNT:
+      if (mount ("tmpfs", arg1, "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") != 0)
+        die_with_error ("Can't mount tmpfs on %s", arg1);
+      break;
+    case PRIV_SEP_OP_DEVPTS_MOUNT:
+      if (mount ("devpts", arg1, "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC,
+                 "newinstance,ptmxmode=0666,mode=620") != 0)
+        die_with_error ("Can't mount devpts on %s", arg1);
+      break;
+    default:
+      die ("Unexpected privileged op %d", op);
+    }
+}
+
+static void
+setup_newroot (bool unshare_pid,
+               int privileged_op_socket)
 {
   SetupOp *op;
 
@@ -465,14 +554,11 @@ setup_newroot (bool unshare_pid)
               die_with_error ("Can't create file at %s", op->dest);
           }
 
-        /* We always bind directories recursively, otherwise this would let us
-           access files that are otherwise covered on the host */
-        if (bind_mount (proc_fd, source, dest,
-                        BIND_RECURSIVE |
-                        (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
-                        (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0)
-                        ) != 0)
-          die_with_error ("Can't bind mount %s on %s", op->source, op->dest);
+        privileged_op (privileged_op_socket,
+                       PRIV_SEP_OP_BIND_MOUNT,
+                       (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
+                       (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
+                       source, dest);
         break;
 
       case SETUP_RO_BIND_MOUNT_DIR:
@@ -535,11 +621,10 @@ setup_newroot (bool unshare_pid)
                         die_with_error ("Can't create file at %s", dst_path);
                     }
 
-                  /* We always bind directories recursively, otherwise this would let us
-                     access files that are otherwise covered on the host */
-                  if (bind_mount (proc_fd, src_path, dst_path, BIND_RECURSIVE |
-                                  (op->type == SETUP_RO_BIND_MOUNT_DIR ? BIND_READONLY : 0)) != 0)
-                    die_with_error ("Can't bind mount %s on %s", src_path, dst_path);
+                  privileged_op (privileged_op_socket,
+                                 PRIV_SEP_OP_BIND_MOUNT,
+                                 (op->type == SETUP_RO_BIND_MOUNT_DIR ? BIND_READONLY : 0),
+                                 src_path, dst_path);
                 }
             }
         }
@@ -553,14 +638,16 @@ setup_newroot (bool unshare_pid)
         if (unshare_pid)
           {
             /* Our own procfs */
-            if (mount ("proc", dest, "proc", MS_MGC_VAL|MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL) < 0)
-              die_with_error ("Can't mount procfs at %s", op->dest);
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_PROC_MOUNT, 0,
+                           dest, NULL);
           }
         else
           {
             /* Use system procfs, as we share pid namespace anyway */
-            if (bind_mount (proc_fd, "oldroot/proc", dest, BIND_RECURSIVE) != 0)
-              die_with_error ("Can't bind mount proc on %s", op->dest);
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_BIND_MOUNT, 0,
+                           "oldroot/proc", dest);
           }
 
         /* There are a bunch of weird old subdirs of /proc that could potentially be
@@ -571,8 +658,9 @@ setup_newroot (bool unshare_pid)
         for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
           {
             cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
-            if (bind_mount (proc_fd, subdir, subdir, BIND_READONLY | BIND_RECURSIVE) != 0)
-              die_with_error ("Can't cover %s/%s", op->dest, cover_proc_dirs[i]);
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
+                           subdir, subdir);
           }
 
         break;
@@ -581,9 +669,9 @@ setup_newroot (bool unshare_pid)
         if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
 
-        if (mount ("tmpfs", dest,
-                   "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") < 0)
-          die_with_error ("Can't mount tmpfs for dev at %s", op->dest);
+        privileged_op (privileged_op_socket,
+                       PRIV_SEP_OP_TMPFS_MOUNT, 0,
+                       dest, NULL);
 
         static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
         for (i = 0; i < N_ELEMENTS (devnodes); i++)
@@ -592,8 +680,9 @@ setup_newroot (bool unshare_pid)
             cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
             if (create_file (node_dest, 0666, NULL) != 0)
               die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
-            if (bind_mount (proc_fd, node_src, node_dest, 0) != 0)
-              die_with_error ("Can't bind mount %s/%s", op->dest, devnodes[i]);
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_BIND_MOUNT, 0,
+                           node_src, node_dest);
           }
 
         static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
@@ -615,9 +704,9 @@ setup_newroot (bool unshare_pid)
 
           if (mkdir (pts, 0755) == -1)
             die_with_error ("Can't create %s/devpts", op->dest);
-          if (mount ("devpts", pts,
-                     "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "newinstance,ptmxmode=0666,mode=620") < 0)
-            die_with_error ("Can't mount devpts for %s", op->dest);
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_DEVPTS_MOUNT, 0,
+                         pts, NULL);
 
           if (symlink ("pts/ptmx", ptmx) != 0)
             die_with_error ("Can't make symlink at %s/ptmx", op->dest);
@@ -636,8 +725,9 @@ setup_newroot (bool unshare_pid)
             if (create_file (dest_console, 0666, NULL) != 0)
               die_with_error ("creating %s/console", op->dest);
 
-            if (bind_mount (proc_fd, src_tty_dev, dest_console, BIND_DEVICES))
-              die_with_error ("mount %s/console", op->dest);
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
+                           src_tty_dev, dest_console);
           }
 
         break;
@@ -705,7 +795,55 @@ setup_newroot (bool unshare_pid)
         die ("Unexpected type %d", op->type);
       }
     }
+  privileged_op (privileged_op_socket,
+                 PRIV_SEP_OP_DONE, 0, NULL, NULL);
 }
+
+static const char *
+resolve_string_offset (void *buffer,
+                       size_t buffer_size,
+                       uint32_t offset)
+{
+  if (offset == 0)
+    return NULL;
+
+  if (offset > buffer_size)
+    die ("Invalid string offset %d (buffer size %zd)", offset, buffer_size);
+
+  return (const char *)buffer + offset;
+}
+
+static uint32_t
+read_priv_sec_op (int read_socket,
+                  void *buffer,
+                  size_t buffer_size,
+                  uint32_t *flags,
+                  const char **arg1,
+                  const char **arg2)
+{
+  const PrivSepOp *op = (const PrivSepOp *)buffer;
+  ssize_t rec_len;
+
+  do
+    rec_len = read (read_socket, buffer, buffer_size - 1);
+  while (rec_len == -1 && errno == EINTR);
+
+  if (rec_len < 0)
+    die_with_error ("Can't read from unprivileged helper");
+
+  if (rec_len < sizeof (PrivSepOp))
+    die ("Invalid size %zd from unprivileged helper", rec_len);
+
+  /* Guarantee zero termination of any strings */
+  ((char *)buffer)[rec_len] = 0;
+
+  *flags = op->flags;
+  *arg1 = resolve_string_offset (buffer, rec_len, op->arg1_offset);
+  *arg2 = resolve_string_offset (buffer, rec_len, op->arg2_offset);
+
+  return op->op;
+}
+
 
 int
 main (int argc,
@@ -1082,7 +1220,51 @@ main (int argc,
   if (chdir ("/") != 0)
     die_with_error ("chhdir / (base path)");
 
-  setup_newroot (unshare_pid);
+  if (is_privileged)
+    {
+      pid_t child;
+      int privsep_sockets[2];
+
+      if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, privsep_sockets) != 0)
+        die_with_error ("Can't create privsep socket");
+
+      child = fork ();
+      if (child == -1)
+        die_with_error ("Can't fork unprivileged helper");
+
+      if (child == 0)
+        {
+          /* Unprivileged setup process */
+          drop_caps ();
+          close (privsep_sockets[0]);
+          setup_newroot (unshare_pid, privsep_sockets[1]);
+          exit (0);
+        }
+      else
+        {
+          uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
+          uint32_t op, flags;
+          const char *arg1, *arg2;
+          cleanup_fd int unpriv_socket = -1;
+
+          unpriv_socket = privsep_sockets[0];
+          close (privsep_sockets[1]);
+
+          do
+            {
+              op = read_priv_sec_op (unpriv_socket, buffer, sizeof (buffer),
+                                     &flags, &arg1, &arg2);
+              privileged_op (-1, op, flags, arg1, arg2);
+              if (write (unpriv_socket, buffer, 1) != 1)
+                die ("Can't write to op_socket");
+            }
+          while (op != PRIV_SEP_OP_DONE);
+
+          /* Continue post setup */
+        }
+    }
+  else
+    setup_newroot (unshare_pid, -1);
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
   if (mount ("oldroot", "oldroot", NULL, MS_REC|MS_PRIVATE, NULL) != 0)
