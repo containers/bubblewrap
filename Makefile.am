@@ -16,5 +16,13 @@ bwrap_SOURCES = \
 	utils.c \
 	$(NULL)
 
+setuid: bwrap
+	sudo chown root bwrap
+	sudo sudo chmod u+s bwrap
+
+setcaps: bwrap
+	sudo setcap "cap_sys_admin+ep cap_sys_chroot+ep" bwrap
+
+
 bwrap_CFLAGS = $(AM_CFLAGS)
 bwrap_LDFLAGS =
