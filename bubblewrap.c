@@ -494,8 +494,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-bind-dir") == 0)
         {
-          SetupOp *op;
-
           if (argc < 3)
             die ("--mount-bind-dir takes two arguments");
 
@@ -508,8 +506,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-ro-bind-dir") == 0)
         {
-          SetupOp *op;
-
           if (argc < 3)
             die ("--mount-ro-bind-dir takes two arguments");
 
@@ -522,8 +518,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-bind") == 0)
         {
-          SetupOp *op;
-
           if (argc < 3)
             die ("--mount-bind takes two arguments");
 
@@ -536,8 +530,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-ro-bind") == 0)
         {
-          SetupOp *op;
-
           if (argc < 3)
             die ("--mount-ro-bind takes two arguments");
 
@@ -550,8 +542,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-dev-bind") == 0)
         {
-          SetupOp *op;
-
           if (argc < 3)
             die ("--mount-dev-bind takes two arguments");
 
@@ -564,8 +554,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-proc") == 0)
         {
-          SetupOp *op;
-
           if (argc < 2)
             die ("--mount-proc takes an argument");
 
@@ -577,8 +565,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--mount-dev") == 0)
         {
-          SetupOp *op;
-
           if (argc < 2)
             die ("--mount-dev takes an argument");
 
@@ -590,8 +576,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--make-dir") == 0)
         {
-          SetupOp *op;
-
           if (argc < 2)
             die ("--make-dir takes an argument");
 
@@ -603,7 +587,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--make-file") == 0)
         {
-          SetupOp *op;
           int file_fd;
           char *endptr;
 
@@ -623,8 +606,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--make-symlink") == 0)
         {
-          SetupOp *op;
-
           if (argc < 3)
             die ("--make-symlink takes two arguments");
 
@@ -637,8 +618,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--make-passwd") == 0)
         {
-          SetupOp *op;
-
           if (argc < 2)
             die ("--make-passwd takes an argument");
 
@@ -650,8 +629,6 @@ main (int argc,
         }
       else if (strcmp (arg, "--make-group") == 0)
         {
-          SetupOp *op;
-
           if (argc < 2)
             die ("--make-group takes an argument");
 
