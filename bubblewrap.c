@@ -54,6 +54,7 @@ typedef enum {
   SETUP_MOUNT_DEV,
   SETUP_MAKE_DIR,
   SETUP_MAKE_FILE,
+  SETUP_MAKE_BIND_FILE,
   SETUP_MAKE_SYMLINK,
   SETUP_MAKE_PASSWD,
   SETUP_MAKE_GROUP,
@@ -150,6 +151,7 @@ usage ()
            "	--mount-dev DEST	     Mount new dev on DEST\n"
            "	--make-dir DEST		     Create dir at DEST\n"
            "	--make-file FD DEST	     Copy from FD to dest DEST\n"
+           "	--make-bind-file FD DEST     Copy from FD to file which is bind-mounted on DEST\n"
            "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
            "	--make-passwd DEST	     Create trivial /etc/passwd file at DEST\n"
            "	--make-group DEST	     Create trivial /etc/group file at DEST\n"
@@ -753,6 +755,29 @@ setup_newroot (bool unshare_pid,
         }
         break;
 
+      case SETUP_MAKE_BIND_FILE:
+        {
+          cleanup_fd int dest_fd = -1;
+          char tempfile[] = "/bindfileXXXXXX";
+
+          dest_fd = mkstemp (tempfile);
+          if (dest_fd == -1)
+            die_with_error ("Can't create tmpfile for %s", op->dest);
+
+          if (copy_file_data (op->fd, dest_fd) != 0)
+            die_with_error ("Can't write data to file %s", op->dest);
+
+          close (op->fd);
+
+          if (ensure_file (dest, 0666) != 0)
+            die_with_error ("Can't create file at %s", op->dest);
+
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_BIND_MOUNT,
+                         0, tempfile, dest);
+        }
+        break;
+
       case SETUP_MAKE_SYMLINK:
         if (symlink (op->source, dest) != 0)
           die_with_error ("Can't make symlink at %s", op->dest);
@@ -1031,6 +1056,25 @@ main (int argc,
             die ("Invalid fd: %s", argv[1]);
 
           op = setup_op_new (SETUP_MAKE_FILE);
+          op->fd = file_fd;
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--make-bind-file") == 0)
+        {
+          int file_fd;
+          char *endptr;
+
+          if (argc < 3)
+            die ("--make-bind-file takes two arguments");
+
+          file_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          op = setup_op_new (SETUP_MAKE_BIND_FILE);
           op->fd = file_fd;
           op->dest = argv[2];
 
