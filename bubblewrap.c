@@ -147,6 +147,8 @@ usage ()
            "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
            "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
            "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
+           "	--setenv VAR VALUE	     Set an environment variable\n"
+           "	--unsetenv VAR		     Unset an environment variable\n"
            );
   exit (1);
 }
@@ -979,6 +981,26 @@ main (int argc,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--setenv") == 0)
+        {
+          if (argc < 3)
+            die ("--setenv takes two arguments");
+
+          xsetenv (argv[1], argv[2], 1);
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--unsetenv") == 0)
+        {
+          if (argc < 2)
+            die ("--unsetenv takes an argument");
+
+          xunsetenv (argv[1]);
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
       else
@@ -1214,16 +1236,6 @@ main (int argc,
     }
   xsetenv ("PWD", new_cwd, 1);
   free (old_cwd);
-
-  /* We can't pass regular LD_LIBRARY_PATH, as it would affect the
-     setuid helper aspect, so we use _LD_LIBRARY_PATH */
-  if (getenv ("_LD_LIBRARY_PATH"))
-    {
-      xsetenv ("LD_LIBRARY_PATH", getenv("_LD_LIBRARY_PATH"), 1);
-      xunsetenv ("_LD_LIBRARY_PATH");
-    }
-  else
-    xunsetenv ("LD_LIBRARY_PATH"); /* Make sure to unset if it was not (i.e. unprivileged mode) */
 
   __debug__(("forking for child\n"));
 

@@ -5,20 +5,6 @@
 #  xdg-app --user install gnome-nightly org.gnome.Platform
 #  xdg-app --user install gnome-nightly org.gnome.Weather
 
-export XDG_RUNTIME_DIR="/run/user/`id -u`"
-export DISPLAY=:99
-export GI_TYPELIB_PATH=/app/lib/girepository-1.0
-export GST_PLUGIN_PATH=/app/lib/gstreamer-1.0
-export _LD_LIBRARY_PATH=/app/lib:/usr/lib/GL
-export DCONF_USER_CONFIG_DIR=.config/dconf
-export PATH=/app/bin:/usr/bin
-export XDG_CONFIG_DIRS=/app/etc/xdg:/etc/xdg
-export XDG_DATA_DIRS=/app/share:/usr/share
-export SHELL=/bin/sh
-export XDG_CACHE_HOME=~/.var/app/org.gnome.Weather/cache
-export XDG_CONFIG_HOME=~/.var/app/org.gnome.Weather/config
-export XDG_DATA_HOME=~/.var/app/org.gnome.Weather/data
-
 mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config ~/.var/app/org.gnome.Weather/data
 
 # These temporary files are left on the filesystem, but one can avoid
@@ -68,6 +54,19 @@ exec ../bwrap \
     --mount-bind ~/.config/dconf ~/.config/dconf \
     --mount-bind /run/user/`id -u`/dconf /run/user/`id -u`/dconf  \
     --unshare-pid \
+    --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
+    --setenv DISPLAY :99 \
+    --setenv GI_TYPELIB_PATH /app/lib/girepository-1.0 \
+    --setenv GST_PLUGIN_PATH /app/lib/gstreamer-1.0 \
+    --setenv LD_LIBRARY_PATH /app/lib:/usr/lib/GL \
+    --setenv DCONF_USER_CONFIG_DIR .config/dconf \
+    --setenv PATH /app/bin:/usr/bin \
+    --setenv XDG_CONFIG_DIRS /app/etc/xdg:/etc/xdg \
+    --setenv XDG_DATA_DIRS /app/share:/usr/share \
+    --setenv SHELL /bin/sh \
+    --setenv XDG_CACHE_HOME ~/.var/app/org.gnome.Weather/cache \
+    --setenv XDG_CONFIG_HOME ~/.var/app/org.gnome.Weather/config \
+    --setenv XDG_DATA_HOME ~/.var/app/org.gnome.Weather/data \
     sh 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP}
 
 
