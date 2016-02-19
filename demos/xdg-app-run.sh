@@ -7,8 +7,6 @@
 
 mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config ~/.var/app/org.gnome.Weather/data
 
-# These temporary files are left on the filesystem, but one can avoid
-# this by removing them before calling bwrap, keeping the fds open
 APPINFO=`mktemp`
 cat > ${APPINFO} <<EOF
 [Application]
@@ -22,7 +20,12 @@ getent passwd `id -u` 65534 > ${PASSWD}
 GROUP=`mktemp`
 getent group `id -g` 65534 > ${GROUP}
 
-exec ../bwrap \
+(
+    # Remove all temporary files before calling bwrap, they are open in the fds anyway
+    rm $APPINFO
+    rm $GROUP
+    rm $PASSWD
+    bwrap \
     --mount-ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
     --lock-file /usr/.ref \
     --mount-ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \
@@ -67,7 +70,7 @@ exec ../bwrap \
     --setenv XDG_CACHE_HOME ~/.var/app/org.gnome.Weather/cache \
     --setenv XDG_CONFIG_HOME ~/.var/app/org.gnome.Weather/config \
     --setenv XDG_DATA_HOME ~/.var/app/org.gnome.Weather/data \
-    sh 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP}
+    gnome-weather) 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP}
 
 
 # TODO:
