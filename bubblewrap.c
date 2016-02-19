@@ -41,8 +41,6 @@ static bool is_privileged;
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
-struct passwd *pwuid;
-struct group *grgid;
 
 typedef enum {
   SETUP_BIND_MOUNT,
@@ -54,8 +52,6 @@ typedef enum {
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
   SETUP_MAKE_SYMLINK,
-  SETUP_MAKE_PASSWD,
-  SETUP_MAKE_GROUP,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -149,8 +145,6 @@ usage ()
            "	--make-file FD DEST	     Copy from FD to dest DEST\n"
            "	--make-bind-file FD DEST     Copy from FD to file which is bind-mounted on DEST\n"
            "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
-           "	--make-passwd DEST	     Create trivial /etc/passwd file at DEST\n"
-           "	--make-group DEST	     Create trivial /etc/group file at DEST\n"
            "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
            "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
            );
@@ -709,39 +703,6 @@ setup_newroot (bool unshare_pid,
           die_with_error ("Can't make symlink at %s", op->dest);
         break;
 
-      case SETUP_MAKE_PASSWD:
-        {
-          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
-          cleanup_free char *content =
-            strdup_printf ("%s:x:%d:%d:%s:%s:%s\n"
-                           "nfsnobody:x:65534:65534:Unmapped user:/:/sbin/nologin\n",
-                           user_name,
-                           uid, gid,
-                           pwuid ? pwuid->pw_gecos : "",
-                           pwuid ? pwuid->pw_dir : "/",
-                           pwuid ? pwuid->pw_shell : "/bin/sh");
-
-          if (create_file (dest, 0755, content) != 0)
-            die_with_error ("creating passwd at %s", op->dest);
-
-        }
-        break;
-
-      case SETUP_MAKE_GROUP:
-        {
-          cleanup_free char *user_name = pwuid ? xstrdup (pwuid->pw_name) : strdup_printf ("%d", uid);
-          cleanup_free char *group_name = grgid ? xstrdup (grgid->gr_name) : strdup_printf ("%d", gid);
-          cleanup_free char *content =
-            content = strdup_printf ("%s:x:%d:%s\n"
-                                     "nfsnobody:x:65534:\n",
-                                     group_name,
-                                     gid, user_name);
-
-          if (create_file (dest, 0755, content) != 0)
-            die_with_error ("creating passwd at %s", op->dest);
-        }
-        break;
-
       default:
         die ("Unexpected type %d", op->type);
       }
@@ -991,28 +952,6 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--make-passwd") == 0)
-        {
-          if (argc < 2)
-            die ("--make-passwd takes an argument");
-
-          op = setup_op_new (SETUP_MAKE_PASSWD);
-          op->dest = argv[1];
-
-          argv += 1;
-          argc -= 1;
-        }
-      else if (strcmp (arg, "--make-group") == 0)
-        {
-          if (argc < 2)
-            die ("--make-group takes an argument");
-
-          op = setup_op_new (SETUP_MAKE_GROUP);
-          op->dest = argv[1];
-
-          argv += 1;
-          argc -= 1;
-        }
       else if (strcmp (arg, "--lock-file") == 0)
         {
           if (argc < 2)
@@ -1056,8 +995,6 @@ main (int argc,
 
   uid = getuid ();
   gid = getgid ();
-  pwuid = getpwuid (uid);
-  grgid = getgrgid (gid);
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
