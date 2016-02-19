@@ -68,7 +68,7 @@ exec ../bwrap \
     --mount-bind ~/.config/dconf ~/.config/dconf \
     --mount-bind /run/user/`id -u`/dconf /run/user/`id -u`/dconf  \
     --unshare-pid \
-    sh 10< ${APPINFO} 11< ${PASSWD} 12< ${PASSWD}
+    sh 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP}
 
 
 # TODO:
