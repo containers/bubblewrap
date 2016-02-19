@@ -330,6 +330,26 @@ create_file (const char *path,
   return res;
 }
 
+int
+ensure_file (const char *path,
+             mode_t      mode)
+{
+ struct stat buf;
+
+ /* We check this ahead of time, otherwise
+    the create file will fail in the read-only
+    case with EROFD instead of EEXIST */
+ if (stat (path, &buf) ==  0 &&
+     S_ISREG (buf.st_mode))
+   return 0;
+
+ if (create_file (path, mode, NULL) != 0 &&  errno != EEXIST)
+   return -1;
+
+ return 0;
+}
+
+
 #define BUFSIZE	8192
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int

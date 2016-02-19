@@ -550,7 +550,7 @@ setup_newroot (bool unshare_pid,
           }
         else
           {
-            if (create_file (dest, 0666, NULL) != 0 && errno != EEXIST)
+            if (ensure_file (dest, 0666) != 0)
               die_with_error ("Can't create file at %s", op->dest);
           }
 
@@ -617,7 +617,7 @@ setup_newroot (bool unshare_pid,
                     }
                   else
                     {
-                      if (create_file (dst_path, 0666, NULL) != 0)
+                      if (ensure_file (dst_path, 0666) != 0)
                         die_with_error ("Can't create file at %s", dst_path);
                     }
 

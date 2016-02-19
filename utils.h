@@ -89,6 +89,8 @@ int   copy_file      (const char  *src_path,
 int   create_file    (const char  *path,
                       mode_t       mode,
                       const char  *content);
+int   ensure_file    (const char  *path,
+                      mode_t       mode);
 int   get_file_mode  (const char *pathname);
 int   mkdir_with_parents (const char *pathname,
                           int         mode,
