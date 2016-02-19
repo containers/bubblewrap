@@ -921,7 +921,9 @@ main (int argc,
             die ("--mount-bind-dir takes two arguments");
 
           op = setup_op_new (SETUP_BIND_MOUNT_DIR);
-          op->source = argv[1];
+          op->source = canonicalize_file_name (argv[1]);
+          if (op->source == NULL)
+            die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
 
           argv += 2;
@@ -933,7 +935,9 @@ main (int argc,
             die ("--mount-ro-bind-dir takes two arguments");
 
           op = setup_op_new (SETUP_RO_BIND_MOUNT_DIR);
-          op->source = argv[1];
+          op->source = canonicalize_file_name (argv[1]);
+          if (op->source == NULL)
+            die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
 
           argv += 2;
@@ -945,7 +949,9 @@ main (int argc,
             die ("--mount-bind takes two arguments");
 
           op = setup_op_new (SETUP_BIND_MOUNT);
-          op->source = argv[1];
+          op->source = canonicalize_file_name (argv[1]);
+          if (op->source == NULL)
+            die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
 
           argv += 2;
@@ -957,7 +963,9 @@ main (int argc,
             die ("--mount-ro-bind takes two arguments");
 
           op = setup_op_new (SETUP_RO_BIND_MOUNT);
-          op->source = argv[1];
+          op->source = canonicalize_file_name (argv[1]);
+          if (op->source == NULL)
+            die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
 
           argv += 2;
@@ -969,7 +977,9 @@ main (int argc,
             die ("--mount-dev-bind takes two arguments");
 
           op = setup_op_new (SETUP_DEV_BIND_MOUNT);
-          op->source = argv[1];
+          op->source = canonicalize_file_name (argv[1]);
+          if (op->source == NULL)
+            die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
 
           argv += 2;
