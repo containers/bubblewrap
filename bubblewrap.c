@@ -45,8 +45,6 @@ struct passwd *pwuid;
 struct group *grgid;
 
 typedef enum {
-  SETUP_BIND_MOUNT_DIR,
-  SETUP_RO_BIND_MOUNT_DIR,
   SETUP_BIND_MOUNT,
   SETUP_RO_BIND_MOUNT,
   SETUP_DEV_BIND_MOUNT,
@@ -145,8 +143,6 @@ usage ()
            "	--mount-bind SRC DEST	     Bind mount the host path SRC on DEST\n"
            "	--mount-dev-bind SRC DEST    Bind mount the host path SRC on DEST, allowing device access\n"
            "	--mount-ro-bind SRC DEST     Bind mount the host path SRC readonly on DEST\n"
-           "	--mount-bind-dir SRC DEST    Bind mount the files in host dir SRC into to DEST (unless target exists)\n"
-           "	--mount-ro-bind-dir SRC DEST Bind mount the files in host dir SRC readonly into to DEST (unless target exists)\n"
            "	--mount-proc DEST	     Mount procfs on DEST\n"
            "	--mount-dev DEST	     Mount new dev on DEST\n"
            "	--make-dir DEST		     Create dir at DEST\n"
@@ -563,76 +559,6 @@ setup_newroot (bool unshare_pid,
                        source, dest);
         break;
 
-      case SETUP_RO_BIND_MOUNT_DIR:
-      case SETUP_BIND_MOUNT_DIR:
-        if (source_mode != S_IFDIR)
-          die_with_error ("Source %s is not a directory", op->dest);
-
-        /* Ensure the target dir exists */
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        {
-          DIR *dir;
-          struct dirent *dirent;
-
-          dir = opendir (source);
-          if (dir == NULL)
-            die_with_error ("Can't opendir %s", op->source);
-
-          while ((dirent = readdir (dir)))
-            {
-              cleanup_free char *dst_path = NULL;
-              cleanup_free char *src_path = NULL;
-              struct stat st;
-
-              dst_path = strconcat3 (dest, "/", dirent->d_name);
-              if (lstat (dst_path, &st) == 0)
-                continue; /* Already exists, don't overwrite */
-
-              src_path = strconcat3 (source, "/", dirent->d_name);
-              if (lstat (src_path, &st) != 0)
-                die_with_error ("can't get info for %s", src_path);;
-
-              /* For symlinks we copy the actual symlink value, because
-               * some things may rely on the file type */
-              if (S_ISLNK (st.st_mode))
-                {
-                  cleanup_free char *target = NULL;
-                  ssize_t r;
-
-                  target = xmalloc (st.st_size + 1);
-                  r = readlink (src_path, target, st.st_size);
-                  if (r == -1)
-                    die_with_error ("readlink %s", dst_path);
-                  target[r] = 0;
-
-                  if (symlink (target, dst_path) != 0)
-                    die_with_error ("symlink %s", dst_path);
-                }
-              else
-                {
-                  if (S_ISDIR(st.st_mode))
-                    {
-                      if (mkdir (dst_path, 0755) != 0)
-                        die_with_error ("Can't mkdir %s", dst_path);
-                    }
-                  else
-                    {
-                      if (ensure_file (dst_path, 0666) != 0)
-                        die_with_error ("Can't create file at %s", dst_path);
-                    }
-
-                  privileged_op (privileged_op_socket,
-                                 PRIV_SEP_OP_BIND_MOUNT,
-                                 (op->type == SETUP_RO_BIND_MOUNT_DIR ? BIND_READONLY : 0),
-                                 src_path, dst_path);
-                }
-            }
-        }
-
-        break;
-
       case SETUP_MOUNT_PROC:
         if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
@@ -939,34 +865,6 @@ main (int argc,
           chdir_path = argv[1];
           argv++;
           argc--;
-        }
-      else if (strcmp (arg, "--mount-bind-dir") == 0)
-        {
-          if (argc < 3)
-            die ("--mount-bind-dir takes two arguments");
-
-          op = setup_op_new (SETUP_BIND_MOUNT_DIR);
-          op->source = canonicalize_file_name (argv[1]);
-          if (op->source == NULL)
-            die_with_error ("Can't find source path %s", argv[1]);
-          op->dest = argv[2];
-
-          argv += 2;
-          argc -= 2;
-        }
-      else if (strcmp (arg, "--mount-ro-bind-dir") == 0)
-        {
-          if (argc < 3)
-            die ("--mount-ro-bind-dir takes two arguments");
-
-          op = setup_op_new (SETUP_RO_BIND_MOUNT_DIR);
-          op->source = canonicalize_file_name (argv[1]);
-          if (op->source == NULL)
-            die_with_error ("Can't find source path %s", argv[1]);
-          op->dest = argv[2];
-
-          argv += 2;
-          argc -= 2;
         }
       else if (strcmp (arg, "--mount-bind") == 0)
         {
