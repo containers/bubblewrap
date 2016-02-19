@@ -21,6 +21,8 @@ export XDG_DATA_HOME=~/.var/app/org.gnome.Weather/data
 
 mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config ~/.var/app/org.gnome.Weather/data
 
+# These temporary files are left on the filesystem, but one can avoid
+# this by removing them before calling bwrap, keeping the fds open
 APPINFO=`mktemp`
 cat > ${APPINFO} <<EOF
 [Application]
@@ -28,6 +30,11 @@ name=org.gnome.Weather
 runtime=runtime/org.gnome.Platform/x86_64/master
 EOF
 
+PASSWD=`mktemp`
+getent passwd `id -u` 65534 > ${PASSWD}
+
+GROUP=`mktemp`
+getent group `id -g` 65534 > ${GROUP}
 
 exec ../bwrap \
     --mount-ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
@@ -43,13 +50,12 @@ exec ../bwrap \
     --make-symlink usr/lib64 /lib64 \
     --make-symlink usr/bin /bin \
     --make-symlink usr/sbin /sbin \
+    --make-symlink usr/etc /etc \
     --make-dir /run/user/`id -u` \
-    --make-passwd /etc/passwd \
-    --make-group /etc/group \
-    --mount-ro-bind /etc/machine-id /etc/machine-id \
-    --mount-ro-bind /etc/resolv.conf /run/user/`id -u`/xdg-app-monitor/resolv.conf \
-    --make-symlink /run/user/`id -u`/xdg-app-monitor/resolv.conf /etc/resolv.conf \
-    --mount-ro-bind-dir ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files/etc /etc \
+    --make-bind-file 11 /usr/etc/passwd \
+    --make-bind-file 12 /usr/etc/group \
+    --mount-ro-bind /etc/machine-id /usr/etc/machine-id \
+    --mount-ro-bind /etc/resolv.conf /run/host/monitor/resolv.conf \
     --make-file 10 /run/user/`id -u`/xdg-app-info \
     --mount-ro-bind /sys/block /sys/block \
     --mount-ro-bind /sys/bus /sys/bus \
@@ -62,7 +68,7 @@ exec ../bwrap \
     --mount-bind ~/.config/dconf ~/.config/dconf \
     --mount-bind /run/user/`id -u`/dconf /run/user/`id -u`/dconf  \
     --unshare-pid \
-    gnome-weather 10< ${APPINFO}
+    sh 10< ${APPINFO} 11< ${PASSWD} 12< ${PASSWD}
 
 
 # TODO:
