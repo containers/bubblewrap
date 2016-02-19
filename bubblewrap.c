@@ -136,6 +136,10 @@ usage ()
            "	--unshare-net		     Create new network namespace\n"
            "	--unshare-uts		     Create new uts namespace\n"
            "	--chdir DIR		     Change directory to DIR\n"
+           "	--setenv VAR VALUE	     Set an environment variable\n"
+           "	--unsetenv VAR		     Unset an environment variable\n"
+           "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
+           "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
            "	--mount-bind SRC DEST	     Bind mount the host path SRC on DEST\n"
            "	--mount-dev-bind SRC DEST    Bind mount the host path SRC on DEST, allowing device access\n"
            "	--mount-ro-bind SRC DEST     Bind mount the host path SRC readonly on DEST\n"
@@ -145,10 +149,6 @@ usage ()
            "	--make-file FD DEST	     Copy from FD to dest DEST\n"
            "	--make-bind-file FD DEST     Copy from FD to file which is bind-mounted on DEST\n"
            "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
-           "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
-           "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
-           "	--setenv VAR VALUE	     Set an environment variable\n"
-           "	--unsetenv VAR		     Unset an environment variable\n"
            );
   exit (1);
 }
