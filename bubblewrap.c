@@ -140,15 +140,15 @@ usage ()
            "	--unsetenv VAR		     Unset an environment variable\n"
            "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
            "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
-           "	--mount-bind SRC DEST	     Bind mount the host path SRC on DEST\n"
-           "	--mount-dev-bind SRC DEST    Bind mount the host path SRC on DEST, allowing device access\n"
-           "	--mount-ro-bind SRC DEST     Bind mount the host path SRC readonly on DEST\n"
-           "	--mount-proc DEST	     Mount procfs on DEST\n"
-           "	--mount-dev DEST	     Mount new dev on DEST\n"
-           "	--make-dir DEST		     Create dir at DEST\n"
-           "	--make-file FD DEST	     Copy from FD to dest DEST\n"
-           "	--make-bind-file FD DEST     Copy from FD to file which is bind-mounted on DEST\n"
-           "	--make-symlink SRC DEST	     Create symlink at DEST with target SRC\n"
+           "	--bind SRC DEST		     Bind mount the host path SRC on DEST\n"
+           "	--dev-bind SRC DEST	     Bind mount the host path SRC on DEST, allowing device access\n"
+           "	--ro-bind SRC DEST	     Bind mount the host path SRC readonly on DEST\n"
+           "	--proc DEST		     Mount procfs on DEST\n"
+           "	--dev DEST		     Mount new dev on DEST\n"
+           "	--dir DEST		     Create dir at DEST\n"
+           "	--file FD DEST		     Copy from FD to dest DEST\n"
+           "	--bind-data FD DEST	     Copy from FD to file which is bind-mounted on DEST\n"
+           "	--symlink SRC DEST	     Create symlink at DEST with target SRC\n"
            );
   exit (1);
 }
@@ -829,10 +829,10 @@ main (int argc,
           argv++;
           argc--;
         }
-      else if (strcmp (arg, "--mount-bind") == 0)
+      else if (strcmp (arg, "--bind") == 0)
         {
           if (argc < 3)
-            die ("--mount-bind takes two arguments");
+            die ("--bind takes two arguments");
 
           op = setup_op_new (SETUP_BIND_MOUNT);
           op->source = canonicalize_file_name (argv[1]);
@@ -843,10 +843,10 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--mount-ro-bind") == 0)
+      else if (strcmp (arg, "--ro-bind") == 0)
         {
           if (argc < 3)
-            die ("--mount-ro-bind takes two arguments");
+            die ("--ro-bind takes two arguments");
 
           op = setup_op_new (SETUP_RO_BIND_MOUNT);
           op->source = canonicalize_file_name (argv[1]);
@@ -857,10 +857,10 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--mount-dev-bind") == 0)
+      else if (strcmp (arg, "--dev-bind") == 0)
         {
           if (argc < 3)
-            die ("--mount-dev-bind takes two arguments");
+            die ("--dev-bind takes two arguments");
 
           op = setup_op_new (SETUP_DEV_BIND_MOUNT);
           op->source = canonicalize_file_name (argv[1]);
@@ -871,10 +871,10 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--mount-proc") == 0)
+      else if (strcmp (arg, "--proc") == 0)
         {
           if (argc < 2)
-            die ("--mount-proc takes an argument");
+            die ("--proc takes an argument");
 
           op = setup_op_new (SETUP_MOUNT_PROC);
           op->dest = argv[1];
@@ -882,10 +882,10 @@ main (int argc,
           argv += 1;
           argc -= 1;
         }
-      else if (strcmp (arg, "--mount-dev") == 0)
+      else if (strcmp (arg, "--dev") == 0)
         {
           if (argc < 2)
-            die ("--mount-dev takes an argument");
+            die ("--dev takes an argument");
 
           op = setup_op_new (SETUP_MOUNT_DEV);
           op->dest = argv[1];
@@ -893,10 +893,10 @@ main (int argc,
           argv += 1;
           argc -= 1;
         }
-      else if (strcmp (arg, "--make-dir") == 0)
+      else if (strcmp (arg, "--dir") == 0)
         {
           if (argc < 2)
-            die ("--make-dir takes an argument");
+            die ("--dir takes an argument");
 
           op = setup_op_new (SETUP_MAKE_DIR);
           op->dest = argv[1];
@@ -904,13 +904,13 @@ main (int argc,
           argv += 1;
           argc -= 1;
         }
-      else if (strcmp (arg, "--make-file") == 0)
+      else if (strcmp (arg, "--file") == 0)
         {
           int file_fd;
           char *endptr;
 
           if (argc < 3)
-            die ("--make-file takes two arguments");
+            die ("--file takes two arguments");
 
           file_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
@@ -923,13 +923,13 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--make-bind-file") == 0)
+      else if (strcmp (arg, "--bind-data") == 0)
         {
           int file_fd;
           char *endptr;
 
           if (argc < 3)
-            die ("--make-bind-file takes two arguments");
+            die ("--bind-data takes two arguments");
 
           file_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
@@ -942,10 +942,10 @@ main (int argc,
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--make-symlink") == 0)
+      else if (strcmp (arg, "--symlink") == 0)
         {
           if (argc < 3)
-            die ("--make-symlink takes two arguments");
+            die ("--symlink takes two arguments");
 
           op = setup_op_new (SETUP_MAKE_SYMLINK);
           op->source = argv[1];

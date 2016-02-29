@@ -10,19 +10,19 @@ getent group `id -g` 65534 > ${GROUP}
 (   # Remove temporary files before calling bwrap, they are open in the fds anyway
     rm $GROUP
     rm $PASSWD
-    bwrap --mount-ro-bind /usr /usr \
-	   --make-dir /tmp \
-	   --mount-proc /proc \
-	   --mount-dev /dev \
-	   --mount-ro-bind /etc/resolv.conf /etc/resolv.conf \
-	   --make-file 11 /etc/passwd \
-	   --make-file 12 /etc/group \
-	   --make-symlink usr/lib /lib \
-	   --make-symlink usr/lib64 /lib64 \
-	   --make-symlink usr/bin /bin \
-	   --make-symlink usr/sbin /sbin \
+    bwrap --ro-bind /usr /usr \
+	   --dir /tmp \
+	   --proc /proc \
+	   --dev /dev \
+	   --ro-bind /etc/resolv.conf /etc/resolv.conf \
+	   --file 11 /etc/passwd \
+	   --file 12 /etc/group \
+	   --symlink usr/lib /lib \
+	   --symlink usr/lib64 /lib64 \
+	   --symlink usr/bin /bin \
+	   --symlink usr/sbin /sbin \
 	   --chdir / \
 	   --unshare-pid \
-	   --make-dir /run/user/$(id -u) \
+	   --dir /run/user/$(id -u) \
 	   --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
 	   /bin/sh) 11< ${PASSWD} 12< ${GROUP}

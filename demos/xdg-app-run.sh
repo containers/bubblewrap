@@ -26,36 +26,36 @@ getent group `id -g` 65534 > ${GROUP}
     rm $GROUP
     rm $PASSWD
     bwrap \
-    --mount-ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
+    --ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
     --lock-file /usr/.ref \
-    --mount-ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \
+    --ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \
     --lock-file /app/.ref \
-    --mount-dev /dev \
-    --mount-proc /proc \
-    --make-dir /tmp \
-    --make-symlink /tmp /var/tmp \
-    --make-symlink /run /var/run \
-    --make-symlink usr/lib /lib \
-    --make-symlink usr/lib64 /lib64 \
-    --make-symlink usr/bin /bin \
-    --make-symlink usr/sbin /sbin \
-    --make-symlink usr/etc /etc \
-    --make-dir /run/user/`id -u` \
-    --make-bind-file 11 /usr/etc/passwd \
-    --make-bind-file 12 /usr/etc/group \
-    --mount-ro-bind /etc/machine-id /usr/etc/machine-id \
-    --mount-ro-bind /etc/resolv.conf /run/host/monitor/resolv.conf \
-    --make-file 10 /run/user/`id -u`/xdg-app-info \
-    --mount-ro-bind /sys/block /sys/block \
-    --mount-ro-bind /sys/bus /sys/bus \
-    --mount-ro-bind /sys/class /sys/class \
-    --mount-ro-bind /sys/dev /sys/dev \
-    --mount-ro-bind /sys/devices /sys/devices \
-    --mount-dev-bind /dev/dri /dev/dri \
-    --mount-bind /tmp/.X11-unix/X0 /tmp/.X11-unix/X99 \
-    --mount-bind ~/.var/app/org.gnome.Weather ~/.var/app/org.gnome.Weather \
-    --mount-bind ~/.config/dconf ~/.config/dconf \
-    --mount-bind /run/user/`id -u`/dconf /run/user/`id -u`/dconf  \
+    --dev /dev \
+    --proc /proc \
+    --dir /tmp \
+    --symlink /tmp /var/tmp \
+    --symlink /run /var/run \
+    --symlink usr/lib /lib \
+    --symlink usr/lib64 /lib64 \
+    --symlink usr/bin /bin \
+    --symlink usr/sbin /sbin \
+    --symlink usr/etc /etc \
+    --dir /run/user/`id -u` \
+    --bind-data 11 /usr/etc/passwd \
+    --bind-data 12 /usr/etc/group \
+    --ro-bind /etc/machine-id /usr/etc/machine-id \
+    --ro-bind /etc/resolv.conf /run/host/monitor/resolv.conf \
+    --file 10 /run/user/`id -u`/xdg-app-info \
+    --ro-bind /sys/block /sys/block \
+    --ro-bind /sys/bus /sys/bus \
+    --ro-bind /sys/class /sys/class \
+    --ro-bind /sys/dev /sys/dev \
+    --ro-bind /sys/devices /sys/devices \
+    --dev-bind /dev/dri /dev/dri \
+    --bind /tmp/.X11-unix/X0 /tmp/.X11-unix/X99 \
+    --bind ~/.var/app/org.gnome.Weather ~/.var/app/org.gnome.Weather \
+    --bind ~/.config/dconf ~/.config/dconf \
+    --bind /run/user/`id -u`/dconf /run/user/`id -u`/dconf  \
     --unshare-pid \
     --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
     --setenv DISPLAY :99 \
