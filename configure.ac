@@ -22,10 +22,6 @@ fi
 changequote([,])dnl
 AC_SUBST(WARN_CFLAGS)
 
-# Initialize libtool
-LT_PREREQ([2.2.4])
-LT_INIT([disable-static])
-
 AC_CONFIG_FILES([
 Makefile
 ])
