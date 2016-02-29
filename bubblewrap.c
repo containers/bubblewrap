@@ -136,6 +136,8 @@ usage ()
            "	--unshare-pid		     Create new pid namespace\n"
            "	--unshare-net		     Create new network namespace\n"
            "	--unshare-uts		     Create new uts namespace\n"
+           "    --uid UID		     Custom uid in the sandbox (incompatible with --share-user)\n"
+           "    --gid GID		     Custon gid in the sandbox (incompatible with --share-user)\n"
            "	--chdir DIR		     Change directory to DIR\n"
            "	--setenv VAR VALUE	     Set an environment variable\n"
            "	--unsetenv VAR		     Unset an environment variable\n"
@@ -782,6 +784,8 @@ main (int argc,
   const char *new_cwd;
   uid_t ns_uid;
   gid_t ns_gid;
+  uid_t sandbox_uid = -1;
+  gid_t sandbox_gid = -1;
   SetupOp *op;
 
   /* Get the (optional) capabilities we need, drop root */
@@ -1008,6 +1012,40 @@ main (int argc,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--uid") == 0)
+        {
+          int the_uid;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--uid takes an argument");
+
+          the_uid = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_uid < 0)
+            die ("Invalid uid: %s", argv[1]);
+
+          sandbox_uid = the_uid;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--gid") == 0)
+        {
+          int the_gid;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--gid takes an argument");
+
+          the_gid = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_gid < 0)
+            die ("Invalid gid: %s", argv[1]);
+
+          sandbox_gid = the_gid;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (*arg == '-')
         die ("Unknown option %s", arg);
       else
@@ -1026,7 +1064,17 @@ main (int argc,
   __debug__(("Creating root mount point\n"));
 
   uid = getuid ();
+  if (sandbox_uid == -1)
+    sandbox_uid = uid;
   gid = getgid ();
+  if (sandbox_gid == -1)
+    sandbox_gid = gid;
+
+  if (!unshare_user && sandbox_uid != uid)
+    die ("Specifying --uid not compatible with --share-user");
+
+  if (!unshare_user && sandbox_gid != gid)
+    die ("Specifying --gid not compatible with --share-user");
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
@@ -1089,8 +1137,8 @@ main (int argc,
       exit (0); /* Should not be reached, but better safe... */
     }
 
-  ns_uid = uid;
-  ns_gid = gid;
+  ns_uid = sandbox_uid;
+  ns_gid = sandbox_gid;
   if (unshare_user)
     {
       if (needs_devpts)
@@ -1198,7 +1246,7 @@ main (int argc,
     die_with_error ("unmount old root");
 
   if (unshare_user &&
-      (ns_uid != uid || ns_gid != gid))
+      (ns_uid != sandbox_uid || ns_gid != sandbox_gid))
     {
       /* Now that devpts is mounted and we've no need for mount
          permissions we can create a new userspace and map our uid
@@ -1207,8 +1255,8 @@ main (int argc,
       if (unshare (CLONE_NEWUSER))
         die_with_error ("unshare user ns");
 
-      write_uid_gid_map (uid, ns_uid,
-                         gid, ns_gid,
+      write_uid_gid_map (sandbox_uid, ns_uid,
+                         sandbox_gid, ns_gid,
                          FALSE);
     }
 
