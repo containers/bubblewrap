@@ -29,6 +29,8 @@
 #include <sys/signalfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
 
 #include "utils.h"
 #include "network.h"
@@ -152,6 +154,7 @@ usage ()
            "	--file FD DEST		     Copy from FD to dest DEST\n"
            "	--bind-data FD DEST	     Copy from FD to file which is bind-mounted on DEST\n"
            "	--symlink SRC DEST	     Create symlink at DEST with target SRC\n"
+           "	--seccomp FD		     Load and use seccomp rules from FD\n"
            );
   exit (1);
 }
@@ -781,6 +784,7 @@ main (int argc,
   pid_t pid;
   int event_fd = -1;
   int sync_fd = -1;
+  int seccomp_fd = -1;
   const char *new_cwd;
   uid_t ns_uid;
   gid_t ns_gid;
@@ -988,6 +992,23 @@ main (int argc,
             die ("Invalid fd: %s", argv[1]);
 
           sync_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--seccomp") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--seccomp-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          seccomp_fd = the_fd;
 
           argv += 1;
           argc -= 1;
@@ -1273,6 +1294,27 @@ main (int argc,
 
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
+
+  if (seccomp_fd != -1)
+    {
+      cleanup_free char *seccomp_data = NULL;
+      size_t seccomp_len;
+      struct sock_fprog prog;
+
+      seccomp_data = load_file_data (seccomp_fd, &seccomp_len);
+      if (seccomp_data == NULL)
+        die_with_error ("Can't read seccomp data");
+
+      if (seccomp_len % 8 != 0)
+        die ("Invalide seccomp data, must be multiple of 8");
+
+      prog.len = seccomp_len / 8;
+      prog.filter = (struct sock_filter *)seccomp_data;
+
+      close (seccomp_fd);
+
+      prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+    }
 
   umask (old_umask);
 

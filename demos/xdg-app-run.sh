@@ -70,7 +70,8 @@ getent group `id -g` 65534 > ${GROUP}
     --setenv XDG_CACHE_HOME ~/.var/app/org.gnome.Weather/cache \
     --setenv XDG_CONFIG_HOME ~/.var/app/org.gnome.Weather/config \
     --setenv XDG_DATA_HOME ~/.var/app/org.gnome.Weather/data \
-    gnome-weather) 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP}
+    --seccomp 13 \
+    gnome-weather) 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP} 13< `dirname $0`/xdg-app.bpf
 
 
 # TODO:

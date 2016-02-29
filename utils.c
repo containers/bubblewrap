@@ -414,9 +414,11 @@ copy_file (const char *src_path,
   return res;
 }
 
-/* Sets errno on error (== NULL) */
+/* Sets errno on error (== NULL),
+ * Always ensures terminating zero */
 char *
-load_file_data (int fd)
+load_file_data (int fd,
+                size_t *size)
 {
   cleanup_free char *data = NULL;
   ssize_t data_read;
@@ -454,10 +456,14 @@ load_file_data (int fd)
 
   data[data_read] = 0;
 
+  if (size)
+    *size = (size_t)data_read;
+
   return steal_pointer (&data);
 }
 
-/* Sets errno on error (== NULL) */
+/* Sets errno on error (== NULL),
+ * Always ensures terminating zero */
 char *
 load_file_at (int dirfd,
               const char *path)
@@ -470,7 +476,7 @@ load_file_at (int dirfd,
   if (fd == -1)
     return NULL;
 
-  data = load_file_data (fd);
+  data = load_file_data (fd, NULL);
 
   errsv = errno;
   close (fd);
