@@ -131,6 +131,7 @@ usage ()
   fprintf (stderr,
            "	--help			     Print this help\n"
            "	--version		     Print version\n"
+           "	--share-user		     Don't create new user namespace\n"
            "	--unshare-ipc		     Create new ipc namespace\n"
            "	--unshare-pid		     Create new pid namespace\n"
            "	--unshare-net		     Create new network namespace\n"
@@ -368,6 +369,10 @@ acquire_caps (void)
         die_with_error ("capset failed");
     }
   /* Else, we try unprivileged user namespaces */
+
+  /* We need the process to be dumpable, or we can't access /proc/self/uid_map */
+  if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
+    die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 }
 
 static void
@@ -387,9 +392,6 @@ drop_caps (void)
 
   if (capset (&hdr, &data) < 0)
     die_with_error ("capset failed");
-
-  if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
-    die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 }
 
 static char *
@@ -766,10 +768,12 @@ main (int argc,
   mode_t old_umask;
   cleanup_free char *base_path = NULL;
   char *chdir_path = NULL;
+  bool unshare_user = TRUE;
   bool unshare_pid = FALSE;
   bool unshare_ipc = FALSE;
   bool unshare_net = FALSE;
   bool unshare_uts = FALSE;
+  bool needs_devpts = FALSE;
   int clone_flags;
   char *old_cwd = NULL;
   pid_t pid;
@@ -812,6 +816,8 @@ main (int argc,
           printf ("%s\n", PACKAGE_STRING);
           exit (0);
         }
+      else if (strcmp (arg, "--share-user") == 0)
+        unshare_user = FALSE;
       else if (strcmp (arg, "--unshare-ipc") == 0)
         unshare_ipc = TRUE;
       else if (strcmp (arg, "--unshare-pid") == 0)
@@ -878,6 +884,7 @@ main (int argc,
 
           op = setup_op_new (SETUP_MOUNT_PROC);
           op->dest = argv[1];
+          needs_devpts = TRUE;
 
           argv += 1;
           argc -= 1;
@@ -1010,6 +1017,9 @@ main (int argc,
       argc--;
     }
 
+  if (!unshare_user && !is_privileged)
+    die ("bubblewrap is not privileged, --share-user not supported");
+
   if (argc == 0)
     usage ();
 
@@ -1044,7 +1054,7 @@ main (int argc,
   block_sigchild ();
 
   clone_flags = SIGCHLD | CLONE_NEWNS;
-  if (!is_privileged)
+  if (unshare_user)
     clone_flags |= CLONE_NEWUSER;
   if (unshare_pid)
     clone_flags |= CLONE_NEWPID;
@@ -1058,11 +1068,11 @@ main (int argc,
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
-      if (!is_privileged)
+      if (unshare_user)
         {
           if (errno == EINVAL)
-            die ("Creating new namespace failed, likely because the kernel does not support user namespaces. Give bubblewrap setuid root or cap_sys_admin+ep rights, or switch to a kernel with user namespace support.");
-          else if (errno == EPERM)
+            die ("Creating new namespace failed, likely because the kernel does not support user namespaces. Try without --unshare-user.");
+          else if (errno == EPERM && !is_privileged)
             die ("No permissions to creating new namespace, likely because the kernel does not allow non-privileged user namespaces. On e.g. debian this can be enabled with 'sysctl kernel.unprivileged_userns_clone=1'.");
         }
 
@@ -1081,14 +1091,17 @@ main (int argc,
 
   ns_uid = uid;
   ns_gid = gid;
-  if (!is_privileged)
+  if (unshare_user)
     {
-      /* This is a bit hacky, but we need to first map the real uid/gid to
-         0, otherwise we can't mount the devpts filesystem because root is
-         not mapped. Later we will create another child user namespace and
-         map back to the real uid */
-      ns_uid = 0;
-      ns_gid = 0;
+      if (needs_devpts)
+        {
+          /* This is a bit hacky, but we need to first map the real uid/gid to
+             0, otherwise we can't mount the devpts filesystem because root is
+             not mapped. Later we will create another child user namespace and
+             map back to the real uid */
+          ns_uid = 0;
+          ns_gid = 0;
+        }
 
       write_uid_gid_map (ns_uid, uid,
                          ns_gid, gid,
@@ -1184,7 +1197,8 @@ main (int argc,
   if (umount2 ("oldroot", MNT_DETACH))
     die_with_error ("unmount old root");
 
-  if (ns_uid != uid || ns_gid != gid)
+  if (unshare_user &&
+      (ns_uid != uid || ns_gid != gid))
     {
       /* Now that devpts is mounted and we've no need for mount
          permissions we can create a new userspace and map our uid
