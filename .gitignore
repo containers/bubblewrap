@@ -13,4 +13,4 @@ stamp-h1
 config.log
 config.status
 configure
-bubblewrap
+bwrap
