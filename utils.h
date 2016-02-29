@@ -73,6 +73,7 @@ bool  has_prefix     (const char  *str,
 int   fdwalk         (int          proc_fd,
                       int        (*cb)(void *data, int fd),
                       void        *data);
+char *load_file_data (int          fd);
 char *load_file_at   (int          dirfd,
                       const char  *path);
 int   write_file_at  (int          dirfd,

@@ -414,22 +414,15 @@ copy_file (const char *src_path,
   return res;
 }
 
-
 /* Sets errno on error (== NULL) */
 char *
-load_file_at (int dirfd,
-              const char *path)
+load_file_data (int fd)
 {
-  int fd;
   cleanup_free char *data = NULL;
   ssize_t data_read;
   ssize_t data_len;
   ssize_t res;
   int errsv;
-
-  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
-  if (fd == -1)
-    return NULL;
 
   data_read = 0;
   data_len = 4080;
@@ -461,11 +454,29 @@ load_file_at (int dirfd,
 
   data[data_read] = 0;
 
+  return steal_pointer (&data);
+}
+
+/* Sets errno on error (== NULL) */
+char *
+load_file_at (int dirfd,
+              const char *path)
+{
+  int fd;
+  char *data;
+  int errsv;
+
+  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
+  if (fd == -1)
+    return NULL;
+
+  data = load_file_data (fd);
+
   errsv = errno;
   close (fd);
   errno = errsv;
 
-  return steal_pointer (&data);
+  return data;
 }
 
 /* Sets errno on error (< 0) */
