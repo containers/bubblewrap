@@ -1158,6 +1158,9 @@ main (int argc,
       exit (0); /* Should not be reached, but better safe... */
     }
 
+  if (unshare_net && loopback_setup () != 0)
+    die ("Can't create loopback device");
+
   ns_uid = sandbox_uid;
   ns_gid = sandbox_gid;
   if (unshare_user)
@@ -1288,9 +1291,6 @@ main (int argc,
     die_with_error ("chroot /newroot");
   if (chdir ("/") != 0)
     die_with_error ("chhdir /");
-
-  if (unshare_net && loopback_setup () != 0)
-    die ("Can't create loopback device");
 
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
