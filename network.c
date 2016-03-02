@@ -55,7 +55,7 @@ rtnl_send_request (int              rtnl_fd,
   sent = sendto (rtnl_fd, (void *)header, header->nlmsg_len, 0,
                  (struct sockaddr *)&dst_addr, sizeof (dst_addr));
   if (sent < 0)
-    return 1;
+    return -1;
 
   return 0;
 }
@@ -72,22 +72,22 @@ rtnl_read_reply (int rtnl_fd,
     {
       received = recv (rtnl_fd, buffer, sizeof(buffer), 0);
       if (received < 0)
-        return 1;
+        return -1;
 
       rheader = (struct nlmsghdr *)buffer;
       while (received >= NLMSG_HDRLEN)
         {
           if (rheader->nlmsg_seq != seq_nr)
-            return 1;
+            return -1;
           if (rheader->nlmsg_pid != getpid ())
-            return 1;
+            return -1;
           if (rheader->nlmsg_type == NLMSG_ERROR)
             {
               uint32_t *err = NLMSG_DATA(rheader);
               if (*err == 0)
                 return 0;
 
-              return 1;
+              return -1;
             }
           if (rheader->nlmsg_type == NLMSG_DONE)
             return 0;
@@ -101,11 +101,11 @@ static int
 rtnl_do_request (int              rtnl_fd,
                  struct nlmsghdr *header)
 {
-  if (!rtnl_send_request (rtnl_fd, header))
-    return 1;
+  if (rtnl_send_request (rtnl_fd, header) != 0)
+    return -1;
 
-  if (!rtnl_read_reply (rtnl_fd, header->nlmsg_seq))
-    return 1;
+  if (rtnl_read_reply (rtnl_fd, header->nlmsg_seq) != 0)
+    return -1;
 
   return 0;
 }
@@ -177,7 +177,7 @@ loopback_setup (void)
 
   assert (header->nlmsg_len < sizeof (buffer));
 
-  if (rtnl_do_request (rtnl_fd, header))
+  if (rtnl_do_request (rtnl_fd, header) != 0)
     return -1;
 
   header = rtnl_setup_request (buffer, RTM_NEWLINK,
@@ -193,7 +193,7 @@ loopback_setup (void)
 
   assert (header->nlmsg_len < sizeof (buffer));
 
-  if (rtnl_do_request (rtnl_fd, header))
+  if (rtnl_do_request (rtnl_fd, header) != 0)
     return -1;
 
   return 0;
