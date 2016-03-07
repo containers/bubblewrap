@@ -765,53 +765,26 @@ read_priv_sec_op (int read_socket,
   return op->op;
 }
 
+char *opt_chdir_path = NULL;
+bool opt_unshare_user = TRUE;
+bool opt_unshare_pid = FALSE;
+bool opt_unshare_ipc = FALSE;
+bool opt_unshare_net = FALSE;
+bool opt_unshare_uts = FALSE;
+bool opt_needs_devpts = FALSE;
+uid_t opt_sandbox_uid = -1;
+gid_t opt_sandbox_gid = -1;
+int opt_sync_fd = -1;
+int opt_seccomp_fd = -1;
 
-int
-main (int argc,
-      char **argv)
+
+static void
+parse_args (int *argcp,
+            char ***argvp)
 {
-  mode_t old_umask;
-  cleanup_free char *base_path = NULL;
-  char *opt_chdir_path = NULL;
-  bool opt_unshare_user = TRUE;
-  bool opt_unshare_pid = FALSE;
-  bool opt_unshare_ipc = FALSE;
-  bool opt_unshare_net = FALSE;
-  bool opt_unshare_uts = FALSE;
-  bool opt_needs_devpts = FALSE;
-  int clone_flags;
-  char *old_cwd = NULL;
-  pid_t pid;
-  int event_fd = -1;
-  int opt_sync_fd = -1;
-  int opt_seccomp_fd = -1;
-  const char *new_cwd;
-  uid_t ns_uid;
-  gid_t ns_gid;
-  uid_t opt_sandbox_uid = -1;
-  gid_t opt_sandbox_gid = -1;
   SetupOp *op;
-
-  /* Get the (optional) capabilities we need, drop root */
-  acquire_caps ();
-
-  /* Never gain any more privs during exec */
-  if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
-    die_with_error ("prctl(PR_SET_NO_NEW_CAPS) failed");
-
-  /* The initial code is run with high permissions
-     (i.e. CAP_SYS_ADMIN), so take lots of care. */
-
-  argv0 = argv[0];
-
-  if (isatty (1))
-    host_tty_dev = ttyname (1);
-
-  argv++;
-  argc--;
-
-  if (argc == 0)
-    usage ();
+  int argc = *argcp;
+  char **argv = *argvp;
 
   while (argc > 0)
     {
@@ -1075,6 +1048,47 @@ main (int argc,
       argv++;
       argc--;
     }
+
+  *argcp = argc;
+  *argvp = argv;
+}
+
+int
+main (int argc,
+      char **argv)
+{
+  mode_t old_umask;
+  cleanup_free char *base_path = NULL;
+  int clone_flags;
+  char *old_cwd = NULL;
+  pid_t pid;
+  int event_fd = -1;
+  const char *new_cwd;
+  uid_t ns_uid;
+  gid_t ns_gid;
+
+  /* Get the (optional) capabilities we need, drop root */
+  acquire_caps ();
+
+  /* Never gain any more privs during exec */
+  if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
+    die_with_error ("prctl(PR_SET_NO_NEW_CAPS) failed");
+
+  /* The initial code is run with high permissions
+     (i.e. CAP_SYS_ADMIN), so take lots of care. */
+
+  argv0 = argv[0];
+
+  if (isatty (1))
+    host_tty_dev = ttyname (1);
+
+  argv++;
+  argc--;
+
+  if (argc == 0)
+    usage ();
+
+  parse_args (&argc, &argv);
 
   if (!opt_unshare_user && !is_privileged)
     die ("bubblewrap is not privileged, --share-user not supported");
