@@ -212,16 +212,14 @@ get_submounts (int proc_fd,
 
       unescaped = unescape_mountpoint (mountpoint, -1);
 
-      if (*unescaped == '/' &&
-          has_prefix (unescaped + 1, parent_mount) &&
-          *(unescaped + 1 + strlen (parent_mount)) == '/')
+      if (has_path_prefix (unescaped, parent_mount))
         {
           if (n_submounts + 1 >= submounts_size)
             {
               submounts_size *= 2;
               submounts = xrealloc (submounts, sizeof (char *) * submounts_size);
             }
-          submounts[n_submounts++] = xstrdup (unescaped + 1);
+          submounts[n_submounts++] = xstrdup (unescaped);
         }
     }
 
