@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # For this to work you first have to run these commands:
 #  curl -O http://sdk.gnome.org/nightly/keys/nightly.gpg
 #  xdg-app --user remote-add --gpg-key=nightly.gpg gnome-nightly http://sdk.gnome.org/nightly/repo/
@@ -7,25 +7,8 @@
 
 mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config ~/.var/app/org.gnome.Weather/data
 
-APPINFO=`mktemp`
-cat > ${APPINFO} <<EOF
-[Application]
-name=org.gnome.Weather
-runtime=runtime/org.gnome.Platform/x86_64/master
-EOF
-
-PASSWD=`mktemp`
-getent passwd `id -u` 65534 > ${PASSWD}
-
-GROUP=`mktemp`
-getent group `id -g` 65534 > ${GROUP}
-
 (
-    # Remove all temporary files before calling bwrap, they are open in the fds anyway
-    rm $APPINFO
-    rm $GROUP
-    rm $PASSWD
-    bwrap \
+    exec bwrap \
     --ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
     --lock-file /usr/.ref \
     --ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \
@@ -41,11 +24,8 @@ getent group `id -g` 65534 > ${GROUP}
     --symlink usr/sbin /sbin \
     --symlink usr/etc /etc \
     --dir /run/user/`id -u` \
-    --bind-data 11 /usr/etc/passwd \
-    --bind-data 12 /usr/etc/group \
     --ro-bind /etc/machine-id /usr/etc/machine-id \
     --ro-bind /etc/resolv.conf /run/host/monitor/resolv.conf \
-    --file 10 /run/user/`id -u`/xdg-app-info \
     --ro-bind /sys/block /sys/block \
     --ro-bind /sys/bus /sys/bus \
     --ro-bind /sys/class /sys/class \
@@ -70,10 +50,16 @@ getent group `id -g` 65534 > ${GROUP}
     --setenv XDG_CACHE_HOME ~/.var/app/org.gnome.Weather/cache \
     --setenv XDG_CONFIG_HOME ~/.var/app/org.gnome.Weather/config \
     --setenv XDG_DATA_HOME ~/.var/app/org.gnome.Weather/data \
+    --file 10 /run/user/`id -u`/xdg-app-info \
+    --bind-data 11 /usr/etc/passwd \
+    --bind-data 12 /usr/etc/group \
     --seccomp 13 \
-    gnome-weather) 10< ${APPINFO} 11< ${PASSWD} 12< ${GROUP} 13< `dirname $0`/xdg-app.bpf
-
-
-# TODO:
-# clean commandlines (pass args via file/fd?)
-# seccomp
+    /bin/sh) \
+    11< <(getent passwd $UID 65534 ) \
+    12< <(getent group $(id -g) 65534)  \
+    13< `dirname $0`/xdg-app.bpf \
+    10<<EOF
+[Application]
+name=org.gnome.Weather
+runtime=runtime/org.gnome.Platform/x86_64/master
+EOF
