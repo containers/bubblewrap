@@ -276,7 +276,12 @@ bind_mount (int proc_fd,
           if (new_flags != current_flags &&
               mount ("none", submounts[i],
                      NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|new_flags, NULL) != 0)
-            return 5;
+            {
+              /* If we can't read the mountpoint we can't remount it, but that should
+                 be safe to ignore because its not something the user can access. */
+              if (errno != EACCES)
+                return 5;
+            }
         }
     }
 
