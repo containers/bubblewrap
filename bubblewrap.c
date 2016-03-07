@@ -133,6 +133,7 @@ usage ()
   fprintf (stderr,
            "	--help			     Print this help\n"
            "	--version		     Print version\n"
+           "	--args FD		     Parse nul-separated args from FD\n"
            "	--share-user		     Don't create new user namespace\n"
            "	--unshare-ipc		     Create new ipc namespace\n"
            "	--unshare-pid		     Create new pid namespace\n"
@@ -796,6 +797,61 @@ parse_args (int *argcp,
         {
           printf ("%s\n", PACKAGE_STRING);
           exit (0);
+        }
+      else if (strcmp (arg, "--args") == 0)
+        {
+          int the_fd;
+          char *endptr;
+          char *data, *p;
+          char *data_end;
+          size_t data_len;
+          cleanup_free char **data_argv = NULL;
+          char **data_argv_copy;
+          int data_argc;
+          int i;
+
+          if (argc < 2)
+            die ("--args takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          data = load_file_data (the_fd, &data_len);
+          if (data == NULL)
+            die_with_error ("Can't read --args data");
+
+          data_end = data + data_len;
+          data_argc = 0;
+
+          p = data;
+          while (p != NULL && p < data_end)
+            {
+              data_argc++;
+              p = memchr (p, 0, data_end - p);
+              if (p != NULL)
+                p++;
+            }
+
+          data_argv = xcalloc (sizeof (char *) * (data_argc + 1));
+
+          i = 0;
+          p = data;
+          while (p != NULL && p < data_end)
+            {
+              /* Note: load_file_data always adds a nul terminator, so this is safe
+               * even for the last string. */
+              data_argv[i++] = p;
+              p = memchr (p, 0, data_end - p);
+              if (p != NULL)
+                p++;
+            }
+
+          data_argv_copy = data_argv; /* Don't change data_argv, we need to free it */
+          parse_args (&data_argc, &data_argv_copy);
+
+          argv += 1;
+          argc -= 1;
         }
       else if (strcmp (arg, "--share-user") == 0)
         opt_unshare_user = FALSE;
