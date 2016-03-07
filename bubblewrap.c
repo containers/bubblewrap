@@ -772,24 +772,24 @@ main (int argc,
 {
   mode_t old_umask;
   cleanup_free char *base_path = NULL;
-  char *chdir_path = NULL;
-  bool unshare_user = TRUE;
-  bool unshare_pid = FALSE;
-  bool unshare_ipc = FALSE;
-  bool unshare_net = FALSE;
-  bool unshare_uts = FALSE;
-  bool needs_devpts = FALSE;
+  char *opt_chdir_path = NULL;
+  bool opt_unshare_user = TRUE;
+  bool opt_unshare_pid = FALSE;
+  bool opt_unshare_ipc = FALSE;
+  bool opt_unshare_net = FALSE;
+  bool opt_unshare_uts = FALSE;
+  bool opt_needs_devpts = FALSE;
   int clone_flags;
   char *old_cwd = NULL;
   pid_t pid;
   int event_fd = -1;
-  int sync_fd = -1;
-  int seccomp_fd = -1;
+  int opt_sync_fd = -1;
+  int opt_seccomp_fd = -1;
   const char *new_cwd;
   uid_t ns_uid;
   gid_t ns_gid;
-  uid_t sandbox_uid = -1;
-  gid_t sandbox_gid = -1;
+  uid_t opt_sandbox_uid = -1;
+  gid_t opt_sandbox_gid = -1;
   SetupOp *op;
 
   /* Get the (optional) capabilities we need, drop root */
@@ -825,21 +825,21 @@ main (int argc,
           exit (0);
         }
       else if (strcmp (arg, "--share-user") == 0)
-        unshare_user = FALSE;
+        opt_unshare_user = FALSE;
       else if (strcmp (arg, "--unshare-ipc") == 0)
-        unshare_ipc = TRUE;
+        opt_unshare_ipc = TRUE;
       else if (strcmp (arg, "--unshare-pid") == 0)
-        unshare_pid = TRUE;
+        opt_unshare_pid = TRUE;
       else if (strcmp (arg, "--unshare-net") == 0)
-        unshare_net = TRUE;
+        opt_unshare_net = TRUE;
       else if (strcmp (arg, "--unshare-uts") == 0)
-        unshare_uts = TRUE;
+        opt_unshare_uts = TRUE;
       else if (strcmp (arg, "--chdir") == 0)
         {
           if (argc < 2)
             die ("--chdir takes one argument");
 
-          chdir_path = argv[1];
+          opt_chdir_path = argv[1];
           argv++;
           argc--;
         }
@@ -892,7 +892,7 @@ main (int argc,
 
           op = setup_op_new (SETUP_MOUNT_PROC);
           op->dest = argv[1];
-          needs_devpts = TRUE;
+          opt_needs_devpts = TRUE;
 
           argv += 1;
           argc -= 1;
@@ -991,7 +991,7 @@ main (int argc,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
-          sync_fd = the_fd;
+          opt_sync_fd = the_fd;
 
           argv += 1;
           argc -= 1;
@@ -1008,7 +1008,7 @@ main (int argc,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
-          seccomp_fd = the_fd;
+          opt_seccomp_fd = the_fd;
 
           argv += 1;
           argc -= 1;
@@ -1045,7 +1045,7 @@ main (int argc,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_uid < 0)
             die ("Invalid uid: %s", argv[1]);
 
-          sandbox_uid = the_uid;
+          opt_sandbox_uid = the_uid;
 
           argv += 1;
           argc -= 1;
@@ -1062,7 +1062,7 @@ main (int argc,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_gid < 0)
             die ("Invalid gid: %s", argv[1]);
 
-          sandbox_gid = the_gid;
+          opt_sandbox_gid = the_gid;
 
           argv += 1;
           argc -= 1;
@@ -1076,7 +1076,7 @@ main (int argc,
       argc--;
     }
 
-  if (!unshare_user && !is_privileged)
+  if (!opt_unshare_user && !is_privileged)
     die ("bubblewrap is not privileged, --share-user not supported");
 
   if (argc == 0)
@@ -1085,16 +1085,16 @@ main (int argc,
   __debug__(("Creating root mount point\n"));
 
   uid = getuid ();
-  if (sandbox_uid == -1)
-    sandbox_uid = uid;
+  if (opt_sandbox_uid == -1)
+    opt_sandbox_uid = uid;
   gid = getgid ();
-  if (sandbox_gid == -1)
-    sandbox_gid = gid;
+  if (opt_sandbox_gid == -1)
+    opt_sandbox_gid = gid;
 
-  if (!unshare_user && sandbox_uid != uid)
+  if (!opt_unshare_user && opt_sandbox_uid != uid)
     die ("Specifying --uid not compatible with --share-user");
 
-  if (!unshare_user && sandbox_gid != gid)
+  if (!opt_unshare_user && opt_sandbox_gid != gid)
     die ("Specifying --gid not compatible with --share-user");
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
@@ -1116,28 +1116,28 @@ main (int argc,
 
   __debug__(("creating new namespace\n"));
 
-  if (unshare_pid)
+  if (opt_unshare_pid)
     event_fd = eventfd (0, EFD_CLOEXEC | EFD_NONBLOCK);
 
   /* We block sigchild here so that we can use signalfd in the monitor. */
   block_sigchild ();
 
   clone_flags = SIGCHLD | CLONE_NEWNS;
-  if (unshare_user)
+  if (opt_unshare_user)
     clone_flags |= CLONE_NEWUSER;
-  if (unshare_pid)
+  if (opt_unshare_pid)
     clone_flags |= CLONE_NEWPID;
-  if (unshare_net)
+  if (opt_unshare_net)
     clone_flags |= CLONE_NEWNET;
-  if (unshare_ipc)
+  if (opt_unshare_ipc)
     clone_flags |= CLONE_NEWIPC;
-  if (unshare_uts)
+  if (opt_unshare_uts)
     clone_flags |= CLONE_NEWUTS;
 
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
-      if (unshare_user)
+      if (opt_unshare_user)
         {
           if (errno == EINVAL)
             die ("Creating new namespace failed, likely because the kernel does not support user namespaces. Try without --unshare-user.");
@@ -1158,14 +1158,14 @@ main (int argc,
       exit (0); /* Should not be reached, but better safe... */
     }
 
-  if (unshare_net && loopback_setup () != 0)
+  if (opt_unshare_net && loopback_setup () != 0)
     die ("Can't create loopback device");
 
-  ns_uid = sandbox_uid;
-  ns_gid = sandbox_gid;
-  if (unshare_user)
+  ns_uid = opt_sandbox_uid;
+  ns_gid = opt_sandbox_gid;
+  if (opt_unshare_user)
     {
-      if (needs_devpts)
+      if (opt_needs_devpts)
         {
           /* This is a bit hacky, but we need to first map the real uid/gid to
              0, otherwise we can't mount the devpts filesystem because root is
@@ -1233,7 +1233,7 @@ main (int argc,
           /* Unprivileged setup process */
           drop_caps ();
           close (privsep_sockets[0]);
-          setup_newroot (unshare_pid, privsep_sockets[1]);
+          setup_newroot (opt_unshare_pid, privsep_sockets[1]);
           exit (0);
         }
       else
@@ -1260,7 +1260,7 @@ main (int argc,
         }
     }
   else
-    setup_newroot (unshare_pid, -1);
+    setup_newroot (opt_unshare_pid, -1);
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
   if (mount ("oldroot", "oldroot", NULL, MS_REC|MS_PRIVATE, NULL) != 0)
@@ -1269,8 +1269,8 @@ main (int argc,
   if (umount2 ("oldroot", MNT_DETACH))
     die_with_error ("unmount old root");
 
-  if (unshare_user &&
-      (ns_uid != sandbox_uid || ns_gid != sandbox_gid))
+  if (opt_unshare_user &&
+      (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid))
     {
       /* Now that devpts is mounted and we've no need for mount
          permissions we can create a new userspace and map our uid
@@ -1279,8 +1279,8 @@ main (int argc,
       if (unshare (CLONE_NEWUSER))
         die_with_error ("unshare user ns");
 
-      write_uid_gid_map (sandbox_uid, ns_uid,
-                         sandbox_gid, ns_gid,
+      write_uid_gid_map (opt_sandbox_uid, ns_uid,
+                         opt_sandbox_gid, ns_gid,
                          FALSE);
     }
 
@@ -1295,13 +1295,13 @@ main (int argc,
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
 
-  if (seccomp_fd != -1)
+  if (opt_seccomp_fd != -1)
     {
       cleanup_free char *seccomp_data = NULL;
       size_t seccomp_len;
       struct sock_fprog prog;
 
-      seccomp_data = load_file_data (seccomp_fd, &seccomp_len);
+      seccomp_data = load_file_data (opt_seccomp_fd, &seccomp_len);
       if (seccomp_data == NULL)
         die_with_error ("Can't read seccomp data");
 
@@ -1311,19 +1311,19 @@ main (int argc,
       prog.len = seccomp_len / 8;
       prog.filter = (struct sock_filter *)seccomp_data;
 
-      close (seccomp_fd);
+      close (opt_seccomp_fd);
 
-      prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+      prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
     }
 
   umask (old_umask);
 
   new_cwd = "/";
-  if (chdir_path)
+  if (opt_chdir_path)
     {
-      if (chdir (chdir_path))
-        die_with_error ("Can't chdir to %s", chdir_path);
-      new_cwd = chdir_path;
+      if (chdir (opt_chdir_path))
+        die_with_error ("Can't chdir to %s", opt_chdir_path);
+      new_cwd = opt_chdir_path;
     }
   else if (chdir (old_cwd) == 0)
     {
@@ -1343,7 +1343,7 @@ main (int argc,
 
   __debug__(("forking for child\n"));
 
-  if (unshare_pid || lock_files != NULL || sync_fd != -1)
+  if (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1)
     {
       /* We have to have a pid 1 in the pid namespace, because
        * otherwise we'll get a bunch of zombies as nothing reaps
@@ -1359,7 +1359,7 @@ main (int argc,
         {
           /* Close fds in pid 1, except stdio and optionally event_fd
              (for syncing pid 2 lifetime with monitor_child) and
-             sync_fd (for syncing sandbox lifetime with outside
+             opt_sync_fd (for syncing sandbox lifetime with outside
              process).
              Any other fds will been passed on to the child though. */
           {
@@ -1367,8 +1367,8 @@ main (int argc,
             int j = 0;
             if (event_fd != -1)
               dont_close[j++] = event_fd;
-            if (sync_fd != -1)
-              dont_close[j++] = sync_fd;
+            if (opt_sync_fd != -1)
+              dont_close[j++] = opt_sync_fd;
             dont_close[j++] = -1;
             fdwalk (proc_fd, close_extra_fds, dont_close);
           }
@@ -1382,8 +1382,8 @@ main (int argc,
   if (proc_fd != -1)
     close (proc_fd);
 
-  if (sync_fd != -1)
-    close (sync_fd);
+  if (opt_sync_fd != -1)
+    close (opt_sync_fd);
 
   /* We want sigchild in the child */
   unblock_sigchild ();
