@@ -118,7 +118,7 @@ get_mountinfo (int proc_fd,
         {
           res = line_start;
           line[-1] = 0;
-          break;
+          /* Keep going, because we want to return the *last* match */
         }
     }
 
