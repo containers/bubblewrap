@@ -238,7 +238,7 @@ bind_mount (int proc_fd,
   bool private = (options & BIND_PRIVATE) != 0;
   bool devices = (options & BIND_DEVICES) != 0;
   bool recursive = (options & BIND_RECURSIVE) != 0;
-  unsigned long current_flags;
+  unsigned long current_flags, new_flags;
   int i;
 
   if (mount (src, dest, NULL, MS_MGC_VAL|MS_BIND|(recursive?MS_REC:0), NULL) != 0)
@@ -253,8 +253,10 @@ bind_mount (int proc_fd,
 
   current_flags = get_mountflags (proc_fd, dest);
 
-  if (mount ("none", dest,
-             NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0), NULL) != 0)
+  new_flags = current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0);
+  if (new_flags != current_flags &&
+      mount ("none", dest,
+             NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|new_flags, NULL) != 0)
     return 3;
 
   /* We need to work around the fact that a bind mount does not apply the flags, so we need to manually
@@ -270,8 +272,10 @@ bind_mount (int proc_fd,
       for (i = 0; submounts[i] != NULL; i++)
         {
           current_flags = get_mountflags (proc_fd, submounts[i]);
-          if (mount ("none", submounts[i],
-                     NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0), NULL) != 0)
+          new_flags = current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0);
+          if (new_flags != current_flags &&
+              mount ("none", submounts[i],
+                     NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|new_flags, NULL) != 0)
             return 5;
         }
     }
