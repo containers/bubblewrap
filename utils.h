@@ -70,6 +70,8 @@ char* strdup_printf  (const char  *format,
                       ...);
 bool  has_prefix     (const char  *str,
                       const char  *prefix);
+bool  has_path_prefix (const char  *str,
+                       const char  *prefix);
 int   fdwalk         (int          proc_fd,
                       int        (*cb)(void *data, int fd),
                       void        *data);
