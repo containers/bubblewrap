@@ -235,7 +235,6 @@ bind_mount (int proc_fd,
             bind_option_t options)
 {
   bool readonly = (options & BIND_READONLY) != 0;
-  bool private = (options & BIND_PRIVATE) != 0;
   bool devices = (options & BIND_DEVICES) != 0;
   bool recursive = (options & BIND_RECURSIVE) != 0;
   unsigned long current_flags, new_flags;
@@ -243,13 +242,6 @@ bind_mount (int proc_fd,
 
   if (mount (src, dest, NULL, MS_MGC_VAL|MS_BIND|(recursive?MS_REC:0), NULL) != 0)
     return 1;
-
-  if (private)
-    {
-      if (mount ("none", dest,
-                 NULL, MS_REC|MS_PRIVATE, NULL) != 0)
-        return 2;
-    }
 
   current_flags = get_mountflags (proc_fd, dest);
 

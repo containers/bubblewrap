@@ -21,7 +21,6 @@
 
 typedef enum {
   BIND_READONLY = (1<<0),
-  BIND_PRIVATE = (1<<1),
   BIND_DEVICES = (1<<2),
   BIND_RECURSIVE = (1<<3),
 } bind_option_t;
