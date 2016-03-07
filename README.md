@@ -48,3 +48,46 @@ clusters.  Having the ability for unprivileged users to use container
 features would make it significantly easier to do interactive
 debugging scenarios and the like.
 
+Usage
+-----
+
+bubblewrap works by creating a new, completely empty, filesystem
+namespace where the root is on a tmpfs that is invisible from the
+host, and will be automatically cleaned up when the last process
+exists. You can then use commandline options to construct the root
+filesystem and process environment and command to run in the
+namespace.
+
+A simple example is
+```
+bwrap --ro-bind / / bash
+```
+This will create a read-only bind mount of the host root at the
+sandbox root, and then start a bash.
+
+Another simple example would be a read-write chroot operation:
+```
+bwrap --bind /some/chroot/dir / bash
+```
+
+A more complex example is to run a with a custom (readonly) /usr,
+but your own (tmpfs) data, running in a PID and network namespace:
+
+```
+bwrap --ro-bind /usr /usr \
+   --dir /tmp \
+   --proc /proc \
+   --dev /dev \
+   --ro-bind /etc/resolv.conf /etc/resolv.conf \
+   --symlink usr/lib /lib \
+   --symlink usr/lib64 /lib64 \
+   --symlink usr/bin /bin \
+   --symlink usr/sbin /sbin \
+   --chdir / \
+   --unshare-pid \
+   --unshare-net \
+   --dir /run/user/$(id -u) \
+   --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
+   /bin/sh
+```
+
