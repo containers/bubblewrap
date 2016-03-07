@@ -613,7 +613,7 @@ setup_newroot (bool unshare_pid,
             if (create_file (node_dest, 0666, NULL) != 0)
               die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
             privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT, 0,
+                           PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
                            node_src, node_dest);
           }
 
@@ -637,7 +637,7 @@ setup_newroot (bool unshare_pid,
           if (mkdir (pts, 0755) == -1)
             die_with_error ("Can't create %s/devpts", op->dest);
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_DEVPTS_MOUNT, 0,
+                         PRIV_SEP_OP_DEVPTS_MOUNT, BIND_DEVICES,
                          pts, NULL);
 
           if (symlink ("pts/ptmx", ptmx) != 0)
