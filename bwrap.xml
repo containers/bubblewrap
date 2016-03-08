@@ -152,8 +152,10 @@
     </varlistentry>
   </variablelist>
   <para>
-    Filesystem related options. Note that it is possible to refer to the same
-    destination or mount point multiple times. In such cases, the last option wins.
+    Filesystem related options. These are all operations that modify the filesystem directly, or
+    mounts stuff in the filesystem. These are applied in the order they are given as arguments.
+    Any missing parent directories that are required to create a specified destination are
+    automatically created as needed.
   </para>
   <variablelist>
     <varlistentry>
