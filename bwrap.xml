@@ -42,11 +42,15 @@
 
 <refsect1><title>Description</title>
 <para>
-  <command>bwrap</command> works by creating a new, completely empty, filesystem
-  namespace where the root is on a tmpfs that is invisible from the host, and which
-  will be automatically cleaned up when the last process exists. You can then use
-  commandline options to construct the root filesystem and process environment for
-  the command to run in the namespace.
+  <command>bwrap</command> is a privileged helper for container setup. You
+  are unlikely to use it directly from the commandline, although that is possible.
+</para>
+<para>
+  It works by creating a new, completely empty, filesystem namespace where the root
+  is on a tmpfs that is invisible from the host, and which will be automatically
+  cleaned up when the last process exists. You can then use commandline options to
+  construct the root filesystem and process environment for the command to run in
+  the namespace.
 </para>
 <para>
   By default, <command>bwrap</command> creates a new user namespace for the sandbox.
