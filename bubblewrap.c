@@ -1031,7 +1031,7 @@ parse_args (int *argcp,
           char *endptr;
 
           if (argc < 2)
-            die ("--seccomp-fd takes an argument");
+            die ("--seccomp takes an argument");
 
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
