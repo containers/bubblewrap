@@ -63,6 +63,10 @@
 </refsect1>
 
 <refsect1><title>Options</title>
+  <para>
+    When options are used multiple times, the last option wins, unless otherwise
+    specified.
+  </para>
   <para>General options:</para>
   <variablelist>
     <varlistentry>
@@ -75,7 +79,11 @@
     </varlistentry>
     <varlistentry>
       <term><option>--args <arg choice="plain">FD</arg></option></term>
-      <listitem><para>Parse nul-separated arguments from the given file descriptor</para></listitem>
+      <listitem><para>
+        Parse nul-separated arguments from the given file descriptor.
+        This option can be used multiple times to parse options from
+        multiple sources.
+      </para></listitem>
     </varlistentry>
   </variablelist>
   <para>Options related to kernel namespaces:</para>
@@ -128,14 +136,20 @@
   <variablelist>
     <varlistentry>
       <term><option>--lock-file <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Take a lock on <arg choice="plain">DEST</arg> while the sandbox is running</para></listitem>
+      <listitem><para>
+        Take a lock on <arg choice="plain">DEST</arg> while the sandbox is running.
+        This option can be used multiple times to take locks on multiple files.
+      </para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--sync-fd <arg choice="plain">FD</arg></option></term>
       <listitem><para>Keep this file descriptor open while the sandbox is running</para></listitem>
     </varlistentry>
   </variablelist>
-  <para>Filesystem related options:</para>
+  <para>
+    Filesystem related options. Note that it is possible to refer to the same
+    destination or mount point multiple times. In such cases, the last option wins.
+  </para>
   <variablelist>
     <varlistentry>
       <term><option>--bind <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
