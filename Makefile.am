@@ -11,3 +11,5 @@ test-setuid: bwrap
 
 test-setcaps: bwrap
 	sudo setcap "cap_sys_admin+ep cap_sys_chroot+ep" bwrap
+
+include Makefile-docs.am
