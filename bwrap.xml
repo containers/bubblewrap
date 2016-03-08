@@ -202,6 +202,22 @@
 </refsect1>
 
 <refsect1>
+  <title>Environment</title>
+
+  <variablelist>
+    <varlistentry>
+      <term><envar>HOME</envar></term>
+      <listitem><para>
+        Used as the cwd in the sandbox if <option>--cwd</option> has not been
+        explicitly specified and the current cwd is not present inside the sandbox.
+        The <option>--setenv</option> option can be used to override the value
+        that is used here.
+      </para></listitem>
+    </varlistentry>
+  </variablelist>
+</refsect1>
+
+<refsect1>
   <title>Exit status</title>
 
   <para>
