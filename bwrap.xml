@@ -54,11 +54,12 @@
   in the sandbox can be made to run with a different UID and GID.
 </para>
 <para>
-  <command>bwrap</command> is running a minimal pid 1 process in the sandbox that
-  is responsible for reaping zombies. It also detects when the initial application
-  process (pid 2) dies and reports its exit status back to the original spawner.
-  The pid 1 process exits to clean up the sandbox when there are no other processes
-  in the sandbox left.
+  If needed (e.g. when using a PID namespace) <command>bwrap</command>
+  is running a minimal pid 1 process in the sandbox that is
+  responsible for reaping zombies. It also detects when the initial
+  application process (pid 2) dies and reports its exit status back to
+  the original spawner.  The pid 1 process exits to clean up the
+  sandbox when there are no other processes in the sandbox left.
 </para>
 </refsect1>
 
