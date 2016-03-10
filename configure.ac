@@ -15,6 +15,8 @@ AC_SYS_LARGEFILE
 AC_PROG_CC
 AM_PROG_CC_C_O
 
+AC_CHECK_HEADERS([sys/capability.h], [], [AC_MSG_ERROR([*** POSIX caps headers not found])])
+
 changequote(,)dnl
 if test "x$GCC" = "xyes"; then
   WARN_CFLAGS="-Wall -Werror=missing-prototypes"
