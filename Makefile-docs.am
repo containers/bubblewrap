@@ -11,4 +11,6 @@ XSLTPROC_FLAGS = \
 .xml.1:
 	$(XSLTPROC) $(XSLTPROC_FLAGS) http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl $<
 
+if ENABLE_MAN
 man_MANS = bwrap.1
+endif
