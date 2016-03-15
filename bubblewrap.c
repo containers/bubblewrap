@@ -126,7 +126,7 @@ lock_file_new (const char *path)
 
 
 static void
-usage ()
+usage (int ecode)
 {
   fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
 
@@ -157,7 +157,7 @@ usage ()
            "	--symlink SRC DEST	     Create symlink at DEST with target SRC\n"
            "	--seccomp FD		     Load and use seccomp rules from FD\n"
            );
-  exit (1);
+  exit (ecode);
 }
 
 static void
@@ -792,7 +792,7 @@ parse_args (int *argcp,
       const char *arg = argv[0];
 
       if (strcmp (arg, "--help") == 0)
-        usage ();
+        usage (EXIT_SUCCESS);
       else if (strcmp (arg, "--version") == 0)
         {
           printf ("%s\n", PACKAGE_STRING);
@@ -1142,7 +1142,7 @@ main (int argc,
   argc--;
 
   if (argc == 0)
-    usage ();
+    usage (EXIT_FAILURE);
 
   parse_args (&argc, &argv);
 
@@ -1150,7 +1150,7 @@ main (int argc,
     die ("bubblewrap is not privileged, --share-user not supported");
 
   if (argc == 0)
-    usage ();
+    usage (EXIT_FAILURE);
 
   __debug__(("Creating root mount point\n"));
 
