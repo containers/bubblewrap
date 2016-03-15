@@ -13,3 +13,6 @@ test-setcaps: bwrap
 	sudo setcap "cap_sys_admin+ep cap_sys_chroot+ep" bwrap
 
 include Makefile-docs.am
+
+TESTS = tests/test-basic.sh
+TESTS_ENVIRONMENT = PATH=$$(cd $(top_builddir) && pwd):$${PATH}
