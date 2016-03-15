@@ -94,7 +94,7 @@ bwrap --ro-bind /usr /usr \
 Whats with the name ?!
 ----------------------
 
-The name bubblewrap was to convey that this
+The name bubblewrap was chosen to convey that this
 tool runs as the parent of the application (so wraps it in some sense) and creates
 a protective layer (the sandbox) around it.
 
