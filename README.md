@@ -101,4 +101,3 @@ a protective layer (the sandbox) around it.
 ![](bubblewrap.jpg)
 
 (Bubblewrap cat by [dancing_stupidity](https://www.flickr.com/photos/27549668@N03/))
-
