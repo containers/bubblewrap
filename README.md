@@ -32,7 +32,8 @@ allow privilege escalation.  It may increase the ability of a logged
 in user to perform denial of service attacks, however.
 
 In particular, bubblewrap uses `PR_SET_NO_NEW_PRIVS` to turn off
-setuid binaries.
+setuid binaries, which is the traditional way to get out of things
+like chroots.
 
 Users
 -----
@@ -90,6 +91,32 @@ bwrap --ro-bind /usr /usr \
    --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
    /bin/sh
 ```
+
+Sandboxing
+----------
+
+The goal of bubblewrap is to run an application in a sandbox, where it has
+access to less resources.
+
+bubblewrap always creates a new filesystem namespace, and the user can specify
+exactly what parts of the filesystem should be visible in the sandbox.
+Any such directories you specify mounted nodev by default, and can be made readonly.
+
+Additionally you can use these kernel features:
+
+User namespaces: This hides all but the current uid and gid from the
+sandbox. You can also change what the value of uid/gid should be in the sandbox.
+
+IPC namespaces: The sandbox will get its own copy of all the
+different forms of IPCs, like SysV shared memory and semaphores.
+
+PID namespaces: The sandbox will not see any processes outside the sandbox. Additionally, bubblewrap will run a trivial pid1 inside your container to handle the requirements of reaping children in the sandbox.
+
+Network namespaces: The sandbox will not see the network. Instead it will have its own network namespace with only a loopback device.
+
+UTS namespace: The sandbox will have its own hostname.
+
+Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox.
 
 Whats with the name ?!
 ----------------------
