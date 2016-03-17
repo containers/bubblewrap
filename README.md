@@ -32,7 +32,7 @@ allow privilege escalation.  It may increase the ability of a logged
 in user to perform denial of service attacks, however.
 
 In particular, bubblewrap uses `PR_SET_NO_NEW_PRIVS` to turn off
-setuid binaries, which is the traditional way to get out of things
+setuid binaries, which is the [traditional way](https://en.wikipedia.org/wiki/Chroot#Limitations) to get out of things
 like chroots.
 
 Users
