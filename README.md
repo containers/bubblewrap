@@ -32,7 +32,8 @@ allow privilege escalation.  It may increase the ability of a logged
 in user to perform denial of service attacks, however.
 
 In particular, bubblewrap uses `PR_SET_NO_NEW_PRIVS` to turn off
-setuid binaries.
+setuid binaries, which is the [traditional way](https://en.wikipedia.org/wiki/Chroot#Limitations) to get out of things
+like chroots.
 
 Users
 -----
@@ -51,7 +52,7 @@ debugging scenarios and the like.
 Usage
 -----
 
-bubblewrap works by creating a new, completely empty, filesystem
+bubblewrap works by creating a new, completely empty, mount
 namespace where the root is on a tmpfs that is invisible from the
 host, and will be automatically cleaned up when the last process
 exists. You can then use commandline options to construct the root
@@ -90,6 +91,35 @@ bwrap --ro-bind /usr /usr \
    --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
    /bin/sh
 ```
+
+Sandboxing
+----------
+
+The goal of bubblewrap is to run an application in a sandbox, where it
+has restricted access to parts of the operating system or user data
+such as the home directory.
+
+bubblewrap always creates a new mount namespace, and the user can specify
+exactly what parts of the filesystem should be visible in the sandbox.
+Any such directories you specify mounted `nodev` by default, and can be made readonly.
+
+Additionally you can use these kernel features:
+
+User namespaces ([CLONE_NEWUSER](http://linux.die.net/man/2/clone)): This hides all but the current uid and gid from the
+sandbox. You can also change what the value of uid/gid should be in the sandbox.
+
+IPC namespaces ([CLONE_NEWIPC](http://linux.die.net/man/2/clone)): The sandbox will get its own copy of all the
+different forms of IPCs, like SysV shared memory and semaphores.
+
+PID namespaces ([CLONE_NEWPID](http://linux.die.net/man/2/clone)): The sandbox will not see any processes outside the sandbox. Additionally, bubblewrap will run a trivial pid1 inside your container to handle the requirements of reaping children in the sandbox. .This avoids what is known now as the [Docker pid 1 problem](https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/).
+
+
+Network namespaces ([CLONE_NEWNET](http://linux.die.net/man/2/clone)): The sandbox will not see the network. Instead it will have its own network namespace with only a loopback device.
+
+UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox will have its own hostname.
+
+Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
+
 
 Whats with the name ?!
 ----------------------
