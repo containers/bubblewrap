@@ -19,6 +19,9 @@
 
 #include "utils.h"
 #include <sys/syscall.h>
+#ifdef HAVE_SELINUX
+#include <selinux/selinux.h>
+#endif
 
 void
 die_with_error (const char *format, ...)
@@ -616,4 +619,51 @@ pivot_root (const char * new_root, const char * put_old)
   errno = ENOSYS;
   return -1;
 #endif
+}
+
+int
+label_support ()
+{
+#ifdef HAVE_SELINUX
+  if (is_selinux_enabled () > 0)
+    return -1;
+#endif
+  return 0;
+}
+
+char *
+label_mount (const char *opt, const char *mount_label)
+{
+#ifdef HAVE_SELINUX
+  if (mount_label)
+  {
+    if (opt)
+      return strdup_printf ("%s,context=\"%s\"", opt, mount_label);
+    else
+      return strdup_printf ("context=\"%s\"", mount_label);
+  }
+#endif
+  if (opt)
+    return xstrdup (opt);
+  return NULL;  
+}
+
+int
+label_create_file (const char *file_label)
+{
+#ifdef HAVE_SELINUX
+  if (is_selinux_enabled () > 0 && file_label)
+    return setfscreatecon (file_label);
+#endif
+  return 0;
+}
+
+int
+label_exec (const char *exec_label)
+{
+#ifdef HAVE_SELINUX
+  if (is_selinux_enabled () > 0 && exec_label)
+    return setexeccon (exec_label);
+#endif
+  return 0;
 }
