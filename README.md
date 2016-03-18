@@ -52,7 +52,7 @@ debugging scenarios and the like.
 Usage
 -----
 
-bubblewrap works by creating a new, completely empty, filesystem
+bubblewrap works by creating a new, completely empty, mount
 namespace where the root is on a tmpfs that is invisible from the
 host, and will be automatically cleaned up when the last process
 exists. You can then use commandline options to construct the root
@@ -99,7 +99,7 @@ The goal of bubblewrap is to run an application in a sandbox, where it
 has restricted access to parts of the operating system or user data
 such as the home directory.
 
-bubblewrap always creates a new filesystem namespace, and the user can specify
+bubblewrap always creates a new mount namespace, and the user can specify
 exactly what parts of the filesystem should be visible in the sandbox.
 Any such directories you specify mounted `nodev` by default, and can be made readonly.
 
