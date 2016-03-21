@@ -105,6 +105,11 @@ int   raw_clone      (unsigned long flags,
                       void         *child_stack);
 int   pivot_root     (const char   *new_root,
                       const char   *put_old);
+char *label_mount    (const char *opt,
+		      const char *mount_label);
+int   label_exec     (const char *exec_label);
+int   label_support  (void);
+int   label_create_file (const char *file_label);
 
 static inline void
 cleanup_freep (void *p)

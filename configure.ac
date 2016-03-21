@@ -35,6 +35,21 @@ AS_IF([test "$enable_man" != no], [
 ])
 AM_CONDITIONAL(ENABLE_MAN, test "$enable_man" != no)
 
+# ------------------------------------------------------------------------------
+have_selinux=no
+AC_ARG_ENABLE(selinux, AS_HELP_STRING([--disable-selinux], [Disable optional SELINUX support]))
+if test "x$enable_selinux" != "xno"; then
+        PKG_CHECK_MODULES([SELINUX], [libselinux >= 2.1.9],
+                [AC_DEFINE(HAVE_SELINUX, 1, [Define if SELinux is available])
+                 have_selinux=yes
+                 M4_DEFINES="$M4_DEFINES -DHAVE_SELINUX"],
+                [have_selinux=no])
+        if test "x$have_selinux" = xno -a "x$enable_selinux" = xyes; then
+                AC_MSG_ERROR([*** SELinux support requested but libraries not found])
+        fi
+fi
+AM_CONDITIONAL(HAVE_SELINUX, [test "$have_selinux" = "yes"])
+
 changequote(,)dnl
 if test "x$GCC" = "xyes"; then
   WARN_CFLAGS="-Wall -Werror=missing-prototypes"

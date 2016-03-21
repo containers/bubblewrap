@@ -43,6 +43,8 @@ static bool is_privileged;
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
+static char *opt_exec_label = NULL;
+static char *opt_file_label = NULL;
 
 typedef enum {
   SETUP_BIND_MOUNT,
@@ -149,6 +151,8 @@ usage (int ecode)
            "	--bind SRC DEST		     Bind mount the host path SRC on DEST\n"
            "	--dev-bind SRC DEST	     Bind mount the host path SRC on DEST, allowing device access\n"
            "	--ro-bind SRC DEST	     Bind mount the host path SRC readonly on DEST\n"
+           "	--exec-label LABEL           Exec Label from the sandbox\n"
+           "	--file-label LABEL           File label for temporary sandbox content\n"
            "	--proc DEST		     Mount procfs on DEST\n"
            "	--dev DEST		     Mount new dev on DEST\n"
            "	--dir DEST		     Create dir at DEST\n"
@@ -499,9 +503,12 @@ privileged_op (int privileged_op_socket,
         die_with_error ("Can't mount proc on %s", arg1);
       break;
     case PRIV_SEP_OP_TMPFS_MOUNT:
-      if (mount ("tmpfs", arg1, "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, "mode=0755") != 0)
-        die_with_error ("Can't mount tmpfs on %s", arg1);
-      break;
+      {
+        cleanup_free char *opt = label_mount ("mode=0755", opt_file_label);
+        if (mount ("tmpfs", arg1, "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC, opt) != 0)
+          die_with_error ("Can't mount tmpfs on %s", arg1);
+        break;
+      }
     case PRIV_SEP_OP_DEVPTS_MOUNT:
       if (mount ("devpts", arg1, "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC,
                  "newinstance,ptmxmode=0666,mode=620") != 0)
@@ -922,6 +929,30 @@ parse_args (int *argcp,
           op = setup_op_new (SETUP_MOUNT_PROC);
           op->dest = argv[1];
           opt_needs_devpts = TRUE;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--exec-label") == 0)
+        {
+          if (argc < 2)
+            die ("--exec-label takes an argument");
+	  if (label_support () < 0)
+            die ("--exec-label not supported on this system");
+
+          opt_exec_label = argv[1];
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--file-label") == 0)
+        {
+          if (argc < 2)
+            die ("--file-label takes an argument");
+	  if (label_support () < 0)
+            die ("--file-label not supported on this system");
+
+          opt_file_label = argv[1];
+          label_create_file (opt_file_label);
 
           argv += 1;
           argc -= 1;
@@ -1457,6 +1488,9 @@ main (int argc,
 
   /* We want sigchild in the child */
   unblock_sigchild ();
+
+  if (label_exec (opt_exec_label) == -1)
+    die_with_error ("label_exec %s", argv[0]);
 
   if (execvp (argv[0], argv) == -1)
     die_with_error ("execvp %s", argv[0]);
