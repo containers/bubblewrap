@@ -232,11 +232,9 @@ strdup_printf (const char *format,
   va_list args;
 
   va_start (args, format);
-  vasprintf (&buffer, format, args);
-  va_end (args);
-
-  if (buffer == NULL)
+  if (vasprintf (&buffer, format, args) == -1)
     die_oom ();
+  va_end (args);
 
   return buffer;
 }
@@ -653,7 +651,7 @@ label_create_file (const char *file_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && file_label)
-    return setfscreatecon (file_label);
+    return setfscreatecon ((security_context_t)file_label);
 #endif
   return 0;
 }
@@ -663,7 +661,7 @@ label_exec (const char *exec_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && exec_label)
-    return setexeccon (exec_label);
+    return setexeccon ((security_context_t)exec_label);
 #endif
   return 0;
 }

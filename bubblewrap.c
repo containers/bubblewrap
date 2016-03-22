@@ -323,7 +323,7 @@ do_init (int event_fd, pid_t initial_pid)
             initial_exit_status = WEXITSTATUS(status);
 
           val = initial_exit_status + 1;
-          write (event_fd, &val, 8);
+          (void) write (event_fd, &val, 8);
         }
 
       if (child == -1 && errno != EINTR)
