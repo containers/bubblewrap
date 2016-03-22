@@ -57,6 +57,20 @@ fi
 changequote([,])dnl
 AC_SUBST(WARN_CFLAGS)
 
+AC_ARG_WITH(priv-mode,
+            AS_HELP_STRING([--with-priv-mode=setuid/caps/none],
+                           [How to set privilege-raising during make install)]),
+            [],
+            [with_priv_mode="none"])
+
+AM_CONDITIONAL(PRIV_MODE_FILECAPS, test "x$with_priv_mode" = "xcaps")
+AM_CONDITIONAL(PRIV_MODE_SETUID, test "x$with_priv_mode" = "xsetuid")
+
+AC_ARG_ENABLE(sudo,
+              AS_HELP_STRING([--enable-sudo],[Use sudo to set privileged mode on binaries during install (only needed if --with-priv-mode used)]),
+              [SUDO_BIN="sudo"], [SUDO_BIN=""])
+AC_SUBST([SUDO_BIN])
+
 AC_CONFIG_FILES([
 Makefile
 ])
