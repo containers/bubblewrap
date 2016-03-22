@@ -81,5 +81,7 @@ echo "
     ===================
 
     man pages (xsltproc):                         $enable_man
+    SELinux:                                      $have_selinux
+    setuid mode on make install:                  $with_priv_mode
     mysteriously satisfying to pop:               yes"
 echo ""
