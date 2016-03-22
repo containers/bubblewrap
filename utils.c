@@ -232,11 +232,9 @@ strdup_printf (const char *format,
   va_list args;
 
   va_start (args, format);
-  vasprintf (&buffer, format, args);
-  va_end (args);
-
-  if (buffer == NULL)
+  if (vasprintf (&buffer, format, args) == -1)
     die_oom ();
+  va_end (args);
 
   return buffer;
 }
