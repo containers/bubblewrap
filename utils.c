@@ -651,7 +651,7 @@ label_create_file (const char *file_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && file_label)
-    return setfscreatecon (file_label);
+    return setfscreatecon ((security_context_t)file_label);
 #endif
   return 0;
 }
@@ -661,7 +661,7 @@ label_exec (const char *exec_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && exec_label)
-    return setexeccon (exec_label);
+    return setexeccon ((security_context_t)exec_label);
 #endif
   return 0;
 }
