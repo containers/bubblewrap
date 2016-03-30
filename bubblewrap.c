@@ -337,22 +337,24 @@ do_init (int event_fd, pid_t initial_pid)
   return initial_exit_status;
 }
 
-#define REQUIRED_CAPS (CAP_TO_MASK(CAP_SYS_ADMIN)|CAP_TO_MASK(CAP_SYS_CHROOT))
+/* low 32bit caps needed */
+#define REQUIRED_CAPS_0 (CAP_TO_MASK(CAP_SYS_ADMIN)|CAP_TO_MASK(CAP_SYS_CHROOT))
+/* high 32bit caps needed */
+#define REQUIRED_CAPS_1 0
 
 static void
 acquire_caps (void)
 {
-  struct __user_cap_header_struct hdr;
-  struct __user_cap_data_struct data;
+  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+  struct __user_cap_data_struct data[2] = { { 0 } };
 
-  memset (&hdr, 0, sizeof(hdr));
-  hdr.version = _LINUX_CAPABILITY_VERSION;
-
-  if (capget (&hdr, &data)  < 0)
+  if (capget (&hdr, data)  < 0)
     die_with_error ("capget failed");
 
-  if (((data.effective & REQUIRED_CAPS) == REQUIRED_CAPS) &&
-      ((data.permitted & REQUIRED_CAPS) == REQUIRED_CAPS))
+  if (((data[0].effective & REQUIRED_CAPS_0) == REQUIRED_CAPS_0) &&
+      ((data[0].permitted & REQUIRED_CAPS_0) == REQUIRED_CAPS_0) &&
+      ((data[1].effective & REQUIRED_CAPS_1) == REQUIRED_CAPS_1) &&
+      ((data[1].permitted & REQUIRED_CAPS_1) == REQUIRED_CAPS_1))
     is_privileged = TRUE;
 
   if (getuid () != geteuid ())
@@ -368,14 +370,14 @@ acquire_caps (void)
 
   if (is_privileged)
     {
-      memset (&hdr, 0, sizeof(hdr));
-      hdr.version = _LINUX_CAPABILITY_VERSION;
-
       /* Drop all non-require capabilities */
-      data.effective = REQUIRED_CAPS;
-      data.permitted = REQUIRED_CAPS;
-      data.inheritable = 0;
-      if (capset (&hdr, &data) < 0)
+      data[0].effective = REQUIRED_CAPS_0;
+      data[0].permitted = REQUIRED_CAPS_0;
+      data[0].inheritable = 0;
+      data[1].effective = REQUIRED_CAPS_1;
+      data[1].permitted = REQUIRED_CAPS_1;
+      data[1].inheritable = 0;
+      if (capset (&hdr, data) < 0)
         die_with_error ("capset failed");
     }
   /* Else, we try unprivileged user namespaces */
@@ -388,19 +390,13 @@ acquire_caps (void)
 static void
 drop_caps (void)
 {
-  struct __user_cap_header_struct hdr;
-  struct __user_cap_data_struct data;
+  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+  struct __user_cap_data_struct data[2] = { { 0 } };
 
   if (!is_privileged)
     return;
 
-  memset (&hdr, 0, sizeof(hdr));
-  hdr.version = _LINUX_CAPABILITY_VERSION;
-  data.effective = 0;
-  data.permitted = 0;
-  data.inheritable = 0;
-
-  if (capset (&hdr, &data) < 0)
+  if (capset (&hdr, data) < 0)
     die_with_error ("capset failed");
 }
 
