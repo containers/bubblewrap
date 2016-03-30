@@ -345,11 +345,8 @@ do_init (int event_fd, pid_t initial_pid)
 static void
 acquire_caps (void)
 {
-  struct __user_cap_header_struct hdr;
-  struct __user_cap_data_struct data[2];
-
-  memset (&hdr, 0, sizeof(hdr));
-  hdr.version = _LINUX_CAPABILITY_VERSION_3;
+  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+  struct __user_cap_data_struct data[2] = { { 0 } };
 
   if (capget (&hdr, data)  < 0)
     die_with_error ("capget failed");
@@ -373,9 +370,6 @@ acquire_caps (void)
 
   if (is_privileged)
     {
-      memset (&hdr, 0, sizeof(hdr));
-      hdr.version = _LINUX_CAPABILITY_VERSION_3;
-
       /* Drop all non-require capabilities */
       data[0].effective = REQUIRED_CAPS_0;
       data[0].permitted = REQUIRED_CAPS_0;
@@ -396,20 +390,11 @@ acquire_caps (void)
 static void
 drop_caps (void)
 {
-  struct __user_cap_header_struct hdr;
-  struct __user_cap_data_struct data[2];
+  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+  struct __user_cap_data_struct data[2] = { { 0 } };
 
   if (!is_privileged)
     return;
-
-  memset (&hdr, 0, sizeof(hdr));
-  hdr.version = _LINUX_CAPABILITY_VERSION_3;
-  data[0].effective = 0;
-  data[0].permitted = 0;
-  data[0].inheritable = 0;
-  data[1].effective = 0;
-  data[1].permitted = 0;
-  data[1].inheritable = 0;
 
   if (capset (&hdr, data) < 0)
     die_with_error ("capset failed");
