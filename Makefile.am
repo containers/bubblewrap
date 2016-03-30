@@ -19,3 +19,8 @@ include Makefile-docs.am
 
 TESTS = tests/test-basic.sh
 TESTS_ENVIRONMENT = PATH=$$(cd $(top_builddir) && pwd):$${PATH}
+
+if ENABLE_BASH_COMPLETION
+bashcompletiondir = $(BASH_COMPLETION_DIR)
+dist_bashcompletion_DATA = completions/bash/bwrap
+endif
