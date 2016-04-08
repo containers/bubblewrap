@@ -37,6 +37,8 @@
 #define __debug__(x)
 #endif
 
+#define UNUSED __attribute__((__unused__))
+
 #define N_ELEMENTS(arr)		(sizeof (arr) / sizeof ((arr)[0]))
 
 #define TRUE 1

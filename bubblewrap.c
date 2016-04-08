@@ -315,15 +315,18 @@ do_init (int event_fd, pid_t initial_pid)
       int status;
 
       child = wait (&status);
-      if (child == initial_pid)
+      if (child == initial_pid && event_fd != -1)
         {
           uint64_t val;
+          int res UNUSED;
 
           if (WIFEXITED (status))
             initial_exit_status = WEXITSTATUS(status);
 
           val = initial_exit_status + 1;
-          (void) write (event_fd, &val, 8);
+          res = write (event_fd, &val, 8);
+          /* Ignore res, if e.g. the parent died and closed event_fd
+             we don't want to error out here */
         }
 
       if (child == -1 && errno != EINTR)
