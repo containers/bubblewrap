@@ -1,4 +1,7 @@
 AM_CFLAGS = $(WARN_CFLAGS)
+CLEANFILES =
+
+GITIGNOREFILES = build-aux/ gtk-doc.make config.h.in aclocal.m4
 
 bin_PROGRAMS = bwrap
 
@@ -24,3 +27,5 @@ if ENABLE_BASH_COMPLETION
 bashcompletiondir = $(BASH_COMPLETION_DIR)
 dist_bashcompletion_DATA = completions/bash/bwrap
 endif
+
+-include $(top_srcdir)/git.mk
