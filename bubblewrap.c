@@ -136,13 +136,13 @@ usage (int ecode)
            "	--help			     Print this help\n"
            "	--version		     Print version\n"
            "	--args FD		     Parse nul-separated args from FD\n"
-           "	--share-user		     Don't create new user namespace\n"
+           "	--unshare-user		     Create new user namespace (may be automatically implied if not setuid)\n"
            "	--unshare-ipc		     Create new ipc namespace\n"
            "	--unshare-pid		     Create new pid namespace\n"
            "	--unshare-net		     Create new network namespace\n"
            "	--unshare-uts		     Create new uts namespace\n"
-           "	--uid UID		     Custom uid in the sandbox (incompatible with --share-user)\n"
-           "	--gid GID		     Custon gid in the sandbox (incompatible with --share-user)\n"
+           "	--uid UID		     Custom uid in the sandbox (requires --unshare-user)\n"
+           "	--gid GID		     Custon gid in the sandbox (requires --unshare-user)\n"
            "	--chdir DIR		     Change directory to DIR\n"
            "	--setenv VAR VALUE	     Set an environment variable\n"
            "	--unsetenv VAR		     Unset an environment variable\n"
@@ -773,7 +773,7 @@ read_priv_sec_op (int read_socket,
 }
 
 char *opt_chdir_path = NULL;
-bool opt_unshare_user = TRUE;
+bool opt_unshare_user = FALSE;
 bool opt_unshare_pid = FALSE;
 bool opt_unshare_ipc = FALSE;
 bool opt_unshare_net = FALSE;
@@ -859,8 +859,8 @@ parse_args (int *argcp,
           argv += 1;
           argc -= 1;
         }
-      else if (strcmp (arg, "--share-user") == 0)
-        opt_unshare_user = FALSE;
+      else if (strcmp (arg, "--unshare-user") == 0)
+        opt_unshare_user = TRUE;
       else if (strcmp (arg, "--unshare-ipc") == 0)
         opt_unshare_ipc = TRUE;
       else if (strcmp (arg, "--unshare-pid") == 0)
@@ -1176,8 +1176,9 @@ main (int argc,
 
   parse_args (&argc, &argv);
 
-  if (!opt_unshare_user && !is_privileged)
-    die ("bubblewrap is not privileged, --share-user not supported");
+  /* We have to do this if we weren't installed setuid, so let's just DWIM */
+  if (!is_privileged)
+    opt_unshare_user = TRUE;
 
   if (argc == 0)
     usage (EXIT_FAILURE);
@@ -1192,10 +1193,10 @@ main (int argc,
     opt_sandbox_gid = gid;
 
   if (!opt_unshare_user && opt_sandbox_uid != uid)
-    die ("Specifying --uid not compatible with --share-user");
+    die ("Specifying --uid requires --unshare-user");
 
   if (!opt_unshare_user && opt_sandbox_gid != gid)
-    die ("Specifying --gid not compatible with --share-user");
+    die ("Specifying --gid requires --unshare-user");
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
@@ -1240,7 +1241,7 @@ main (int argc,
       if (opt_unshare_user)
         {
           if (errno == EINVAL)
-            die ("Creating new namespace failed, likely because the kernel does not support user namespaces. Try without --unshare-user.");
+            die ("Creating new namespace failed, likely because the kernel does not support user namespaces.  bwrap must be installed setuid on such systems.");
           else if (errno == EPERM && !is_privileged)
             die ("No permissions to creating new namespace, likely because the kernel does not allow non-privileged user namespaces. On e.g. debian this can be enabled with 'sysctl kernel.unprivileged_userns_clone=1'.");
         }
