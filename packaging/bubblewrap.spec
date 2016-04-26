@@ -16,7 +16,7 @@ BuildRequires: autoconf automake libtool
 BuildRequires: libcap-devel
 
 %description
-Bubblewrap (/usr/bin/bwrap) is a core execution for unprivileged
+Bubblewrap (/usr/bin/bwrap) is a core execution engine for unprivileged
 containers that works as a setuid binary on kernels without
 user namespaces.
 
@@ -38,7 +38,7 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %doc README.md
 %{_datadir}/bash-completion/completions/bwrap
 %if (0%{?rhel} != 0 && 0%{?rhel} <= 7)
-%attr(4755,root,root) %{_bindir}/bwrap
+%attr(0755,root,root) %caps(cap_sys_admin,cap_sys_chroot=ep) %{_bindir}/bwrap
 %else
 %{_bindir}/bwrap
 %endif
