@@ -341,7 +341,7 @@ do_init (int event_fd, pid_t initial_pid)
 }
 
 /* low 32bit caps needed */
-#define REQUIRED_CAPS_0 (CAP_TO_MASK(CAP_SYS_ADMIN)|CAP_TO_MASK(CAP_SYS_CHROOT))
+#define REQUIRED_CAPS_0 (CAP_TO_MASK(CAP_SYS_ADMIN)|CAP_TO_MASK(CAP_SYS_CHROOT)|CAP_TO_MASK(CAP_NET_ADMIN))
 /* high 32bit caps needed */
 #define REQUIRED_CAPS_1 0
 
