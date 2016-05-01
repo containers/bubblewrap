@@ -14,6 +14,8 @@ BuildRequires: git
 # We always run autogen.sh
 BuildRequires: autoconf automake libtool
 BuildRequires: libcap-devel
+BuildRequires: libxslt
+BuildRequires: docbook-style-xsl
 
 %description
 Bubblewrap (/usr/bin/bwrap) is a core execution engine for unprivileged
@@ -42,4 +44,5 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %else
 %{_bindir}/bwrap
 %endif
+%{_mandir}/man1/*
 
