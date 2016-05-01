@@ -14,6 +14,7 @@ BuildRequires: git
 # We always run autogen.sh
 BuildRequires: autoconf automake libtool
 BuildRequires: libcap-devel
+BuildRequires: pkgconfig(libselinux)
 BuildRequires: libxslt
 BuildRequires: docbook-style-xsl
 
