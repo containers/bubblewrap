@@ -9,16 +9,26 @@ These tools are not suitable to give to unprivileged users, because it
 is trivial to turn such access into to a fully privileged root shell
 on the host.
 
+User namespaces
+---------------
+
 There is an effort in the Linux kernel called
 [user namespaces](https://www.google.com/search?q=user+namespaces+site%3Ahttps%3A%2F%2Flwn.net)
 which attempts to allow unprivileged users to use container features.
 While significant progress has been made, there are
 [still concerns](https://lwn.net/Articles/673597/) about it.
 
-Bubblewrap is a setuid implementation of a *subset* of user
-namespaces.  (Emphasis on subset)
+See for example
+[CVE-2016-3135](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-3135)
+which is a local root vulnerability introduced by userns.
+[This March 2016 post](https://lkml.org/lkml/2016/3/9/555) has some
+more discussion.
 
-It inherits code from
+Bubblewrap could be viewed as setuid implementation of a *subset* of
+user namespaces.  Emphasis on subset - specifically relevant to the
+above CVE, bubblewrap does not allow control over iptables.
+
+The original bubblewrap code existed before user namespaces - it inherits code from
 [xdg-app helper](https://cgit.freedesktop.org/xdg-app/xdg-app/tree/common/xdg-app-helper.c)
 which in turn distantly derives from
 [linux-user-chroot](https://git.gnome.org/browse/linux-user-chroot).
