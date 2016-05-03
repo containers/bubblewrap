@@ -52,6 +52,7 @@ typedef enum {
   SETUP_DEV_BIND_MOUNT,
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
+  SETUP_MOUNT_TMPFS,
   SETUP_MAKE_DIR,
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
@@ -155,6 +156,7 @@ usage (int ecode)
            "	--file-label LABEL           File label for temporary sandbox content\n"
            "	--proc DEST		     Mount procfs on DEST\n"
            "	--dev DEST		     Mount new dev on DEST\n"
+           "	--tmpfs DEST		     Mount new tmpfs on DEST\n"
            "	--dir DEST		     Create dir at DEST\n"
            "	--file FD DEST		     Copy from FD to dest DEST\n"
            "	--bind-data FD DEST	     Copy from FD to file which is bind-mounted on DEST\n"
@@ -670,6 +672,16 @@ setup_newroot (bool unshare_pid,
 
         break;
 
+      case SETUP_MOUNT_TMPFS:
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
+
+        privileged_op (privileged_op_socket,
+                       PRIV_SEP_OP_TMPFS_MOUNT, 0,
+                       dest, NULL);
+
+        break;
+
       case SETUP_MAKE_DIR:
         if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
@@ -962,6 +974,17 @@ parse_args (int *argcp,
             die ("--dev takes an argument");
 
           op = setup_op_new (SETUP_MOUNT_DEV);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--tmpfs") == 0)
+        {
+          if (argc < 2)
+            die ("--tmpfs takes an argument");
+
+          op = setup_op_new (SETUP_MOUNT_TMPFS);
           op->dest = argv[1];
 
           argv += 1;
