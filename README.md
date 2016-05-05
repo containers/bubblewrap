@@ -160,6 +160,23 @@ process.  @cgwalters believes their setuid code is fairly good, but it
 could still make sense to unify on bubblewrap as a setuid core.  That
 hasn't been ruled out, but neither is it being actively pursued today.
 
+Related project comparison: runc/binctr
+----------------------------------------
+
+[runc](https://github.com/opencontainers/runc) is similar to
+[systemd nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
+in that it is tooling intended to be invoked by root.  There is an
+effort to have runc optionally use
+[user namespaces](https://github.com/opencontainers/runc/issues/38),
+but no plans for any setuid support.
+
+The bubblewrap authors believe that runc and systemd-nspawn are not
+designed to be made setuid and are distant from supporting such a
+mode.
+
+[binctr](https://github.com/jfrazelle/binctr) is just a wrapper for
+runc, so inherits all of its design tradeoffs.
+
 Whats with the name ?!
 ----------------------
 
