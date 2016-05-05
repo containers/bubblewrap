@@ -130,6 +130,35 @@ UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox wi
 
 Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
 
+Related project comparison: Firejail
+------------------------------------
+
+[Firejail](https://github.com/netblue30/firejail/tree/master/src/firejail) is
+similar to xdg-app before bubblewrap was split out in that it combines
+a setuid tool with a lot of desktop-specific sandboxing features.  For
+example, Firejail knows about Pulseaudio, whereas bubblewrap does not.
+
+The bubblewrap authors believe it's much easier to audit a small
+setuid program, and keep features such as Pulseaudio filtering as an
+unprivileged process, as now occurs in xdg-app.
+
+Also, @cgwalters thinks trying to
+[whitelist file paths](https://github.com/netblue30/firejail/blob/37a5a3545ef6d8d03dad8bbd888f53e13274c9e5/src/firejail/fs_whitelist.c#L176)
+is a bad idea given the myriad ways users have to manipulate paths,
+and the myriad ways in which system administrators may configure a
+system.  The bubblewrap approach is to only retain a few specific
+Linux capabilities such as `CAP_SYS_ADMIN`, but to always access the
+filesystem as the invoking uid.  This entirely closes
+[TOCTOCU attacks](https://cwe.mitre.org/data/definitions/367.html) and
+such.
+
+Related project comparison: Sandstorm.io
+----------------------------------------
+
+[Sandstorm.io](https://sandstorm.io/) also has a setuid helper
+process.  @cgwalters believes their setuid code is fairly good, but it
+could still make sense to unify on bubblewrap as a setuid core.  That
+hasn't been ruled out, but neither is it being actively pursued today.
 
 Whats with the name ?!
 ----------------------
