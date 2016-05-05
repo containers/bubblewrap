@@ -623,10 +623,10 @@ int
 label_support ()
 {
 #ifdef HAVE_SELINUX
-  if (is_selinux_enabled () > 0)
-    return -1;
+  if (is_selinux_enabled () == 1)
+    return 0;
 #endif
-  return 0;
+  return -1;
 }
 
 char *
@@ -664,4 +664,14 @@ label_exec (const char *exec_label)
     return setexeccon ((security_context_t)exec_label);
 #endif
   return 0;
+}
+
+int
+label_valid (const char *label)
+{
+#ifdef HAVE_SELINUX
+  if (is_selinux_enabled () > 0 && label)
+    return security_check_context ((security_context_t)label);
+#endif
+  return -1;
 }
