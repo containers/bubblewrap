@@ -1318,7 +1318,7 @@ main (int argc,
     die_with_error ("pivot_root");
 
   if (chdir ("/") != 0)
-    die_with_error ("chhdir / (base path)");
+    die_with_error ("chdir / (base path)");
 
   if (is_privileged)
     {
@@ -1394,7 +1394,7 @@ main (int argc,
   if (chroot ("/newroot") != 0)
     die_with_error ("chroot /newroot");
   if (chdir ("/") != 0)
-    die_with_error ("chhdir /");
+    die_with_error ("chdir /");
 
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
