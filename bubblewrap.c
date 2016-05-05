@@ -53,6 +53,7 @@ typedef enum {
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
   SETUP_MOUNT_TMPFS,
+  SETUP_MOUNT_MQUEUE,
   SETUP_MAKE_DIR,
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
@@ -87,6 +88,7 @@ enum {
   PRIV_SEP_OP_PROC_MOUNT,
   PRIV_SEP_OP_TMPFS_MOUNT,
   PRIV_SEP_OP_DEVPTS_MOUNT,
+  PRIV_SEP_OP_MQUEUE_MOUNT,
 };
 
 typedef struct {
@@ -157,6 +159,7 @@ usage (int ecode)
            "	--proc DEST		     Mount procfs on DEST\n"
            "	--dev DEST		     Mount new dev on DEST\n"
            "	--tmpfs DEST		     Mount new tmpfs on DEST\n"
+           "	--mqueue DEST                Mount new mqueue on DEST\n"
            "	--dir DEST		     Create dir at DEST\n"
            "	--file FD DEST		     Copy from FD to dest DEST\n"
            "	--bind-data FD DEST	     Copy from FD to file which is bind-mounted on DEST\n"
@@ -515,6 +518,10 @@ privileged_op (int privileged_op_socket,
                  "newinstance,ptmxmode=0666,mode=620") != 0)
         die_with_error ("Can't mount devpts on %s", arg1);
       break;
+    case PRIV_SEP_OP_MQUEUE_MOUNT:
+      if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
+        die_with_error ("Can't mount mqueue on %s", arg1);
+      break;
     default:
       die ("Unexpected privileged op %d", op);
     }
@@ -679,9 +686,15 @@ setup_newroot (bool unshare_pid,
         privileged_op (privileged_op_socket,
                        PRIV_SEP_OP_TMPFS_MOUNT, 0,
                        dest, NULL);
-
         break;
+      case SETUP_MOUNT_MQUEUE:
+        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          die_with_error ("Can't mkdir %s", op->dest);
 
+        privileged_op (privileged_op_socket,
+                       PRIV_SEP_OP_MQUEUE_MOUNT, 0,
+                       dest, NULL);
+        break;
       case SETUP_MAKE_DIR:
         if (mkdir (dest, 0755) != 0 && errno != EEXIST)
           die_with_error ("Can't mkdir %s", op->dest);
@@ -1005,6 +1018,17 @@ parse_args_recurse (int *argcp,
             die ("--tmpfs takes an argument");
 
           op = setup_op_new (SETUP_MOUNT_TMPFS);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--mqueue") == 0)
+        {
+          if (argc < 2)
+            die ("--mqueue takes an argument");
+
+          op = setup_op_new (SETUP_MOUNT_MQUEUE);
           op->dest = argv[1];
 
           argv += 1;
