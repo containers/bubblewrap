@@ -787,7 +787,8 @@ int opt_seccomp_fd = -1;
 
 static void
 parse_args (int *argcp,
-            char ***argvp)
+            char ***argvp,
+            bool in_file)
 {
   SetupOp *op;
   int argc = *argcp;
@@ -815,6 +816,9 @@ parse_args (int *argcp,
           char **data_argv_copy;
           int data_argc;
           int i;
+
+          if (in_file)
+            die ("--args not supported in arguments file");
 
           if (argc < 2)
             die ("--args takes an argument");
@@ -854,7 +858,7 @@ parse_args (int *argcp,
             }
 
           data_argv_copy = data_argv; /* Don't change data_argv, we need to free it */
-          parse_args (&data_argc, &data_argv_copy);
+          parse_args (&data_argc, &data_argv_copy, TRUE);
 
           argv += 1;
           argc -= 1;
@@ -1177,7 +1181,7 @@ main (int argc,
   if (argc == 0)
     usage (EXIT_FAILURE);
 
-  parse_args (&argc, &argv);
+  parse_args (&argc, &argv, FALSE);
 
   /* We have to do this if we weren't installed setuid, so let's just DWIM */
   if (!is_privileged)
