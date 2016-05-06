@@ -55,6 +55,20 @@ die (const char *format, ...)
 }
 
 void
+die_unless_label_valid (const char *label)
+{
+#ifdef HAVE_SELINUX
+  if (is_selinux_enabled () == 1)
+    {
+      if (security_check_context ((security_context_t)label) < 0)
+        die_with_error ("invalid label %s", label);
+      return;
+    }
+#endif
+  die ("labeling not supported on this system");
+}
+
+void
 die_oom (void)
 {
   die ("Out of memory");
@@ -619,16 +633,6 @@ pivot_root (const char * new_root, const char * put_old)
 #endif
 }
 
-int
-label_support ()
-{
-#ifdef HAVE_SELINUX
-  if (is_selinux_enabled () == 1)
-    return 0;
-#endif
-  return -1;
-}
-
 char *
 label_mount (const char *opt, const char *mount_label)
 {
@@ -664,14 +668,4 @@ label_exec (const char *exec_label)
     return setexeccon ((security_context_t)exec_label);
 #endif
   return 0;
-}
-
-int
-label_valid (const char *label)
-{
-#ifdef HAVE_SELINUX
-  if (is_selinux_enabled () > 0 && label)
-    return security_check_context ((security_context_t)label);
-#endif
-  return -1;
 }
