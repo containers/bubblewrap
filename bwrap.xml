@@ -183,6 +183,10 @@
       <listitem><para>Mount new tmpfs on <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--mqueue <arg choice="plain">DEST</arg></option></term>
+      <listitem><para>Mount new mqueue on <arg choice="plain">DEST</arg></para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--dir <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Create a directory at <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
