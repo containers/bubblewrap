@@ -927,7 +927,6 @@ parse_args (int *argcp,
 
           op = setup_op_new (SETUP_MOUNT_PROC);
           op->dest = argv[1];
-          opt_needs_devpts = TRUE;
 
           argv += 1;
           argc -= 1;
@@ -966,6 +965,7 @@ parse_args (int *argcp,
 
           op = setup_op_new (SETUP_MOUNT_DEV);
           op->dest = argv[1];
+          opt_needs_devpts = TRUE;
 
           argv += 1;
           argc -= 1;
