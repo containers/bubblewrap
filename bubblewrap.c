@@ -1248,7 +1248,11 @@ main (int argc,
   __debug__(("creating new namespace\n"));
 
   if (opt_unshare_pid)
-    event_fd = eventfd (0, EFD_CLOEXEC | EFD_NONBLOCK);
+    {
+      event_fd = eventfd (0, EFD_CLOEXEC | EFD_NONBLOCK);
+      if (event_fd == -1)
+	die_with_error ("eventfd()");
+    }
 
   /* We block sigchild here so that we can use signalfd in the monitor. */
   block_sigchild ();
@@ -1444,7 +1448,8 @@ main (int argc,
 
       close (opt_seccomp_fd);
 
-      prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+      if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0)
+	die_with_error ("prctl(PR_SET_SECCOMP)");
     }
 
   umask (old_umask);
