@@ -274,7 +274,7 @@ monitor_child (int event_fd)
         {
           if (fdsi.ssi_signo != SIGCHLD)
             die ("Read unexpected signal\n");
-          exit (1);
+          exit (fdsi.ssi_status);
         }
     }
 }
