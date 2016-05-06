@@ -88,7 +88,7 @@ but your own (tmpfs) data, running in a PID and network namespace:
 
 ```
 bwrap --ro-bind /usr /usr \
-   --dir /tmp \
+   --tmpfs /tmp \
    --proc /proc \
    --dev /dev \
    --ro-bind /etc/resolv.conf /etc/resolv.conf \
