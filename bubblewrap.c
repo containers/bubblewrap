@@ -798,13 +798,28 @@ int opt_seccomp_fd = -1;
 
 
 static void
-parse_args (int *argcp,
-            char ***argvp,
-            bool in_file)
+parse_args_recurse (int *argcp,
+		    char ***argvp,
+		    bool in_file,
+		    int *total_parsed_argc_p)
 {
   SetupOp *op;
   int argc = *argcp;
   char **argv = *argvp;
+  /* I can't imagine a case where someone wants more than this.
+   * If you do...you should be able to pass multiple files
+   * via a single tmpfs and linking them there, etc.
+   *
+   * We're adding this hardening due to precedent from
+   * http://googleprojectzero.blogspot.com/2014/08/the-poisoned-nul-byte-2014-edition.html
+   *
+   * I picked 9000 because the Internet told me to and it was hard to
+   * resist.
+   */
+  static const uint32_t MAX_ARGS = 9000;
+
+  if (*total_parsed_argc_p > MAX_ARGS)
+    die ("Exceeded maximum number of arguments %u", MAX_ARGS);
 
   while (argc > 0)
     {
@@ -850,6 +865,9 @@ parse_args (int *argcp,
           while (p != NULL && p < data_end)
             {
               data_argc++;
+	      (*total_parsed_argc_p)++;
+	      if (*total_parsed_argc_p > MAX_ARGS)
+		die ("Exceeded maximum number of arguments %u", MAX_ARGS);
               p = memchr (p, 0, data_end - p);
               if (p != NULL)
                 p++;
@@ -870,7 +888,7 @@ parse_args (int *argcp,
             }
 
           data_argv_copy = data_argv; /* Don't change data_argv, we need to free it */
-          parse_args (&data_argc, &data_argv_copy, TRUE);
+          parse_args_recurse (&data_argc, &data_argv_copy, TRUE, total_parsed_argc_p);
 
           argv += 1;
           argc -= 1;
@@ -1169,6 +1187,14 @@ parse_args (int *argcp,
   *argvp = argv;
 }
 
+static void
+parse_args (int *argcp,
+	    char ***argvp)
+{
+  int total_parsed_argc = *argcp;
+  parse_args_recurse (argcp, argvp, FALSE, &total_parsed_argc);
+}
+
 int
 main (int argc,
       char **argv)
@@ -1204,7 +1230,7 @@ main (int argc,
   if (argc == 0)
     usage (EXIT_FAILURE);
 
-  parse_args (&argc, &argv, FALSE);
+  parse_args (&argc, &argv);
 
   /* We have to do this if we weren't installed setuid, so let's just DWIM */
   if (!is_privileged)
