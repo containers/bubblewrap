@@ -152,7 +152,7 @@ usage (int ecode)
            "	--bind SRC DEST		     Bind mount the host path SRC on DEST\n"
            "	--dev-bind SRC DEST	     Bind mount the host path SRC on DEST, allowing device access\n"
            "	--ro-bind SRC DEST	     Bind mount the host path SRC readonly on DEST\n"
-           "	--exec-label LABEL           Exec Label from the sandbox\n"
+           "	--exec-label LABEL           Exec Label for the sandbox\n"
            "	--file-label LABEL           File label for temporary sandbox content\n"
            "	--proc DEST		     Mount procfs on DEST\n"
            "	--dev DEST		     Mount new dev on DEST\n"

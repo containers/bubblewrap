@@ -647,7 +647,7 @@ label_mount (const char *opt, const char *mount_label)
 #endif
   if (opt)
     return xstrdup (opt);
-  return NULL;  
+  return NULL;
 }
 
 int
