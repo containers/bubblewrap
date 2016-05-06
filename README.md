@@ -16,7 +16,9 @@ There is an effort in the Linux kernel called
 [user namespaces](https://www.google.com/search?q=user+namespaces+site%3Ahttps%3A%2F%2Flwn.net)
 which attempts to allow unprivileged users to use container features.
 While significant progress has been made, there are
-[still concerns](https://lwn.net/Articles/673597/) about it.
+[still concerns](https://lwn.net/Articles/673597/) about it, and
+it is not available to unprivileged users in several production distributions
+such as CentOS/Red Hat Enterprise Linux 7, Debian Jessie, etc.
 
 See for example
 [CVE-2016-3135](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-3135)
