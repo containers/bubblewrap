@@ -53,6 +53,8 @@ void  die_with_error (const char  *format,
 void  die            (const char  *format,
                       ...) __attribute__((__noreturn__));
 void  die_oom        (void) __attribute__((__noreturn__));
+void  die_unless_label_valid    (const char *label);
+
 void *xmalloc        (size_t       size);
 void *xcalloc        (size_t       size);
 void *xrealloc       (void        *ptr,
@@ -110,8 +112,6 @@ int   pivot_root     (const char   *new_root,
 char *label_mount    (const char *opt,
 		      const char *mount_label);
 int   label_exec     (const char *exec_label);
-int   label_valid    (const char *label);
-int   label_support  (void);
 int   label_create_file (const char *file_label);
 
 static inline void

@@ -951,12 +951,9 @@ parse_args (int *argcp,
         {
           if (argc < 2)
             die ("--exec-label takes an argument");
-	  if (label_support () < 0)
-            die ("--exec-label not supported on this system");
-
           opt_exec_label = argv[1];
-          if (label_valid (argv[1]) < 0)
-            die_with_error ("--exec-label invalid");
+          die_unless_label_valid (opt_exec_label);
+
           argv += 1;
           argc -= 1;
         }
@@ -964,10 +961,8 @@ parse_args (int *argcp,
         {
           if (argc < 2)
             die ("--file-label takes an argument");
-	  if (label_support () < 0)
-            die ("--file-label not supported on this system");
-
           opt_file_label = argv[1];
+          die_unless_label_valid (opt_file_label);
           if (label_create_file (opt_file_label))
             die_with_error ("--file-label setup failed");
 
