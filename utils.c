@@ -239,8 +239,8 @@ strconcat3 (const char *s1,
 }
 
 char*
-strdup_printf (const char *format,
-               ...)
+xasprintf (const char *format,
+	   ...)
 {
   char *buffer = NULL;
   va_list args;
@@ -640,9 +640,9 @@ label_mount (const char *opt, const char *mount_label)
   if (mount_label)
   {
     if (opt)
-      return strdup_printf ("%s,context=\"%s\"", opt, mount_label);
+      return xasprintf ("%s,context=\"%s\"", opt, mount_label);
     else
-      return strdup_printf ("context=\"%s\"", mount_label);
+      return xasprintf ("context=\"%s\"", mount_label);
   }
 #endif
   if (opt)

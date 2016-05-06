@@ -70,8 +70,8 @@ char *strconcat      (const char  *s1,
 char *strconcat3     (const char  *s1,
                       const char  *s2,
                       const char  *s3);
-char* strdup_printf  (const char  *format,
-                      ...) __attribute__((format(printf, 1, 2)));
+char* xasprintf  (const char  *format,
+		  ...) __attribute__((format(printf, 1, 2)));
 bool  has_prefix     (const char  *str,
                       const char  *prefix);
 bool  has_path_prefix (const char  *str,

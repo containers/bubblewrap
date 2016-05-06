@@ -434,7 +434,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   cleanup_free char *uid_map = NULL;
   cleanup_free char *gid_map = NULL;
 
-  uid_map = strdup_printf ("%d %d 1\n", sandbox_uid, parent_uid);
+  uid_map = xasprintf ("%d %d 1\n", sandbox_uid, parent_uid);
   if (write_file_at (proc_fd, "self/uid_map", uid_map) != 0)
     die_with_error ("setting up uid map");
 
@@ -442,7 +442,7 @@ write_uid_gid_map (uid_t sandbox_uid,
       write_file_at (proc_fd, "self/setgroups", "deny\n") != 0)
     die_with_error ("error writing to setgroups");
 
-  gid_map = strdup_printf ("%d %d 1\n", sandbox_gid, parent_gid);
+  gid_map = xasprintf ("%d %d 1\n", sandbox_gid, parent_gid);
   if (write_file_at (proc_fd, "self/gid_map", gid_map) != 0)
     die_with_error ("setting up gid map");
 }
@@ -635,7 +635,7 @@ setup_newroot (bool unshare_pid,
         static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
         for (i = 0; i < N_ELEMENTS (stdionodes); i++)
           {
-            cleanup_free char *target = strdup_printf ("/proc/self/fd/%d", i);
+            cleanup_free char *target = xasprintf ("/proc/self/fd/%d", i);
             cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
             if (symlink (target, node_dest) < 0)
               die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
@@ -1281,11 +1281,11 @@ main (int argc,
 
   /* We need *some* mountpoint where we can mount the root tmpfs.
      We first try in /run, and if that fails, try in /tmp. */
-  base_path = strdup_printf ("/run/user/%d/.bubblewrap", uid);
+  base_path = xasprintf ("/run/user/%d/.bubblewrap", uid);
   if (mkdir (base_path, 0755) && errno != EEXIST)
     {
       free (base_path);
-      base_path = strdup_printf ("/tmp/.bubblewrap-%d", uid);
+      base_path = xasprintf ("/tmp/.bubblewrap-%d", uid);
       if (mkdir (base_path, 0755) && errno != EEXIST)
         die_with_error ("Creating root mountpoint failed");
     }
