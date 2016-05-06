@@ -49,10 +49,10 @@ typedef int bool;
 #define PIPE_WRITE_END 1
 
 void  die_with_error (const char  *format,
-                      ...);
+                      ...) __attribute__((__noreturn__)) __attribute__((format(printf, 1, 2)));
 void  die            (const char  *format,
-                      ...);
-void  die_oom        (void);
+                      ...) __attribute__((__noreturn__));
+void  die_oom        (void) __attribute__((__noreturn__));
 void *xmalloc        (size_t       size);
 void *xcalloc        (size_t       size);
 void *xrealloc       (void        *ptr,
@@ -69,7 +69,7 @@ char *strconcat3     (const char  *s1,
                       const char  *s2,
                       const char  *s3);
 char* strdup_printf  (const char  *format,
-                      ...);
+                      ...) __attribute__((format(printf, 1, 2)));
 bool  has_prefix     (const char  *str,
                       const char  *prefix);
 bool  has_path_prefix (const char  *str,
