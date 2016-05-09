@@ -262,7 +262,7 @@ fdwalk (int proc_fd, int (*cb)(void *data, int fd), void *data)
   int res = 0;
   DIR *d;
 
-  dfd = openat (proc_fd, "self/fd", O_DIRECTORY);
+  dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
   if (dfd == -1)
     return res;
 
