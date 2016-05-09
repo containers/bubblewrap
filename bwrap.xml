@@ -114,6 +114,10 @@
       <listitem><para>Create a new uts namespace</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--unshare-cgroup</option></term>
+      <listitem><para>Create a new cgroup namespace</para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--uid <arg choice="plain">UID</arg></option></term>
       <listitem><para>Use a custom user id in the sandbox (incompatible with <option>--share-user</option>)</para></listitem>
     </varlistentry>
