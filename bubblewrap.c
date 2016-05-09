@@ -29,12 +29,17 @@
 #include <sys/signalfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
 
 #include "utils.h"
 #include "network.h"
 #include "bind-mount.h"
+
+#ifndef CLONE_NEWCGROUP
+#define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
+#endif
 
 /* Globals to avoid having to use getuid(), since the uid/gid changes during runtime */
 static uid_t uid;
@@ -144,6 +149,7 @@ usage (int ecode)
            "    --unshare-pid                Create new pid namespace\n"
            "    --unshare-net                Create new network namespace\n"
            "    --unshare-uts                Create new uts namespace\n"
+           "    --unshare-cgroup             Create new cgroup namespace\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
            "    --gid GID                    Custon gid in the sandbox (requires --unshare-user)\n"
            "    --chdir DIR                  Change directory to DIR\n"
@@ -803,6 +809,7 @@ bool opt_unshare_pid = FALSE;
 bool opt_unshare_ipc = FALSE;
 bool opt_unshare_net = FALSE;
 bool opt_unshare_uts = FALSE;
+bool opt_unshare_cgroup = FALSE;
 bool opt_needs_devpts = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
@@ -916,6 +923,8 @@ parse_args_recurse (int *argcp,
         opt_unshare_net = TRUE;
       else if (strcmp (arg, "--unshare-uts") == 0)
         opt_unshare_uts = TRUE;
+      else if (strcmp (arg, "--unshare-cgroup") == 0)
+        opt_unshare_cgroup = TRUE;
       else if (strcmp (arg, "--chdir") == 0)
         {
           if (argc < 2)
@@ -1227,6 +1236,7 @@ main (int argc,
   const char *new_cwd;
   uid_t ns_uid;
   gid_t ns_gid;
+  struct stat sbuf;
 
   /* Get the (optional) capabilities we need, drop root */
   acquire_caps ();
@@ -1313,6 +1323,17 @@ main (int argc,
     clone_flags |= CLONE_NEWIPC;
   if (opt_unshare_uts)
     clone_flags |= CLONE_NEWUTS;
+  if (opt_unshare_cgroup)
+    {
+      if (stat ("/proc/self/ns/cgroup", &sbuf))
+        {
+          if (errno == ENOENT)
+            die ("Cannot create new cgroup namespace because the kernel does not support it");
+          else
+            die_with_error ("stat on /proc/self/ns/cgroup failed");
+        }
+      clone_flags |= CLONE_NEWCGROUP;
+    }
 
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
