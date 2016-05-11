@@ -150,6 +150,7 @@ usage (int ecode)
            "    --unshare-net                Create new network namespace\n"
            "    --unshare-uts                Create new uts namespace\n"
            "    --unshare-cgroup             Create new cgroup namespace\n"
+           "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
            "    --gid GID                    Custon gid in the sandbox (requires --unshare-user)\n"
            "    --chdir DIR                  Change directory to DIR\n"
@@ -810,6 +811,7 @@ bool opt_unshare_ipc = FALSE;
 bool opt_unshare_net = FALSE;
 bool opt_unshare_uts = FALSE;
 bool opt_unshare_cgroup = FALSE;
+bool opt_unshare_cgroup_try = FALSE;
 bool opt_needs_devpts = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
@@ -925,6 +927,8 @@ parse_args_recurse (int *argcp,
         opt_unshare_uts = TRUE;
       else if (strcmp (arg, "--unshare-cgroup") == 0)
         opt_unshare_cgroup = TRUE;
+      else if (strcmp (arg, "--unshare-cgroup-try") == 0)
+        opt_unshare_cgroup_try = TRUE;
       else if (strcmp (arg, "--chdir") == 0)
         {
           if (argc < 2)
@@ -1333,6 +1337,11 @@ main (int argc,
             die_with_error ("stat on /proc/self/ns/cgroup failed");
         }
       clone_flags |= CLONE_NEWCGROUP;
+    }
+  if (opt_unshare_cgroup_try)
+    {
+      if (!stat ("/proc/self/ns/cgroup", &sbuf))
+        clone_flags |= CLONE_NEWCGROUP;
     }
 
   pid = raw_clone (clone_flags, NULL);
