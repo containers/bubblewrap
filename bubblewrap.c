@@ -310,15 +310,15 @@ do_init (int event_fd, pid_t initial_pid)
   for (lock = lock_files; lock != NULL; lock = lock->next)
     {
       int fd = open (lock->path, O_RDONLY | O_CLOEXEC);
-      struct flock l = {0};
-
       if (fd == -1)
         die_with_error ("Unable to open lock file %s", lock->path);
 
-      l.l_type = F_RDLCK;
-      l.l_whence = SEEK_SET;
-      l.l_start = 0;
-      l.l_len = 0;
+      struct flock l = {
+        .l_type = F_RDLCK,
+        .l_whence = SEEK_SET,
+        .l_start = 0,
+        .l_len = 0
+      };
 
       if (fcntl (fd, F_SETLK, &l) < 0)
         die_with_error ("Unable to lock file %s", lock->path);
