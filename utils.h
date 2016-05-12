@@ -8,7 +8,7 @@
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the GNU
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
@@ -39,7 +39,7 @@
 
 #define UNUSED __attribute__((__unused__))
 
-#define N_ELEMENTS(arr)		(sizeof (arr) / sizeof ((arr)[0]))
+#define N_ELEMENTS(arr) (sizeof (arr) / sizeof ((arr)[0]))
 
 #define TRUE 1
 #define FALSE 0
@@ -71,7 +71,7 @@ char *strconcat3     (const char  *s1,
                       const char  *s2,
                       const char  *s3);
 char* xasprintf  (const char  *format,
-		  ...) __attribute__((format(printf, 1, 2)));
+                  ...) __attribute__((format(printf, 1, 2)));
 bool  has_prefix     (const char  *str,
                       const char  *prefix);
 bool  has_path_prefix (const char  *str,
@@ -110,7 +110,7 @@ int   raw_clone      (unsigned long flags,
 int   pivot_root     (const char   *new_root,
                       const char   *put_old);
 char *label_mount    (const char *opt,
-		      const char *mount_label);
+                      const char *mount_label);
 int   label_exec     (const char *exec_label);
 int   label_create_file (const char *file_label);
 
