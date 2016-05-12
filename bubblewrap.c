@@ -136,35 +136,35 @@ usage (int ecode)
   fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
 
   fprintf (stderr,
-           "	--help			     Print this help\n"
-           "	--version		     Print version\n"
-           "	--args FD		     Parse nul-separated args from FD\n"
-           "	--unshare-user		     Create new user namespace (may be automatically implied if not setuid)\n"
-           "	--unshare-ipc		     Create new ipc namespace\n"
-           "	--unshare-pid		     Create new pid namespace\n"
-           "	--unshare-net		     Create new network namespace\n"
-           "	--unshare-uts		     Create new uts namespace\n"
-           "	--uid UID		     Custom uid in the sandbox (requires --unshare-user)\n"
-           "	--gid GID		     Custon gid in the sandbox (requires --unshare-user)\n"
-           "	--chdir DIR		     Change directory to DIR\n"
-           "	--setenv VAR VALUE	     Set an environment variable\n"
-           "	--unsetenv VAR		     Unset an environment variable\n"
-           "	--lock-file DEST	     Take a lock on DEST while sandbox is running\n"
-           "	--sync-fd FD		     Keep this fd open while sandbox is running\n"
-           "	--bind SRC DEST		     Bind mount the host path SRC on DEST\n"
-           "	--dev-bind SRC DEST	     Bind mount the host path SRC on DEST, allowing device access\n"
-           "	--ro-bind SRC DEST	     Bind mount the host path SRC readonly on DEST\n"
-           "	--exec-label LABEL           Exec Label for the sandbox\n"
-           "	--file-label LABEL           File label for temporary sandbox content\n"
-           "	--proc DEST		     Mount procfs on DEST\n"
-           "	--dev DEST		     Mount new dev on DEST\n"
-           "	--tmpfs DEST		     Mount new tmpfs on DEST\n"
-           "	--mqueue DEST                Mount new mqueue on DEST\n"
-           "	--dir DEST		     Create dir at DEST\n"
-           "	--file FD DEST		     Copy from FD to dest DEST\n"
-           "	--bind-data FD DEST	     Copy from FD to file which is bind-mounted on DEST\n"
-           "	--symlink SRC DEST	     Create symlink at DEST with target SRC\n"
-           "	--seccomp FD		     Load and use seccomp rules from FD\n"
+           "    --help                       Print this help\n"
+           "    --version                    Print version\n"
+           "    --args FD                    Parse nul-separated args from FD\n"
+           "    --unshare-user               Create new user namespace (may be automatically implied if not setuid)\n"
+           "    --unshare-ipc                Create new ipc namespace\n"
+           "    --unshare-pid                Create new pid namespace\n"
+           "    --unshare-net                Create new network namespace\n"
+           "    --unshare-uts                Create new uts namespace\n"
+           "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
+           "    --gid GID                    Custon gid in the sandbox (requires --unshare-user)\n"
+           "    --chdir DIR                  Change directory to DIR\n"
+           "    --setenv VAR VALUE           Set an environment variable\n"
+           "    --unsetenv VAR               Unset an environment variable\n"
+           "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
+           "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
+           "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
+           "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
+           "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
+           "    --exec-label LABEL           Exec Label for the sandbox\n"
+           "    --file-label LABEL           File label for temporary sandbox content\n"
+           "    --proc DEST                  Mount procfs on DEST\n"
+           "    --dev DEST                   Mount new dev on DEST\n"
+           "    --tmpfs DEST                 Mount new tmpfs on DEST\n"
+           "    --mqueue DEST                Mount new mqueue on DEST\n"
+           "    --dir DEST                   Create dir at DEST\n"
+           "    --file FD DEST               Copy from FD to dest DEST\n"
+           "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
+           "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
+           "    --seccomp FD                 Load and use seccomp rules from FD\n"
            );
   exit (ecode);
 }
@@ -812,9 +812,9 @@ int opt_seccomp_fd = -1;
 
 static void
 parse_args_recurse (int *argcp,
-		    char ***argvp,
-		    bool in_file,
-		    int *total_parsed_argc_p)
+                    char ***argvp,
+                    bool in_file,
+                    int *total_parsed_argc_p)
 {
   SetupOp *op;
   int argc = *argcp;
@@ -878,9 +878,9 @@ parse_args_recurse (int *argcp,
           while (p != NULL && p < data_end)
             {
               data_argc++;
-	      (*total_parsed_argc_p)++;
-	      if (*total_parsed_argc_p > MAX_ARGS)
-		die ("Exceeded maximum number of arguments %u", MAX_ARGS);
+              (*total_parsed_argc_p)++;
+              if (*total_parsed_argc_p > MAX_ARGS)
+                die ("Exceeded maximum number of arguments %u", MAX_ARGS);
               p = memchr (p, 0, data_end - p);
               if (p != NULL)
                 p++;
@@ -1208,7 +1208,7 @@ parse_args_recurse (int *argcp,
 
 static void
 parse_args (int *argcp,
-	    char ***argvp)
+            char ***argvp)
 {
   int total_parsed_argc = *argcp;
   parse_args_recurse (argcp, argvp, FALSE, &total_parsed_argc);
@@ -1296,7 +1296,7 @@ main (int argc,
     {
       event_fd = eventfd (0, EFD_CLOEXEC | EFD_NONBLOCK);
       if (event_fd == -1)
-	die_with_error ("eventfd()");
+        die_with_error ("eventfd()");
     }
 
   /* We block sigchild here so that we can use signalfd in the monitor. */
@@ -1494,7 +1494,7 @@ main (int argc,
       close (opt_seccomp_fd);
 
       if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0)
-	die_with_error ("prctl(PR_SET_SECCOMP)");
+        die_with_error ("prctl(PR_SET_SECCOMP)");
     }
 
   umask (old_umask);

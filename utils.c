@@ -241,7 +241,7 @@ strconcat3 (const char *s1,
 
 char*
 xasprintf (const char *format,
-	   ...)
+           ...)
 {
   char *buffer = NULL;
   va_list args;
@@ -405,7 +405,7 @@ ensure_file (const char *path,
 }
 
 
-#define BUFSIZE	8192
+#define BUFSIZE 8192
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int
 copy_file_data (int     sfd,
