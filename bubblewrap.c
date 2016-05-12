@@ -136,11 +136,11 @@ lock_file_new (const char *path)
 
 
 static void
-usage (int ecode)
+usage (int ecode, FILE *out)
 {
-  fprintf (stderr, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
+  fprintf (out, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
 
-  fprintf (stderr,
+  fprintf (out,
            "    --help                       Print this help\n"
            "    --version                    Print version\n"
            "    --args FD                    Parse nul-separated args from FD\n"
@@ -848,7 +848,7 @@ parse_args_recurse (int *argcp,
       const char *arg = argv[0];
 
       if (strcmp (arg, "--help") == 0)
-        usage (EXIT_SUCCESS);
+        usage (EXIT_SUCCESS, stdout);
       else if (strcmp (arg, "--version") == 0)
         {
           printf ("%s\n", PACKAGE_STRING);
@@ -1261,7 +1261,7 @@ main (int argc,
   argc--;
 
   if (argc == 0)
-    usage (EXIT_FAILURE);
+    usage (EXIT_FAILURE, stderr);
 
   parse_args (&argc, &argv);
 
@@ -1270,7 +1270,7 @@ main (int argc,
     opt_unshare_user = TRUE;
 
   if (argc == 0)
-    usage (EXIT_FAILURE);
+    usage (EXIT_FAILURE, stderr);
 
   __debug__(("Creating root mount point\n"));
 
