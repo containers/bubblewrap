@@ -34,15 +34,15 @@ add_rta (struct nlmsghdr *header,
          size_t           size)
 {
   struct rtattr *rta;
-  size_t rta_size = RTA_LENGTH(size);
+  size_t rta_size = RTA_LENGTH (size);
 
-  rta = (struct rtattr*)((char *)header + NLMSG_ALIGN(header->nlmsg_len));
+  rta = (struct rtattr *) ((char *) header + NLMSG_ALIGN (header->nlmsg_len));
   rta->rta_type = type;
   rta->rta_len = rta_size;
 
-  header->nlmsg_len = NLMSG_ALIGN(header->nlmsg_len) + rta_size;
+  header->nlmsg_len = NLMSG_ALIGN (header->nlmsg_len) + rta_size;
 
-  return RTA_DATA(rta);
+  return RTA_DATA (rta);
 }
 
 static int
@@ -52,8 +52,8 @@ rtnl_send_request (int              rtnl_fd,
   struct sockaddr_nl dst_addr = { AF_NETLINK, 0 };
   ssize_t sent;
 
-  sent = sendto (rtnl_fd, (void *)header, header->nlmsg_len, 0,
-                 (struct sockaddr *)&dst_addr, sizeof (dst_addr));
+  sent = sendto (rtnl_fd, (void *) header, header->nlmsg_len, 0,
+                 (struct sockaddr *) &dst_addr, sizeof (dst_addr));
   if (sent < 0)
     return -1;
 
@@ -70,11 +70,11 @@ rtnl_read_reply (int rtnl_fd,
 
   while (1)
     {
-      received = recv (rtnl_fd, buffer, sizeof(buffer), 0);
+      received = recv (rtnl_fd, buffer, sizeof (buffer), 0);
       if (received < 0)
         return -1;
 
-      rheader = (struct nlmsghdr *)buffer;
+      rheader = (struct nlmsghdr *) buffer;
       while (received >= NLMSG_HDRLEN)
         {
           if (rheader->nlmsg_seq != seq_nr)
@@ -83,7 +83,7 @@ rtnl_read_reply (int rtnl_fd,
             return -1;
           if (rheader->nlmsg_type == NLMSG_ERROR)
             {
-              uint32_t *err = NLMSG_DATA(rheader);
+              uint32_t *err = NLMSG_DATA (rheader);
               if (*err == 0)
                 return 0;
 
@@ -92,7 +92,7 @@ rtnl_read_reply (int rtnl_fd,
           if (rheader->nlmsg_type == NLMSG_DONE)
             return 0;
 
-          rheader = NLMSG_NEXT(rheader, received);
+          rheader = NLMSG_NEXT (rheader, received);
         }
     }
 }
@@ -111,9 +111,9 @@ rtnl_do_request (int              rtnl_fd,
 }
 
 static struct nlmsghdr *
-rtnl_setup_request (char *buffer,
-                    int   type,
-                    int   flags,
+rtnl_setup_request (char  *buffer,
+                    int    type,
+                    int    flags,
                     size_t size)
 {
   struct nlmsghdr *header;
@@ -122,14 +122,14 @@ rtnl_setup_request (char *buffer,
 
   memset (buffer, 0, len);
 
-  header = (struct nlmsghdr *)buffer;
+  header = (struct nlmsghdr *) buffer;
   header->nlmsg_len = len;
   header->nlmsg_type = type;
   header->nlmsg_flags = flags | NLM_F_REQUEST;
   header->nlmsg_seq = counter++;
   header->nlmsg_pid = getpid ();
 
-  return (struct nlmsghdr *)header;
+  return (struct nlmsghdr *) header;
 }
 
 int
@@ -150,18 +150,18 @@ loopback_setup (void)
   if (if_loopback <= 0)
     return -1;
 
-  rtnl_fd = socket (PF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE);
+  rtnl_fd = socket (PF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
   if (rtnl_fd < 0)
     return -1;
 
-  r = bind (rtnl_fd, (struct sockaddr *)&src_addr, sizeof (src_addr));
+  r = bind (rtnl_fd, (struct sockaddr *) &src_addr, sizeof (src_addr));
   if (r < 0)
     return -1;
 
   header = rtnl_setup_request (buffer, RTM_NEWADDR,
-                               NLM_F_CREATE|NLM_F_EXCL|NLM_F_ACK,
+                               NLM_F_CREATE | NLM_F_EXCL | NLM_F_ACK,
                                sizeof (struct ifaddrmsg));
-  addmsg = NLMSG_DATA(header);
+  addmsg = NLMSG_DATA (header);
 
   addmsg->ifa_family = AF_INET;
   addmsg->ifa_prefixlen = 8;
@@ -170,10 +170,10 @@ loopback_setup (void)
   addmsg->ifa_index = if_loopback;
 
   ip_addr = add_rta (header, IFA_LOCAL, sizeof (*ip_addr));
-  ip_addr->s_addr = htonl(INADDR_LOOPBACK);
+  ip_addr->s_addr = htonl (INADDR_LOOPBACK);
 
   ip_addr = add_rta (header, IFA_ADDRESS, sizeof (*ip_addr));
-  ip_addr->s_addr = htonl(INADDR_LOOPBACK);
+  ip_addr->s_addr = htonl (INADDR_LOOPBACK);
 
   assert (header->nlmsg_len < sizeof (buffer));
 
@@ -183,7 +183,7 @@ loopback_setup (void)
   header = rtnl_setup_request (buffer, RTM_NEWLINK,
                                NLM_F_ACK,
                                sizeof (struct ifinfomsg));
-  infomsg = NLMSG_DATA(header);
+  infomsg = NLMSG_DATA (header);
 
   infomsg->ifi_family = AF_UNSPEC;
   infomsg->ifi_type = 0;

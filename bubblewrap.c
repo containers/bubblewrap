@@ -67,19 +67,21 @@ typedef enum {
 
 typedef struct _SetupOp SetupOp;
 
-struct _SetupOp {
+struct _SetupOp
+{
   SetupOpType type;
   const char *source;
   const char *dest;
-  int fd;
-  SetupOp *next;
+  int         fd;
+  SetupOp    *next;
 };
 
 typedef struct _LockFile LockFile;
 
-struct _LockFile {
+struct _LockFile
+{
   const char *path;
-  LockFile *next;
+  LockFile   *next;
 };
 
 static SetupOp *ops = NULL;
@@ -96,7 +98,8 @@ enum {
   PRIV_SEP_OP_MQUEUE_MOUNT,
 };
 
-typedef struct {
+typedef struct
+{
   uint32_t op;
   uint32_t flags;
   uint32_t arg1_offset;
@@ -172,7 +175,7 @@ usage (int ecode, FILE *out)
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
-           );
+          );
   exit (ecode);
 }
 
@@ -204,7 +207,7 @@ unblock_sigchild (void)
 static int
 close_extra_fds (void *data, int fd)
 {
-  int *extra_fds = (int *)data;
+  int *extra_fds = (int *) data;
   int i;
 
   for (i = 0; extra_fds[i] != -1; i++)
@@ -274,13 +277,15 @@ monitor_child (int event_fd)
           if (s == -1 && errno != EINTR && errno != EAGAIN)
             die_with_error ("read eventfd");
           else if (s == 8)
-            exit ((int)val - 1);
+            exit ((int) val - 1);
         }
 
       s = read (signal_fd, &fdsi, sizeof (struct signalfd_siginfo));
       if (s == -1 && errno != EINTR && errno != EAGAIN)
-        die_with_error ("read signalfd");
-      else if (s == sizeof(struct signalfd_siginfo))
+        {
+          die_with_error ("read signalfd");
+        }
+      else if (s == sizeof (struct signalfd_siginfo))
         {
           if (fdsi.ssi_signo != SIGCHLD)
             die ("Read unexpected signal\n");
@@ -333,7 +338,7 @@ do_init (int event_fd, pid_t initial_pid)
           int res UNUSED;
 
           if (WIFEXITED (status))
-            initial_exit_status = WEXITSTATUS(status);
+            initial_exit_status = WEXITSTATUS (status);
 
           val = initial_exit_status + 1;
           res = write (event_fd, &val, 8);
@@ -353,7 +358,7 @@ do_init (int event_fd, pid_t initial_pid)
 }
 
 /* low 32bit caps needed */
-#define REQUIRED_CAPS_0 (CAP_TO_MASK(CAP_SYS_ADMIN)|CAP_TO_MASK(CAP_SYS_CHROOT)|CAP_TO_MASK(CAP_NET_ADMIN))
+#define REQUIRED_CAPS_0 (CAP_TO_MASK (CAP_SYS_ADMIN) | CAP_TO_MASK (CAP_SYS_CHROOT) | CAP_TO_MASK (CAP_NET_ADMIN))
 /* high 32bit caps needed */
 #define REQUIRED_CAPS_1 0
 
@@ -436,7 +441,7 @@ write_uid_gid_map (uid_t sandbox_uid,
                    uid_t parent_uid,
                    uid_t sandbox_gid,
                    uid_t parent_gid,
-                   bool deny_groups)
+                   bool  deny_groups)
 {
   cleanup_free char *uid_map = NULL;
   cleanup_free char *gid_map = NULL;
@@ -455,16 +460,16 @@ write_uid_gid_map (uid_t sandbox_uid,
 }
 
 static void
-privileged_op (int privileged_op_socket,
-               uint32_t op,
-               uint32_t flags,
+privileged_op (int         privileged_op_socket,
+               uint32_t    op,
+               uint32_t    flags,
                const char *arg1,
                const char *arg2)
 {
   if (privileged_op_socket != -1)
     {
       uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
-      PrivSepOp *op_buffer = (PrivSepOp *)buffer;
+      PrivSepOp *op_buffer = (PrivSepOp *) buffer;
       size_t buffer_size = sizeof (PrivSepOp);
       uint32_t arg1_offset = 0, arg2_offset = 0;
       if (arg1 != NULL)
@@ -486,9 +491,9 @@ privileged_op (int privileged_op_socket,
       op_buffer->arg1_offset = arg1_offset;
       op_buffer->arg2_offset = arg2_offset;
       if (arg1 != NULL)
-        strcpy ((char *)buffer + arg1_offset, arg1);
+        strcpy ((char *) buffer + arg1_offset, arg1);
       if (arg2 != NULL)
-        strcpy ((char *)buffer + arg2_offset, arg2);
+        strcpy ((char *) buffer + arg2_offset, arg2);
 
       if (write (privileged_op_socket, buffer, buffer_size) != buffer_size)
         die ("Can't write to privileged_op_socket");
@@ -503,16 +508,19 @@ privileged_op (int privileged_op_socket,
     {
     case PRIV_SEP_OP_DONE:
       break;
+
     case PRIV_SEP_OP_BIND_MOUNT:
       /* We always bind directories recursively, otherwise this would let us
          access files that are otherwise covered on the host */
       if (bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags) != 0)
         die_with_error ("Can't bind mount %s on %s", arg1, arg2);
       break;
+
     case PRIV_SEP_OP_PROC_MOUNT:
-      if (mount ("proc", arg1, "proc", MS_MGC_VAL|MS_NOSUID|MS_NOEXEC|MS_NODEV, NULL) != 0)
+      if (mount ("proc", arg1, "proc", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
         die_with_error ("Can't mount proc on %s", arg1);
       break;
+
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
         cleanup_free char *opt = label_mount ("mode=0755", opt_file_label);
@@ -520,15 +528,18 @@ privileged_op (int privileged_op_socket,
           die_with_error ("Can't mount tmpfs on %s", arg1);
         break;
       }
+
     case PRIV_SEP_OP_DEVPTS_MOUNT:
       if (mount ("devpts", arg1, "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC,
                  "newinstance,ptmxmode=0666,mode=620") != 0)
         die_with_error ("Can't mount devpts on %s", arg1);
       break;
+
     case PRIV_SEP_OP_MQUEUE_MOUNT:
       if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
         die_with_error ("Can't mount mqueue on %s", arg1);
       break;
+
     default:
       die ("Unexpected privileged op %d", op);
     }
@@ -536,7 +547,7 @@ privileged_op (int privileged_op_socket,
 
 static void
 setup_newroot (bool unshare_pid,
-               int privileged_op_socket)
+               int  privileged_op_socket)
 {
   SetupOp *op;
 
@@ -563,205 +574,205 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't mkdir parents for %s", op->dest);
         }
 
-      switch (op->type) {
-      case SETUP_RO_BIND_MOUNT:
-      case SETUP_DEV_BIND_MOUNT:
-      case SETUP_BIND_MOUNT:
-        if (source_mode == S_IFDIR)
-          {
-            if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-              die_with_error ("Can't mkdir %s", op->dest);
-          }
-        else
-          {
-            if (ensure_file (dest, 0666) != 0)
-              die_with_error ("Can't create file at %s", op->dest);
-          }
-
-        privileged_op (privileged_op_socket,
-                       PRIV_SEP_OP_BIND_MOUNT,
-                       (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
-                       (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
-                       source, dest);
-        break;
-
-      case SETUP_MOUNT_PROC:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        if (unshare_pid)
-          {
-            /* Our own procfs */
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_PROC_MOUNT, 0,
-                           dest, NULL);
-          }
-        else
-          {
-            /* Use system procfs, as we share pid namespace anyway */
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT, 0,
-                           "oldroot/proc", dest);
-          }
-
-        /* There are a bunch of weird old subdirs of /proc that could potentially be
-           problematic (for instance /proc/sysrq-trigger lets you shut down the machine
-           if you have write access). We should not have access to these as a non-privileged
-           user, but lets cover them anyway just to make sure */
-        const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
-        for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
-          {
-            cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
-                           subdir, subdir);
-          }
-
-        break;
-
-      case SETUP_MOUNT_DEV:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        privileged_op (privileged_op_socket,
-                       PRIV_SEP_OP_TMPFS_MOUNT, 0,
-                       dest, NULL);
-
-        static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
-        for (i = 0; i < N_ELEMENTS (devnodes); i++)
-          {
-            cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
-            cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
-            if (create_file (node_dest, 0666, NULL) != 0)
-              die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
-                           node_src, node_dest);
-          }
-
-        static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
-        for (i = 0; i < N_ELEMENTS (stdionodes); i++)
-          {
-            cleanup_free char *target = xasprintf ("/proc/self/fd/%d", i);
-            cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
-            if (symlink (target, node_dest) < 0)
-              die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
-          }
-
+      switch (op->type)
         {
-          cleanup_free char *pts = strconcat (dest, "/pts");
-          cleanup_free char *ptmx = strconcat (dest, "/ptmx");
-          cleanup_free char *shm = strconcat (dest, "/shm");
-
-          if (mkdir (shm, 0755) == -1)
-            die_with_error ("Can't create %s/shm", op->dest);
-
-          if (mkdir (pts, 0755) == -1)
-            die_with_error ("Can't create %s/devpts", op->dest);
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_DEVPTS_MOUNT, BIND_DEVICES,
-                         pts, NULL);
-
-          if (symlink ("pts/ptmx", ptmx) != 0)
-            die_with_error ("Can't make symlink at %s/ptmx", op->dest);
-        }
-
-        /* If stdout is a tty, that means the sandbox can write to the
-           outside-sandbox tty. In that case we also create a /dev/console
-           that points to this tty device. This should not cause any more
-           access than we already have, and it makes ttyname() work in the
-           sandbox. */
-        if (host_tty_dev != NULL && *host_tty_dev != 0)
-          {
-            cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
-            cleanup_free char *dest_console = strconcat (dest, "/console");
-
-            if (create_file (dest_console, 0666, NULL) != 0)
-              die_with_error ("creating %s/console", op->dest);
-
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
-                           src_tty_dev, dest_console);
-          }
-
-        break;
-
-      case SETUP_MOUNT_TMPFS:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        privileged_op (privileged_op_socket,
-                       PRIV_SEP_OP_TMPFS_MOUNT, 0,
-                       dest, NULL);
-        break;
-      case SETUP_MOUNT_MQUEUE:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        privileged_op (privileged_op_socket,
-                       PRIV_SEP_OP_MQUEUE_MOUNT, 0,
-                       dest, NULL);
-        break;
-      case SETUP_MAKE_DIR:
-        if (mkdir (dest, 0755) != 0 && errno != EEXIST)
-          die_with_error ("Can't mkdir %s", op->dest);
-
-        break;
-
-      case SETUP_MAKE_FILE:
-        {
-          cleanup_fd int dest_fd = -1;
-
-          dest_fd = creat (dest, 0666);
-          if (dest_fd == -1)
-            die_with_error ("Can't create file %s", op->dest);
-
-          if (copy_file_data (op->fd, dest_fd) != 0)
-            die_with_error ("Can't write data to file %s", op->dest);
-
-          close (op->fd);
-        }
-        break;
-
-      case SETUP_MAKE_BIND_FILE:
-        {
-          cleanup_fd int dest_fd = -1;
-          char tempfile[] = "/bindfileXXXXXX";
-
-          dest_fd = mkstemp (tempfile);
-          if (dest_fd == -1)
-            die_with_error ("Can't create tmpfile for %s", op->dest);
-
-          if (copy_file_data (op->fd, dest_fd) != 0)
-            die_with_error ("Can't write data to file %s", op->dest);
-
-          close (op->fd);
-
-          if (ensure_file (dest, 0666) != 0)
+        case SETUP_RO_BIND_MOUNT:
+        case SETUP_DEV_BIND_MOUNT:
+        case SETUP_BIND_MOUNT:
+          if (source_mode == S_IFDIR)
+            {
+              if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+                die_with_error ("Can't mkdir %s", op->dest);
+            }
+          else if (ensure_file (dest, 0666) != 0)
             die_with_error ("Can't create file at %s", op->dest);
 
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_BIND_MOUNT,
-                         0, tempfile, dest);
+                         (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
+                         (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
+                         source, dest);
+          break;
+
+        case SETUP_MOUNT_PROC:
+          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+            die_with_error ("Can't mkdir %s", op->dest);
+
+          if (unshare_pid)
+            {
+              /* Our own procfs */
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_PROC_MOUNT, 0,
+                             dest, NULL);
+            }
+          else
+            {
+              /* Use system procfs, as we share pid namespace anyway */
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT, 0,
+                             "oldroot/proc", dest);
+            }
+
+          /* There are a bunch of weird old subdirs of /proc that could potentially be
+             problematic (for instance /proc/sysrq-trigger lets you shut down the machine
+             if you have write access). We should not have access to these as a non-privileged
+             user, but lets cover them anyway just to make sure */
+          const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
+          for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
+            {
+              cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
+                             subdir, subdir);
+            }
+
+          break;
+
+        case SETUP_MOUNT_DEV:
+          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+            die_with_error ("Can't mkdir %s", op->dest);
+
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_TMPFS_MOUNT, 0,
+                         dest, NULL);
+
+          static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
+          for (i = 0; i < N_ELEMENTS (devnodes); i++)
+            {
+              cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
+              cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
+              if (create_file (node_dest, 0666, NULL) != 0)
+                die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
+                             node_src, node_dest);
+            }
+
+          static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
+          for (i = 0; i < N_ELEMENTS (stdionodes); i++)
+            {
+              cleanup_free char *target = xasprintf ("/proc/self/fd/%d", i);
+              cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
+              if (symlink (target, node_dest) < 0)
+                die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
+            }
+
+          {
+            cleanup_free char *pts = strconcat (dest, "/pts");
+            cleanup_free char *ptmx = strconcat (dest, "/ptmx");
+            cleanup_free char *shm = strconcat (dest, "/shm");
+
+            if (mkdir (shm, 0755) == -1)
+              die_with_error ("Can't create %s/shm", op->dest);
+
+            if (mkdir (pts, 0755) == -1)
+              die_with_error ("Can't create %s/devpts", op->dest);
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_DEVPTS_MOUNT, BIND_DEVICES,
+                           pts, NULL);
+
+            if (symlink ("pts/ptmx", ptmx) != 0)
+              die_with_error ("Can't make symlink at %s/ptmx", op->dest);
+          }
+
+          /* If stdout is a tty, that means the sandbox can write to the
+             outside-sandbox tty. In that case we also create a /dev/console
+             that points to this tty device. This should not cause any more
+             access than we already have, and it makes ttyname() work in the
+             sandbox. */
+          if (host_tty_dev != NULL && *host_tty_dev != 0)
+            {
+              cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
+              cleanup_free char *dest_console = strconcat (dest, "/console");
+
+              if (create_file (dest_console, 0666, NULL) != 0)
+                die_with_error ("creating %s/console", op->dest);
+
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
+                             src_tty_dev, dest_console);
+            }
+
+          break;
+
+        case SETUP_MOUNT_TMPFS:
+          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+            die_with_error ("Can't mkdir %s", op->dest);
+
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_TMPFS_MOUNT, 0,
+                         dest, NULL);
+          break;
+
+        case SETUP_MOUNT_MQUEUE:
+          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+            die_with_error ("Can't mkdir %s", op->dest);
+
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_MQUEUE_MOUNT, 0,
+                         dest, NULL);
+          break;
+
+        case SETUP_MAKE_DIR:
+          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+            die_with_error ("Can't mkdir %s", op->dest);
+
+          break;
+
+        case SETUP_MAKE_FILE:
+          {
+            cleanup_fd int dest_fd = -1;
+
+            dest_fd = creat (dest, 0666);
+            if (dest_fd == -1)
+              die_with_error ("Can't create file %s", op->dest);
+
+            if (copy_file_data (op->fd, dest_fd) != 0)
+              die_with_error ("Can't write data to file %s", op->dest);
+
+            close (op->fd);
+          }
+          break;
+
+        case SETUP_MAKE_BIND_FILE:
+          {
+            cleanup_fd int dest_fd = -1;
+            char tempfile[] = "/bindfileXXXXXX";
+
+            dest_fd = mkstemp (tempfile);
+            if (dest_fd == -1)
+              die_with_error ("Can't create tmpfile for %s", op->dest);
+
+            if (copy_file_data (op->fd, dest_fd) != 0)
+              die_with_error ("Can't write data to file %s", op->dest);
+
+            close (op->fd);
+
+            if (ensure_file (dest, 0666) != 0)
+              die_with_error ("Can't create file at %s", op->dest);
+
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_BIND_MOUNT,
+                           0, tempfile, dest);
+          }
+          break;
+
+        case SETUP_MAKE_SYMLINK:
+          if (symlink (op->source, dest) != 0)
+            die_with_error ("Can't make symlink at %s", op->dest);
+          break;
+
+        default:
+          die ("Unexpected type %d", op->type);
         }
-        break;
-
-      case SETUP_MAKE_SYMLINK:
-        if (symlink (op->source, dest) != 0)
-          die_with_error ("Can't make symlink at %s", op->dest);
-        break;
-
-      default:
-        die ("Unexpected type %d", op->type);
-      }
     }
   privileged_op (privileged_op_socket,
                  PRIV_SEP_OP_DONE, 0, NULL, NULL);
 }
 
 static const char *
-resolve_string_offset (void *buffer,
-                       size_t buffer_size,
+resolve_string_offset (void    *buffer,
+                       size_t   buffer_size,
                        uint32_t offset)
 {
   if (offset == 0)
@@ -770,18 +781,18 @@ resolve_string_offset (void *buffer,
   if (offset > buffer_size)
     die ("Invalid string offset %d (buffer size %zd)", offset, buffer_size);
 
-  return (const char *)buffer + offset;
+  return (const char *) buffer + offset;
 }
 
 static uint32_t
-read_priv_sec_op (int read_socket,
-                  void *buffer,
-                  size_t buffer_size,
-                  uint32_t *flags,
+read_priv_sec_op (int          read_socket,
+                  void        *buffer,
+                  size_t       buffer_size,
+                  uint32_t    *flags,
                   const char **arg1,
                   const char **arg2)
 {
-  const PrivSepOp *op = (const PrivSepOp *)buffer;
+  const PrivSepOp *op = (const PrivSepOp *) buffer;
   ssize_t rec_len;
 
   do
@@ -795,7 +806,7 @@ read_priv_sec_op (int read_socket,
     die ("Invalid size %zd from unprivileged helper", rec_len);
 
   /* Guarantee zero termination of any strings */
-  ((char *)buffer)[rec_len] = 0;
+  ((char *) buffer)[rec_len] = 0;
 
   *flags = op->flags;
   *arg1 = resolve_string_offset (buffer, rec_len, op->arg1_offset);
@@ -820,10 +831,10 @@ int opt_seccomp_fd = -1;
 
 
 static void
-parse_args_recurse (int *argcp,
+parse_args_recurse (int    *argcp,
                     char ***argvp,
-                    bool in_file,
-                    int *total_parsed_argc_p)
+                    bool    in_file,
+                    int    *total_parsed_argc_p)
 {
   SetupOp *op;
   int argc = *argcp;
@@ -848,7 +859,9 @@ parse_args_recurse (int *argcp,
       const char *arg = argv[0];
 
       if (strcmp (arg, "--help") == 0)
-        usage (EXIT_SUCCESS, stdout);
+        {
+          usage (EXIT_SUCCESS, stdout);
+        }
       else if (strcmp (arg, "--version") == 0)
         {
           printf ("%s\n", PACKAGE_STRING);
@@ -916,19 +929,33 @@ parse_args_recurse (int *argcp,
           argc -= 1;
         }
       else if (strcmp (arg, "--unshare-user") == 0)
-        opt_unshare_user = TRUE;
+        {
+          opt_unshare_user = TRUE;
+        }
       else if (strcmp (arg, "--unshare-ipc") == 0)
-        opt_unshare_ipc = TRUE;
+        {
+          opt_unshare_ipc = TRUE;
+        }
       else if (strcmp (arg, "--unshare-pid") == 0)
-        opt_unshare_pid = TRUE;
+        {
+          opt_unshare_pid = TRUE;
+        }
       else if (strcmp (arg, "--unshare-net") == 0)
-        opt_unshare_net = TRUE;
+        {
+          opt_unshare_net = TRUE;
+        }
       else if (strcmp (arg, "--unshare-uts") == 0)
-        opt_unshare_uts = TRUE;
+        {
+          opt_unshare_uts = TRUE;
+        }
       else if (strcmp (arg, "--unshare-cgroup") == 0)
-        opt_unshare_cgroup = TRUE;
+        {
+          opt_unshare_cgroup = TRUE;
+        }
       else if (strcmp (arg, "--unshare-cgroup-try") == 0)
-        opt_unshare_cgroup_try = TRUE;
+        {
+          opt_unshare_cgroup_try = TRUE;
+        }
       else if (strcmp (arg, "--chdir") == 0)
         {
           if (argc < 2)
@@ -1113,7 +1140,7 @@ parse_args_recurse (int *argcp,
           if (argc < 2)
             die ("--lock-file takes an argument");
 
-          (void)lock_file_new (argv[1]);
+          (void) lock_file_new (argv[1]);
 
           argv += 1;
           argc -= 1;
@@ -1207,9 +1234,13 @@ parse_args_recurse (int *argcp,
           argc -= 1;
         }
       else if (*arg == '-')
-        die ("Unknown option %s", arg);
+        {
+          die ("Unknown option %s", arg);
+        }
       else
-        break;
+        {
+          break;
+        }
 
       argv++;
       argc--;
@@ -1220,15 +1251,16 @@ parse_args_recurse (int *argcp,
 }
 
 static void
-parse_args (int *argcp,
+parse_args (int    *argcp,
             char ***argvp)
 {
   int total_parsed_argc = *argcp;
+
   parse_args_recurse (argcp, argvp, FALSE, &total_parsed_argc);
 }
 
 int
-main (int argc,
+main (int    argc,
       char **argv)
 {
   mode_t old_umask;
@@ -1272,7 +1304,7 @@ main (int argc,
   if (argc == 0)
     usage (EXIT_FAILURE, stderr);
 
-  __debug__(("Creating root mount point\n"));
+  __debug__ (("Creating root mount point\n"));
 
   uid = getuid ();
   if (opt_sandbox_uid == -1)
@@ -1304,7 +1336,7 @@ main (int argc,
         die_with_error ("Creating root mountpoint failed");
     }
 
-  __debug__(("creating new namespace\n"));
+  __debug__ (("creating new namespace\n"));
 
   if (opt_unshare_pid)
     {
@@ -1339,10 +1371,8 @@ main (int argc,
       clone_flags |= CLONE_NEWCGROUP;
     }
   if (opt_unshare_cgroup_try)
-    {
-      if (!stat ("/proc/self/ns/cgroup", &sbuf))
-        clone_flags |= CLONE_NEWCGROUP;
-    }
+    if (!stat ("/proc/self/ns/cgroup", &sbuf))
+      clone_flags |= CLONE_NEWCGROUP;
 
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
@@ -1395,11 +1425,11 @@ main (int argc,
   /* Mark everything as slave, so that we still
    * receive mounts from the real root, but don't
    * propagate mounts to the real root. */
-  if (mount (NULL, "/", NULL, MS_SLAVE|MS_REC, NULL) < 0)
+  if (mount (NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
     die_with_error ("Failed to make / slave");
 
   /* Create a tmpfs which we will use as / in the namespace */
-  if (mount ("", base_path, "tmpfs", MS_NODEV|MS_NOSUID, NULL) != 0)
+  if (mount ("", base_path, "tmpfs", MS_NODEV | MS_NOSUID, NULL) != 0)
     die_with_error ("Failed to mount tmpfs");
 
   old_cwd = get_current_dir_name ();
@@ -1407,7 +1437,7 @@ main (int argc,
   /* Chdir to the new root tmpfs mount. This will be the CWD during
      the entire setup. Access old or new root via "oldroot" and "newroot". */
   if (chdir (base_path) != 0)
-      die_with_error ("chdir base_path");
+    die_with_error ("chdir base_path");
 
   /* We create a subdir "$base_path/newroot" for the new root, that
    * way we can pivot_root to base_path, and put the old root at
@@ -1470,10 +1500,12 @@ main (int argc,
         }
     }
   else
-    setup_newroot (opt_unshare_pid, -1);
+    {
+      setup_newroot (opt_unshare_pid, -1);
+    }
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
-  if (mount ("oldroot", "oldroot", NULL, MS_REC|MS_PRIVATE, NULL) != 0)
+  if (mount ("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) != 0)
     die_with_error ("Failed to make old root rprivate");
 
   if (umount2 ("oldroot", MNT_DETACH))
@@ -1519,7 +1551,7 @@ main (int argc,
         die ("Invalide seccomp data, must be multiple of 8");
 
       prog.len = seccomp_len / 8;
-      prog.filter = (struct sock_filter *)seccomp_data;
+      prog.filter = (struct sock_filter *) seccomp_data;
 
       close (opt_seccomp_fd);
 
@@ -1552,7 +1584,7 @@ main (int argc,
   xsetenv ("PWD", new_cwd, 1);
   free (old_cwd);
 
-  __debug__(("forking for child\n"));
+  __debug__ (("forking for child\n"));
 
   if (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1)
     {
@@ -1564,7 +1596,7 @@ main (int argc,
 
       pid = fork ();
       if (pid == -1)
-        die_with_error("Can't fork for pid 1");
+        die_with_error ("Can't fork for pid 1");
 
       if (pid != 0)
         {
@@ -1588,7 +1620,7 @@ main (int argc,
         }
     }
 
-  __debug__(("launch executable %s\n", argv[0]));
+  __debug__ (("launch executable %s\n", argv[0]));
 
   if (proc_fd != -1)
     close (proc_fd);

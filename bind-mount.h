@@ -20,14 +20,14 @@
 #define __MOUNTS_H__
 
 typedef enum {
-  BIND_READONLY = (1<<0),
-  BIND_DEVICES = (1<<2),
-  BIND_RECURSIVE = (1<<3),
+  BIND_READONLY = (1 << 0),
+  BIND_DEVICES = (1 << 2),
+  BIND_RECURSIVE = (1 << 3),
 } bind_option_t;
 
-int bind_mount (int proc_fd,
-                const char *src,
-                const char *dest,
+int bind_mount (int           proc_fd,
+                const char   *src,
+                const char   *dest,
                 bind_option_t options);
 
 #endif /* __MOUNTS_H__ */
