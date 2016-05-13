@@ -63,20 +63,22 @@ unescape_mountpoint (const char *escaped, ssize_t len)
       if (*escaped == '\\')
         {
           *unescaped++ =
-            ((escaped[1] - '0')  << 6) |
-            ((escaped[2] - '0')  << 3) |
-            ((escaped[3] - '0')  << 0);
+            ((escaped[1] - '0') << 6) |
+            ((escaped[2] - '0') << 3) |
+            ((escaped[3] - '0') << 0);
           escaped += 4;
         }
       else
-        *unescaped++ = *escaped++;
+        {
+          *unescaped++ = *escaped++;
+        }
     }
   *unescaped = 0;
   return res;
 }
 
 static char *
-get_mountinfo (int proc_fd,
+get_mountinfo (int         proc_fd,
                const char *mountpoint)
 {
   char *line_mountpoint, *line_mountpoint_end;
@@ -128,14 +130,16 @@ get_mountinfo (int proc_fd,
 }
 
 static unsigned long
-get_mountflags (int proc_fd,
+get_mountflags (int         proc_fd,
                 const char *mountpoint)
 {
   cleanup_free char *line = NULL;
   char *token, *end_token;
   int i;
   unsigned long flags = 0;
-  static const struct  { int flag; char *name; } flags_data[] = {
+  static const struct  { int   flag;
+                         char *name;
+  } flags_data[] = {
     { 0, "rw" },
     { MS_RDONLY, "ro" },
     { MS_NOSUID, "nosuid" },
@@ -158,29 +162,29 @@ get_mountflags (int proc_fd,
   end_token = skip_token (token, FALSE);
   *end_token = 0;
 
-  do {
-    end_token = strchr (token, ',');
-    if (end_token != NULL)
-      *end_token = 0;
+  do
+    {
+      end_token = strchr (token, ',');
+      if (end_token != NULL)
+        *end_token = 0;
 
-    for (i = 0; flags_data[i].name != NULL; i++)
-      {
+      for (i = 0; flags_data[i].name != NULL; i++)
         if (strcmp (token, flags_data[i].name) == 0)
           flags |= flags_data[i].flag;
-      }
 
-    if (end_token)
-      token = end_token + 1;
-    else
-      token = NULL;
-  } while (token != NULL);
+      if (end_token)
+        token = end_token + 1;
+      else
+        token = NULL;
+    }
+  while (token != NULL);
 
   return flags;
 }
 
 
 static char **
-get_submounts (int proc_fd,
+get_submounts (int         proc_fd,
                const char *parent_mount)
 {
   char *mountpoint, *mountpoint_end;
@@ -229,9 +233,9 @@ get_submounts (int proc_fd,
 }
 
 int
-bind_mount (int proc_fd,
-            const char *src,
-            const char *dest,
+bind_mount (int           proc_fd,
+            const char   *src,
+            const char   *dest,
             bind_option_t options)
 {
   bool readonly = (options & BIND_READONLY) != 0;
@@ -240,15 +244,15 @@ bind_mount (int proc_fd,
   unsigned long current_flags, new_flags;
   int i;
 
-  if (mount (src, dest, NULL, MS_MGC_VAL|MS_BIND|(recursive?MS_REC:0), NULL) != 0)
+  if (mount (src, dest, NULL, MS_MGC_VAL | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
     return 1;
 
   current_flags = get_mountflags (proc_fd, dest);
 
-  new_flags = current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0);
+  new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
       mount ("none", dest,
-             NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|new_flags, NULL) != 0)
+             NULL, MS_MGC_VAL | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
     return 3;
 
   /* We need to work around the fact that a bind mount does not apply the flags, so we need to manually
@@ -264,10 +268,10 @@ bind_mount (int proc_fd,
       for (i = 0; submounts[i] != NULL; i++)
         {
           current_flags = get_mountflags (proc_fd, submounts[i]);
-          new_flags = current_flags|(devices?0:MS_NODEV)|MS_NOSUID|(readonly?MS_RDONLY:0);
+          new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
           if (new_flags != current_flags &&
               mount ("none", submounts[i],
-                     NULL, MS_MGC_VAL|MS_BIND|MS_REMOUNT|new_flags, NULL) != 0)
+                     NULL, MS_MGC_VAL | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
             {
               /* If we can't read the mountpoint we can't remount it, but that should
                  be safe to ignore because its not something the user can access. */

@@ -60,7 +60,7 @@ die_unless_label_valid (const char *label)
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () == 1)
     {
-      if (security_check_context ((security_context_t)label) < 0)
+      if (security_check_context ((security_context_t) label) < 0)
         die_with_error ("invalid label %s", label);
       return;
     }
@@ -79,6 +79,7 @@ void *
 xmalloc (size_t size)
 {
   void *res = malloc (size);
+
   if (res == NULL)
     die_oom ();
   return res;
@@ -88,6 +89,7 @@ void *
 xcalloc (size_t size)
 {
   void *res = calloc (1, size);
+
   if (res == NULL)
     die_oom ();
   return res;
@@ -97,6 +99,7 @@ void *
 xrealloc (void *ptr, size_t size)
 {
   void *res = realloc (ptr, size);
+
   if (size != 0 && res == NULL)
     die_oom ();
   return res;
@@ -186,7 +189,7 @@ xsetenv (const char *name, const char *value, int overwrite)
 void
 xunsetenv (const char *name)
 {
-  if (unsetenv(name))
+  if (unsetenv (name))
     die ("unsetenv failed");
 }
 
@@ -239,7 +242,7 @@ strconcat3 (const char *s1,
   return res;
 }
 
-char*
+char *
 xasprintf (const char *format,
            ...)
 {
@@ -255,7 +258,8 @@ xasprintf (const char *format,
 }
 
 int
-fdwalk (int proc_fd, int (*cb)(void *data, int fd), void *data)
+fdwalk (int proc_fd, int (*cb)(void *data,
+                               int   fd), void *data)
 {
   int open_max;
   int fd;
@@ -298,7 +302,7 @@ fdwalk (int proc_fd, int (*cb)(void *data, int fd), void *data)
 
       closedir (d);
       return res;
-  }
+    }
 
   open_max = sysconf (_SC_OPEN_MAX);
 
@@ -337,7 +341,7 @@ write_to_fd (int         fd,
 
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int
-write_file_at (int dirfd,
+write_file_at (int         dirfd,
                const char *path,
                const char *content)
 {
@@ -389,27 +393,27 @@ int
 ensure_file (const char *path,
              mode_t      mode)
 {
- struct stat buf;
+  struct stat buf;
 
- /* We check this ahead of time, otherwise
-    the create file will fail in the read-only
-    case with EROFD instead of EEXIST */
- if (stat (path, &buf) ==  0 &&
-     S_ISREG (buf.st_mode))
-   return 0;
+  /* We check this ahead of time, otherwise
+     the create file will fail in the read-only
+     case with EROFD instead of EEXIST */
+  if (stat (path, &buf) ==  0 &&
+      S_ISREG (buf.st_mode))
+    return 0;
 
- if (create_file (path, mode, NULL) != 0 &&  errno != EEXIST)
-   return -1;
+  if (create_file (path, mode, NULL) != 0 &&  errno != EEXIST)
+    return -1;
 
- return 0;
+  return 0;
 }
 
 
 #define BUFSIZE 8192
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int
-copy_file_data (int     sfd,
-                int     dfd)
+copy_file_data (int sfd,
+                int dfd)
 {
   char buffer[BUFSIZE];
   ssize_t bytes_read;
@@ -472,7 +476,7 @@ copy_file (const char *src_path,
 /* Sets errno on error (== NULL),
  * Always ensures terminating zero */
 char *
-load_file_data (int fd,
+load_file_data (int     fd,
                 size_t *size)
 {
   cleanup_free char *data = NULL;
@@ -512,7 +516,7 @@ load_file_data (int fd,
   data[data_read] = 0;
 
   if (size)
-    *size = (size_t)data_read;
+    *size = (size_t) data_read;
 
   return steal_pointer (&data);
 }
@@ -520,7 +524,7 @@ load_file_data (int fd,
 /* Sets errno on error (== NULL),
  * Always ensures terminating zero */
 char *
-load_file_at (int dirfd,
+load_file_at (int         dirfd,
               const char *path)
 {
   int fd;
@@ -544,12 +548,12 @@ load_file_at (int dirfd,
 int
 get_file_mode (const char *pathname)
 {
- struct stat buf;
+  struct stat buf;
 
- if (stat (pathname, &buf) !=  0)
-   return -1;
+  if (stat (pathname, &buf) !=  0)
+    return -1;
 
- return buf.st_mode & S_IFMT;
+  return buf.st_mode & S_IFMT;
 }
 
 /* Sets errno on error (!= 0) */
@@ -612,14 +616,14 @@ mkdir_with_parents (const char *pathname,
 
 int
 raw_clone (unsigned long flags,
-           void *child_stack)
+           void         *child_stack)
 {
 #if defined(__s390__) || defined(__CRIS__)
-        /* On s390 and cris the order of the first and second arguments
-         * of the raw clone() system call is reversed. */
-        return (int) syscall(__NR_clone, child_stack, flags);
+  /* On s390 and cris the order of the first and second arguments
+   * of the raw clone() system call is reversed. */
+  return (int) syscall (__NR_clone, child_stack, flags);
 #else
-        return (int) syscall(__NR_clone, flags, child_stack);
+  return (int) syscall (__NR_clone, flags, child_stack);
 #endif
 }
 
@@ -627,7 +631,7 @@ int
 pivot_root (const char * new_root, const char * put_old)
 {
 #ifdef __NR_pivot_root
-  return syscall(__NR_pivot_root, new_root, put_old);
+  return syscall (__NR_pivot_root, new_root, put_old);
 #else
   errno = ENOSYS;
   return -1;
@@ -639,12 +643,12 @@ label_mount (const char *opt, const char *mount_label)
 {
 #ifdef HAVE_SELINUX
   if (mount_label)
-  {
-    if (opt)
-      return xasprintf ("%s,context=\"%s\"", opt, mount_label);
-    else
-      return xasprintf ("context=\"%s\"", mount_label);
-  }
+    {
+      if (opt)
+        return xasprintf ("%s,context=\"%s\"", opt, mount_label);
+      else
+        return xasprintf ("context=\"%s\"", mount_label);
+    }
 #endif
   if (opt)
     return xstrdup (opt);
@@ -656,7 +660,7 @@ label_create_file (const char *file_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && file_label)
-    return setfscreatecon ((security_context_t)file_label);
+    return setfscreatecon ((security_context_t) file_label);
 #endif
   return 0;
 }
@@ -666,7 +670,7 @@ label_exec (const char *exec_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && exec_label)
-    return setexeccon ((security_context_t)exec_label);
+    return setexeccon ((security_context_t) exec_label);
 #endif
   return 0;
 }
