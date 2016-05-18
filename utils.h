@@ -16,8 +16,7 @@
  *
  */
 
-#ifndef __UTILS_H__
-#define __UTILS_H__
+#pragma once
 
 #include <assert.h>
 #include <dirent.h>
@@ -163,5 +162,3 @@ steal_pointer (void *pp)
 /* type safety */
 #define steal_pointer(pp) \
   (0 ? (*(pp)) : (steal_pointer) (pp))
-
-#endif /* __UTILS_H__ */
