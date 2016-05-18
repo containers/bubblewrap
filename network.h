@@ -16,9 +16,6 @@
  *
  */
 
-#ifndef __NETWORK_H__
-#define __NETWORK_H__
+#pragma once
 
 int loopback_setup (void);
-
-#endif /* __NETWORK_H__ */

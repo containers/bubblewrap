@@ -16,8 +16,7 @@
  *
  */
 
-#ifndef __MOUNTS_H__
-#define __MOUNTS_H__
+#pragma once
 
 typedef enum {
   BIND_READONLY = (1 << 0),
@@ -29,5 +28,3 @@ int bind_mount (int           proc_fd,
                 const char   *src,
                 const char   *dest,
                 bind_option_t options);
-
-#endif /* __MOUNTS_H__ */
