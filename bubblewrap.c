@@ -148,6 +148,7 @@ usage (int ecode, FILE *out)
            "    --version                    Print version\n"
            "    --args FD                    Parse nul-separated args from FD\n"
            "    --unshare-user               Create new user namespace (may be automatically implied if not setuid)\n"
+           "    --unshare-user-try           Create new user namespace if possible else continue by skipping it\n"
            "    --unshare-ipc                Create new ipc namespace\n"
            "    --unshare-pid                Create new pid namespace\n"
            "    --unshare-net                Create new network namespace\n"
@@ -840,6 +841,7 @@ read_priv_sec_op (int          read_socket,
 
 char *opt_chdir_path = NULL;
 bool opt_unshare_user = FALSE;
+bool opt_unshare_user_try = FALSE;
 bool opt_unshare_pid = FALSE;
 bool opt_unshare_ipc = FALSE;
 bool opt_unshare_net = FALSE;
@@ -954,6 +956,10 @@ parse_args_recurse (int    *argcp,
       else if (strcmp (arg, "--unshare-user") == 0)
         {
           opt_unshare_user = TRUE;
+        }
+      else if (strcmp (arg, "--unshare-user-try") == 0)
+        {
+          opt_unshare_user_try = TRUE;
         }
       else if (strcmp (arg, "--unshare-ipc") == 0)
         {
@@ -1325,6 +1331,10 @@ main (int    argc,
 
   /* We have to do this if we weren't installed setuid, so let's just DWIM */
   if (!is_privileged)
+    opt_unshare_user = TRUE;
+
+  if (opt_unshare_user_try &&
+      stat ("/proc/self/ns/user", &sbuf) == 0)
     opt_unshare_user = TRUE;
 
   if (argc == 0)
