@@ -470,7 +470,15 @@ write_uid_gid_map (uid_t sandbox_uid,
 
   if (deny_groups &&
       write_file_at (dir_fd, "setgroups", "deny\n") != 0)
-    die_with_error ("error writing to setgroups");
+    {
+      /* If /proc/[pid]/setgroups does not exist, assume we are
+       * running a linux kernel < 3.19, i.e. we live with the
+       * vulnerability known as CVE-2014-8989 in older kernels
+       * where setgroups does not exist.
+       */
+      if (errno != ENOENT)
+        die_with_error ("error writing to setgroups");
+    }
 
   if (map_root && parent_gid != 0 && sandbox_gid != 0)
     gid_map = xasprintf ("0 0 1\n"
