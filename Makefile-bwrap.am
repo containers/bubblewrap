@@ -10,4 +10,4 @@ bwrap_SOURCES = \
 	$(NULL)
 
 bwrap_CFLAGS = $(AM_CFLAGS)
-bwrap_LDFLAGS = $(SELINUX_LIBS)
+bwrap_LDADD = $(SELINUX_LIBS)
