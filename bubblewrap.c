@@ -1008,7 +1008,7 @@ parse_args_recurse (int    *argcp,
             die ("--bind takes two arguments");
 
           op = setup_op_new (SETUP_BIND_MOUNT);
-          op->source = canonicalize_file_name (argv[1]);
+          op->source = realpath (argv[1], NULL);
           if (op->source == NULL)
             die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
@@ -1022,7 +1022,7 @@ parse_args_recurse (int    *argcp,
             die ("--ro-bind takes two arguments");
 
           op = setup_op_new (SETUP_RO_BIND_MOUNT);
-          op->source = canonicalize_file_name (argv[1]);
+          op->source = realpath (argv[1], NULL);
           if (op->source == NULL)
             die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
@@ -1036,7 +1036,7 @@ parse_args_recurse (int    *argcp,
             die ("--dev-bind takes two arguments");
 
           op = setup_op_new (SETUP_DEV_BIND_MOUNT);
-          op->source = canonicalize_file_name (argv[1]);
+          op->source = realpath (argv[1], NULL);
           if (op->source == NULL)
             die_with_error ("Can't find source path %s", argv[1]);
           op->dest = argv[2];
