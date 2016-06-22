@@ -67,7 +67,7 @@ Usage
 bubblewrap works by creating a new, completely empty, mount
 namespace where the root is on a tmpfs that is invisible from the
 host, and will be automatically cleaned up when the last process
-exists. You can then use commandline options to construct the root
+exits. You can then use commandline options to construct the root
 filesystem and process environment and command to run in the
 namespace.
 
@@ -151,7 +151,7 @@ and the myriad ways in which system administrators may configure a
 system.  The bubblewrap approach is to only retain a few specific
 Linux capabilities such as `CAP_SYS_ADMIN`, but to always access the
 filesystem as the invoking uid.  This entirely closes
-[TOCTOCU attacks](https://cwe.mitre.org/data/definitions/367.html) and
+[TOCTTOU attacks](https://cwe.mitre.org/data/definitions/367.html) and
 such.
 
 Related project comparison: Sandstorm.io
