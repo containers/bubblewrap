@@ -82,6 +82,9 @@ AC_ARG_WITH(priv-mode,
 AM_CONDITIONAL(PRIV_MODE_FILECAPS, test "x$with_priv_mode" = "xcaps")
 AM_CONDITIONAL(PRIV_MODE_SETUID, test "x$with_priv_mode" = "xsetuid")
 
+PKG_CHECK_MODULES(JSON_GLIB, [json-glib-1.0])
+AC_CHECK_LIB(seccomp, seccomp_rule_add)
+
 AC_ARG_ENABLE(sudo,
               AS_HELP_STRING([--enable-sudo],[Use sudo to set privileged mode on binaries during install (only needed if --with-priv-mode used)]),
               [SUDO_BIN="sudo"], [SUDO_BIN=""])

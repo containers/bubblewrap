@@ -11,3 +11,10 @@ bwrap_SOURCES = \
 
 bwrap_CFLAGS = $(AM_CFLAGS)
 bwrap_LDADD = $(SELINUX_LIBS)
+
+bwrap_oci_SOURCES = \
+	$(bwrap_srcpath)/bwrap-oci.c \
+	$(NULL)
+
+bwrap_oci_CFLAGS = $(AM_CFLAGS) $(JSON_GLIB_CFLAGS)
+bwrap_oci_LDADD = $(SELINUX_LIBS) $(JSON_GLIB_LIBS)
