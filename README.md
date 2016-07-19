@@ -150,19 +150,22 @@ being actively pursued today.
 Related project comparison: runc/binctr
 ----------------------------------------
 
-[runc](https://github.com/opencontainers/runc) is similar to
-[systemd nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
-in that it is tooling intended to be invoked by root.  There is an
-effort to have runc optionally use
-[user namespaces](https://github.com/opencontainers/runc/issues/38),
-but no plans for any setuid support.
+[runC](https://github.com/opencontainers/runc) is currently working on
+supporting [rootless containers](https://github.com/opencontainers/runc/pull/774),
+without needing `setuid` or any other privileges during installation of
+runC (using unprivileged user namespaces rather than `setuid`),
+creation, and management of containers. However, the standard mode of
+using runC is similar to [systemd nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
+in that it is tooling intended to be invoked by root.
 
 The bubblewrap authors believe that runc and systemd-nspawn are not
-designed to be made setuid and are distant from supporting such a
-mode.
+designed to be made setuid, and are distant from supporting such a mode.
+However with rootless containers, runC will be able to fulfill certain usecases
+that bubblewrap supports (with the added benefit of being a standardised and
+complete OCI runtime).
 
 [binctr](https://github.com/jfrazelle/binctr) is just a wrapper for
-runc, so inherits all of its design tradeoffs.
+runC, so inherits all of its design tradeoffs.
 
 Whats with the name ?!
 ----------------------
