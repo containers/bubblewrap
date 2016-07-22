@@ -1,17 +1,17 @@
 #!/bin/bash
 # For this to work you first have to run these commands:
 #  curl -O http://sdk.gnome.org/nightly/keys/nightly.gpg
-#  xdg-app --user remote-add --gpg-key=nightly.gpg gnome-nightly http://sdk.gnome.org/nightly/repo/
-#  xdg-app --user install gnome-nightly org.gnome.Platform
-#  xdg-app --user install gnome-nightly org.gnome.Weather
+#  flatpak --user remote-add --gpg-key=nightly.gpg gnome-nightly http://sdk.gnome.org/nightly/repo/
+#  flatpak --user install gnome-nightly org.gnome.Platform
+#  flatpak --user install gnome-nightly org.gnome.Weather
 
 mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config ~/.var/app/org.gnome.Weather/data
 
 (
     exec bwrap \
-    --ro-bind ~/.local/share/xdg-app/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
+    --ro-bind ~/.local/share/flatpak/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
     --lock-file /usr/.ref \
-    --ro-bind ~/.local/share/xdg-app/app/org.gnome.Weather/x86_64/master/active/files/ /app \
+    --ro-bind ~/.local/share/flatpak/app/org.gnome.Weather/x86_64/master/active/files/ /app \
     --lock-file /app/.ref \
     --dev /dev \
     --proc /proc \
@@ -50,14 +50,14 @@ mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config 
     --setenv XDG_CACHE_HOME ~/.var/app/org.gnome.Weather/cache \
     --setenv XDG_CONFIG_HOME ~/.var/app/org.gnome.Weather/config \
     --setenv XDG_DATA_HOME ~/.var/app/org.gnome.Weather/data \
-    --file 10 /run/user/`id -u`/xdg-app-info \
+    --file 10 /run/user/`id -u`/flatpak-info \
     --bind-data 11 /usr/etc/passwd \
     --bind-data 12 /usr/etc/group \
     --seccomp 13 \
     /bin/sh) \
     11< <(getent passwd $UID 65534 ) \
     12< <(getent group $(id -g) 65534)  \
-    13< `dirname $0`/xdg-app.bpf \
+    13< `dirname $0`/flatpak.bpf \
     10<<EOF
 [Application]
 name=org.gnome.Weather
