@@ -157,10 +157,14 @@ such.
 Related project comparison: Sandstorm.io
 ----------------------------------------
 
-[Sandstorm.io](https://sandstorm.io/) also has a setuid helper
-process.  @cgwalters believes their setuid code is fairly good, but it
-could still make sense to unify on bubblewrap as a setuid core.  That
-hasn't been ruled out, but neither is it being actively pursued today.
+[Sandstorm.io](https://sandstorm.io/) requries unprivileged user
+namespaces to set up its sandbox, though it could easily be adapted
+to operate in a setuid mode as well. @cgwalters believes their code is
+fairly good, but it could still make sense to unify on bubblewrap.
+However, @kentonv (of Sandstorm) feels that while this makes sense
+in principle, the switching cost outweighs the practical benefits for
+now. This decision could be re-evaluated in the future, but it is not
+being actively pursued today.
 
 Related project comparison: runc/binctr
 ----------------------------------------
