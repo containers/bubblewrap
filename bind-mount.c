@@ -244,8 +244,11 @@ bind_mount (int           proc_fd,
   unsigned long current_flags, new_flags;
   int i;
 
-  if (mount (src, dest, NULL, MS_MGC_VAL | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
-    return 1;
+  if (src)
+    {
+      if (mount (src, dest, NULL, MS_MGC_VAL | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
+        return 1;
+    }
 
   current_flags = get_mountflags (proc_fd, dest);
 

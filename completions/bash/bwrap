@@ -33,6 +33,7 @@ _bwrap() {
 		--lock-file
 		--proc
 		--ro-bind
+		--remount-ro
 		--seccomp
 		--setenv
 		--symlink

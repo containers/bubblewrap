@@ -63,6 +63,7 @@ typedef enum {
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
   SETUP_MAKE_SYMLINK,
+  SETUP_REMOUNT_RO_NO_RECURSIVE,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -96,6 +97,7 @@ enum {
   PRIV_SEP_OP_TMPFS_MOUNT,
   PRIV_SEP_OP_DEVPTS_MOUNT,
   PRIV_SEP_OP_MQUEUE_MOUNT,
+  PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE,
 };
 
 typedef struct
@@ -165,6 +167,7 @@ usage (int ecode, FILE *out)
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
+           "    --remount-ro DEST            Remount DEST as readonly, it doesn't recursively remount\n"
            "    --exec-label LABEL           Exec Label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
            "    --proc DEST                  Mount procfs on DEST\n"
@@ -541,6 +544,11 @@ privileged_op (int         privileged_op_socket,
     case PRIV_SEP_OP_DONE:
       break;
 
+    case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
+      if (bind_mount (proc_fd, arg1, arg2, flags) != 0)
+        die_with_error ("Can't bind mount %s on %s", arg1, arg2);
+      break;
+
     case PRIV_SEP_OP_BIND_MOUNT:
       /* We always bind directories recursively, otherwise this would let us
          access files that are otherwise covered on the host */
@@ -624,6 +632,11 @@ setup_newroot (bool unshare_pid,
                          (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
                          (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
                          source, dest);
+          break;
+
+        case SETUP_REMOUNT_RO_NO_RECURSIVE:
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, BIND_READONLY, NULL, dest);
           break;
 
         case SETUP_MOUNT_PROC:
@@ -999,6 +1012,14 @@ parse_args_recurse (int    *argcp,
             die ("--chdir takes one argument");
 
           opt_chdir_path = argv[1];
+          argv++;
+          argc--;
+        }
+      else if (strcmp (arg, "--remount-ro") == 0)
+        {
+          SetupOp *op = setup_op_new (SETUP_REMOUNT_RO_NO_RECURSIVE);
+          op->dest = argv[1];
+
           argv++;
           argc--;
         }
