@@ -176,6 +176,7 @@ usage (int ecode, FILE *out)
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
+           "    --block-fd FD                Block on FD until some data to read is available\n"
           );
   exit (ecode);
 }
@@ -860,6 +861,7 @@ bool opt_needs_devpts = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
+int opt_block_fd = -1;
 int opt_seccomp_fd = -1;
 
 
@@ -1195,6 +1197,23 @@ parse_args_recurse (int    *argcp,
             die ("Invalid fd: %s", argv[1]);
 
           opt_sync_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--block-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--block-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_block_fd = the_fd;
 
           argv += 1;
           argc -= 1;
@@ -1631,6 +1650,13 @@ main (int    argc,
 
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
+
+  if (opt_block_fd != -1)
+    {
+      char b[1];
+      read (opt_block_fd, b, 1);
+      close (opt_block_fd);
+    }
 
   if (opt_seccomp_fd != -1)
     {
