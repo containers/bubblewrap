@@ -241,6 +241,12 @@
 	Block the sandbox on reading from FD until some data is available.
       </para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--info-fd <arg choice="plain">FD</arg></option></term>
+      <listitem><para>
+	Write information in JSON format about the sandbox to FD.
+      </para></listitem>
+    </varlistentry>
   </variablelist>
 </refsect1>
 
