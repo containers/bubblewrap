@@ -179,6 +179,8 @@ usage (int ecode, FILE *out)
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
+           "    --block-fd FD                Block on FD until some data to read is available\n"
+           "    --info-fd FD                 Write information about the running container to FD\n"
           );
   exit (ecode);
 }
@@ -873,6 +875,8 @@ bool opt_needs_devpts = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
+int opt_block_fd = -1;
+int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
 
 
@@ -1220,6 +1224,40 @@ parse_args_recurse (int    *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--block-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--block-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_block_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--info-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--info-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_info_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--seccomp") == 0)
         {
           int the_fd;
@@ -1497,6 +1535,15 @@ main (int    argc,
       /* We don't need any caps in the launcher, drop them immediately. */
       drop_caps ();
 
+      if (opt_info_fd != -1)
+        {
+          cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
+          size_t len = strlen (output);
+          if (write (opt_info_fd, output, len) != len)
+            die_with_error ("Write to info_fd");
+          close (opt_info_fd);
+        }
+
       /* Let child run */
       val = 1;
       res = write (child_wait_fd, &val, 8);
@@ -1506,6 +1553,9 @@ main (int    argc,
       monitor_child (event_fd);
       exit (0); /* Should not be reached, but better safe... */
     }
+
+  if (opt_info_fd != -1)
+    close (opt_info_fd);
 
   /* Wait for the parent to init uid/gid maps and drop caps */
   res = read (child_wait_fd, &val, 8);
@@ -1653,6 +1703,13 @@ main (int    argc,
   /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
   drop_caps ();
 
+  if (opt_block_fd != -1)
+    {
+      char b[1];
+      read (opt_block_fd, b, 1);
+      close (opt_block_fd);
+    }
+
   if (opt_seccomp_fd != -1)
     {
       cleanup_free char *seccomp_data = NULL;
@@ -1664,7 +1721,7 @@ main (int    argc,
         die_with_error ("Can't read seccomp data");
 
       if (seccomp_len % 8 != 0)
-        die ("Invalide seccomp data, must be multiple of 8");
+        die ("Invalid seccomp data, must be multiple of 8");
 
       prog.len = seccomp_len / 8;
       prog.filter = (struct sock_filter *) seccomp_data;
