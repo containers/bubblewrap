@@ -1700,7 +1700,7 @@ main (int    argc,
         die_with_error ("Can't read seccomp data");
 
       if (seccomp_len % 8 != 0)
-        die ("Invalide seccomp data, must be multiple of 8");
+        die ("Invalid seccomp data, must be multiple of 8");
 
       prog.len = seccomp_len / 8;
       prog.filter = (struct sock_filter *) seccomp_data;
