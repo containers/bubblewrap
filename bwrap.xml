@@ -129,6 +129,10 @@
       <term><option>--gid <arg choice="plain">GID</arg></option></term>
       <listitem><para>Use a custom group id in the sandbox (incompatible with <option>--share-user</option>)</para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--hostname <arg choice="plain">HOSTNAME</arg></option></term>
+      <listitem><para>Use a custom hostname in the sandbox (requires <option>--unshare-uts</option>)</para></listitem>
+    </varlistentry>
   </variablelist>
   <para>Options about environment setup:</para>
   <variablelist>
