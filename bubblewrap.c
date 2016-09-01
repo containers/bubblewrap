@@ -64,6 +64,7 @@ typedef enum {
   SETUP_MAKE_BIND_FILE,
   SETUP_MAKE_SYMLINK,
   SETUP_REMOUNT_RO_NO_RECURSIVE,
+  SETUP_SET_HOSTNAME,
 } SetupOpType;
 
 typedef struct _SetupOp SetupOp;
@@ -98,6 +99,7 @@ enum {
   PRIV_SEP_OP_DEVPTS_MOUNT,
   PRIV_SEP_OP_MQUEUE_MOUNT,
   PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE,
+  PRIV_SEP_OP_SET_HOSTNAME,
 };
 
 typedef struct
@@ -159,6 +161,7 @@ usage (int ecode, FILE *out)
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
            "    --gid GID                    Custon gid in the sandbox (requires --unshare-user)\n"
+           "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
            "    --chdir DIR                  Change directory to DIR\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
            "    --unsetenv VAR               Unset an environment variable\n"
@@ -582,6 +585,11 @@ privileged_op (int         privileged_op_socket,
         die_with_error ("Can't mount mqueue on %s", arg1);
       break;
 
+    case PRIV_SEP_OP_SET_HOSTNAME:
+      if (sethostname(arg1, strlen(arg1)) != 0)
+        die_with_error ("Can't set hostname to %s", arg1);
+      break;
+
     default:
       die ("Unexpected privileged op %d", op);
     }
@@ -609,7 +617,8 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't get type of source %s", op->source);
         }
 
-      if (op->dest)
+      if (op->dest &&
+          op->type != SETUP_SET_HOSTNAME)
         {
           dest = get_newroot_path (op->dest);
           if (mkdir_with_parents (dest, 0755, FALSE) != 0)
@@ -809,6 +818,12 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't make symlink at %s", op->dest);
           break;
 
+        case SETUP_SET_HOSTNAME:
+          privileged_op (privileged_op_socket,
+                         PRIV_SEP_OP_SET_HOSTNAME, 0,
+                         op->dest, NULL);
+          break;
+
         default:
           die ("Unexpected type %d", op->type);
         }
@@ -878,6 +893,7 @@ int opt_sync_fd = -1;
 int opt_block_fd = -1;
 int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
+char *opt_sandbox_hostname = NULL;
 
 
 static void
@@ -1329,6 +1345,19 @@ parse_args_recurse (int    *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--hostname") == 0)
+        {
+          if (argc < 2)
+            die ("--hostname takes an argument");
+
+          op = setup_op_new (SETUP_SET_HOSTNAME);
+          op->dest = argv[1];
+
+          opt_sandbox_hostname = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -1439,6 +1468,9 @@ main (int    argc,
 
   if (!opt_unshare_user && opt_sandbox_gid != gid)
     die ("Specifying --gid requires --unshare-user");
+
+  if (!opt_unshare_uts && opt_sandbox_hostname != NULL)
+    die ("Specifying --hostname requires --unshare-uts");
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
