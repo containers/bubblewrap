@@ -9,7 +9,10 @@ _bwrap() {
 
 	local boolean_options="
 		--help
-		--share-user
+		--unshare-cgroup
+		--unshare-cgroup-try
+		--unshare-user
+		--unshare-user-try
 		--unshare-ipc
 		--unshare-net
 		--unshare-pid
@@ -22,6 +25,7 @@ _bwrap() {
 		--args
 		--bind
 		--bind-data
+		--block-fd
 		--chdir
 		--dev
 		--dev-bind
@@ -31,6 +35,7 @@ _bwrap() {
 		--file-label
 		--gid
 		--hostname
+		--info-fd
 		--lock-file
 		--proc
 		--ro-bind
