@@ -94,8 +94,8 @@
   <para>Options related to kernel namespaces:</para>
   <variablelist>
     <varlistentry>
-      <term><option>--share-user</option></term>
-      <listitem><para>Don't create a new user namespace</para></listitem>
+      <term><option>--unshare-user</option></term>
+      <listitem><para>Create a new user namespace</para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--unshare-ipc</option></term>
@@ -123,11 +123,11 @@
     </varlistentry>
     <varlistentry>
       <term><option>--uid <arg choice="plain">UID</arg></option></term>
-      <listitem><para>Use a custom user id in the sandbox (incompatible with <option>--share-user</option>)</para></listitem>
+      <listitem><para>Use a custom user id in the sandbox (requires <option>--unshare-user</option>)</para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--gid <arg choice="plain">GID</arg></option></term>
-      <listitem><para>Use a custom group id in the sandbox (incompatible with <option>--share-user</option>)</para></listitem>
+      <listitem><para>Use a custom group id in the sandbox (requires <option>--unshare-user</option>)</para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--hostname <arg choice="plain">HOSTNAME</arg></option></term>
