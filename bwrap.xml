@@ -98,6 +98,10 @@
       <listitem><para>Create a new user namespace</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--unshare-user-try</option></term>
+      <listitem><para>Create a new user namespace if possible else skip it</para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--unshare-ipc</option></term>
       <listitem><para>Create a new ipc namespace</para></listitem>
     </varlistentry>
