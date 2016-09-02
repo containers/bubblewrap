@@ -67,6 +67,10 @@ typedef enum {
   SETUP_SET_HOSTNAME,
 } SetupOpType;
 
+typedef enum {
+  NO_CREATE_DEST = (1 << 0),
+} SetupOpFlag;
+
 typedef struct _SetupOp SetupOp;
 
 struct _SetupOp
@@ -75,6 +79,7 @@ struct _SetupOp
   const char *source;
   const char *dest;
   int         fd;
+  SetupOpFlag flags;
   SetupOp    *next;
 };
 
@@ -117,6 +122,7 @@ setup_op_new (SetupOpType type)
 
   op->type = type;
   op->fd = -1;
+  op->flags = 0;
   if (last_op != NULL)
     last_op->next = op;
   else
@@ -586,7 +592,7 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_SET_HOSTNAME:
-      if (sethostname(arg1, strlen(arg1)) != 0)
+      if (sethostname (arg1, strlen(arg1)) != 0)
         die_with_error ("Can't set hostname to %s", arg1);
       break;
 
@@ -618,7 +624,7 @@ setup_newroot (bool unshare_pid,
         }
 
       if (op->dest &&
-          op->type != SETUP_SET_HOSTNAME)
+          !op->flags & NO_CREATE_DEST)
         {
           dest = get_newroot_path (op->dest);
           if (mkdir_with_parents (dest, 0755, FALSE) != 0)
@@ -1352,6 +1358,7 @@ parse_args_recurse (int    *argcp,
 
           op = setup_op_new (SETUP_SET_HOSTNAME);
           op->dest = argv[1];
+          op->flags = NO_CREATE_DEST;
 
           opt_sandbox_hostname = argv[1];
 
