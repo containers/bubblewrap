@@ -624,7 +624,7 @@ setup_newroot (bool unshare_pid,
         }
 
       if (op->dest &&
-          !op->flags & NO_CREATE_DEST)
+          (op->flags & NO_CREATE_DEST) == 0)
         {
           dest = get_newroot_path (op->dest);
           if (mkdir_with_parents (dest, 0755, FALSE) != 0)
