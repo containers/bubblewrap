@@ -62,6 +62,7 @@ typedef enum {
   SETUP_MAKE_DIR,
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
+  SETUP_MAKE_RO_BIND_FILE,
   SETUP_MAKE_SYMLINK,
   SETUP_REMOUNT_RO_NO_RECURSIVE,
   SETUP_SET_HOSTNAME,
@@ -186,6 +187,7 @@ usage (int ecode, FILE *out)
            "    --dir DEST                   Create dir at DEST\n"
            "    --file FD DEST               Copy from FD to dest DEST\n"
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
+           "    --ro-bind-data FD DEST       Copy from FD to file which is readonly bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
@@ -797,6 +799,7 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MAKE_BIND_FILE:
+        case SETUP_MAKE_RO_BIND_FILE:
           {
             cleanup_fd int dest_fd = -1;
             char tempfile[] = "/bindfileXXXXXX";
@@ -815,7 +818,8 @@ setup_newroot (bool unshare_pid,
 
             privileged_op (privileged_op_socket,
                            PRIV_SEP_OP_BIND_MOUNT,
-                           0, tempfile, dest);
+                           (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
+                           tempfile, dest);
           }
           break;
 
@@ -1201,6 +1205,25 @@ parse_args_recurse (int    *argcp,
             die ("Invalid fd: %s", argv[1]);
 
           op = setup_op_new (SETUP_MAKE_BIND_FILE);
+          op->fd = file_fd;
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--ro-bind-data") == 0)
+        {
+          int file_fd;
+          char *endptr;
+
+          if (argc < 3)
+            die ("--ro-bind-data takes two arguments");
+
+          file_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          op = setup_op_new (SETUP_MAKE_RO_BIND_FILE);
           op->fd = file_fd;
           op->dest = argv[2];
 
