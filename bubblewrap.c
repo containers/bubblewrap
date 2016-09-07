@@ -820,6 +820,11 @@ setup_newroot (bool unshare_pid,
                            PRIV_SEP_OP_BIND_MOUNT,
                            (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
                            tempfile, dest);
+
+            /* Remove the file so we're sure the app can't get to it in any other way.
+               Its outside the container chroot, so it shouldn't be possible, but lets
+               make it really sure. */
+            unlink (tempfile);
           }
           break;
 
