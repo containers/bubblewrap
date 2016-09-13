@@ -50,12 +50,12 @@ like chroots.
 Features
 --------
 
-Bubblewrap tries to expose most useful features that unprivileged user
-namespaces support in the Linux kernel. Features that are not
+Bubblewrap exposes useful features that are also supported by
+unprivileged user namespaces the Linux kernel. Features that are not
 available in an unprivileged mode in the upstream kernel are not
-considered for inclusion, partly to keep non-setuid builds working, but
-also because we trust the kernel maintainers to know which features
-are secure to expose to users.
+considered for inclusion, partly to keep non-setuid builds working,
+but also because we trust the kernel maintainers to know which
+features are secure to expose to users.
 
 Users
 -----
