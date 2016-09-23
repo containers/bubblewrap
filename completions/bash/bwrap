@@ -50,6 +50,8 @@ _bwrap() {
 		--seccomp
 		--symlink
 		--die-with-parent
+                --cap-add
+                --cap-drop
 	"
 
 	if [[ "$cur" == -* ]]; then
