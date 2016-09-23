@@ -87,6 +87,12 @@ CC_CHECK_FLAGS_APPEND([WARN_CFLAGS], [CFLAGS], [\
 ])
 AC_SUBST(WARN_CFLAGS)
 
+AC_CHECK_LIB(cap, cap_from_text)
+
+if test "$ac_cv_lib_cap_cap_from_text" != "yes"; then
+            AC_MSG_ERROR([*** libcap requested but not found])
+fi
+
 AC_ARG_WITH(priv-mode,
             AS_HELP_STRING([--with-priv-mode=setuid/none],
                            [How to set privilege-raising during make install]),
