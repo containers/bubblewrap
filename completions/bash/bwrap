@@ -18,6 +18,7 @@ _bwrap() {
 		--unshare-pid
 		--unshare-uts
 		--version
+		--as-pid-1
 	"
 
 	local options_with_args="
