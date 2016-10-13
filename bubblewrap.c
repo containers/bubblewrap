@@ -27,6 +27,7 @@
 #include <sys/wait.h>
 #include <sys/eventfd.h>
 #include <sys/signalfd.h>
+#include <sys/fsuid.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <linux/sched.h>
@@ -436,10 +437,6 @@ acquire_caps (void)
         die_with_error ("capset failed");
     }
   /* Else, we try unprivileged user namespaces */
-
-  /* We need the process to be dumpable, or we can't access /proc/self/uid_map */
-  if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
-    die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 }
 
 static void
@@ -484,6 +481,10 @@ write_uid_gid_map (uid_t sandbox_uid,
   cleanup_free char *gid_map = NULL;
   cleanup_free char *dir = NULL;
   cleanup_fd int dir_fd = -1;
+  uid_t prev_uid = getuid ();
+
+  if (setfsuid (0) != prev_uid)
+    die_with_error ("setfsuid() failed, previous uid was %u", prev_uid);
 
   if (pid == -1)
     dir = xstrdup ("self");
@@ -523,6 +524,9 @@ write_uid_gid_map (uid_t sandbox_uid,
 
   if (write_file_at (dir_fd, "gid_map", gid_map) != 0)
     die_with_error ("setting up gid map");
+
+  if (setfsuid (uid) != 0)
+    die_with_error ("setfsuid() failed, previous uid was not 0");
 }
 
 static void
