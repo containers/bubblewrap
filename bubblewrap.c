@@ -1654,7 +1654,9 @@ main (int    argc,
     {
       /* We have to be dumpable for the parent to be able to set the
          uid map for us. This enables ptracing for the child, but that
-         is not really a major*/
+         is believed safe, as at this point we entered a user
+         namespace which dropped all capabilities in the parent
+         namespace. */
       if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
         die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 
