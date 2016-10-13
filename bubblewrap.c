@@ -612,6 +612,10 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_SET_HOSTNAME:
+      /* This is checked at the start, but lets verify it here in case
+         something manages to send hacked priv-sep operation requests. */
+      if (!opt_unshare_uts)
+        die ("Refusing to set hostname in original namespace");
       if (sethostname (arg1, strlen(arg1)) != 0)
         die_with_error ("Can't set hostname to %s", arg1);
       break;
