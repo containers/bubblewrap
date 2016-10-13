@@ -437,9 +437,6 @@ acquire_caps (void)
     }
   /* Else, we try unprivileged user namespaces */
 
-  /* We need the process to be dumpable, or we can't access /proc/self/uid_map */
-  if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
-    die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 }
 
 static void
@@ -1432,6 +1429,7 @@ main (int    argc,
   char *old_cwd = NULL;
   pid_t pid;
   int event_fd = -1;
+  int userns_wait_fd = -1;
   int child_wait_fd = -1;
   const char *new_cwd;
   uid_t ns_uid;
@@ -1565,6 +1563,13 @@ main (int    argc,
     if (!stat ("/proc/self/ns/cgroup", &sbuf))
       clone_flags |= CLONE_NEWCGROUP;
 
+  if (is_privileged && opt_unshare_user)
+    {
+      userns_wait_fd = eventfd (0, EFD_CLOEXEC);
+      if (userns_wait_fd == -1)
+        die_with_error ("eventfd()");
+    }
+
   child_wait_fd = eventfd (0, EFD_CLOEXEC);
   if (child_wait_fd == -1)
     die_with_error ("eventfd()");
@@ -1588,8 +1593,18 @@ main (int    argc,
 
   if (pid != 0)
     {
+      /* Parent, outside sandbox, privileged */
+
       if (is_privileged && opt_unshare_user)
         {
+          /* Wait for the child ensure DUMPABLE is set, which is needed
+           * because otherwise the write to the uid/gid maps below will
+           * fail because a non-dumpable child will have /proc/pid/uid_map
+           * files owned by root.
+           */
+          res = read (userns_wait_fd, &val, 8);
+          close (userns_wait_fd);
+
           /* Map the uid/gid 0 if opt_needs_devpts, as otherwise
            * mounting it will fail.
            * Due to this non-direct mapping we need to have set[ug]id
@@ -1614,7 +1629,7 @@ main (int    argc,
           close (opt_info_fd);
         }
 
-      /* Let child run */
+      /* Let child run now that the uid maps are set up */
       val = 1;
       res = write (child_wait_fd, &val, 8);
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
@@ -1624,8 +1639,31 @@ main (int    argc,
       exit (0); /* Should not be reached, but better safe... */
     }
 
+  /* Child, in sandbox, privileged in the parent *or* in the user namespace.
+   *
+   * NOTE: This is always ptrace:able in the case of user namespaces
+   * (due to all parent namespaces having CAP_SYS_PTRACE in the child
+   * namespaces), but it should be ok as it has no permissions in the
+   * parent namespace.
+   */
+
   if (opt_info_fd != -1)
     close (opt_info_fd);
+
+  if (is_privileged && opt_unshare_user)
+    {
+      /* We have to be dumpable for the parent to be able to set the
+         uid map for us. This enables ptracing for the child, but that
+         is believed safe, as at this point we entered a user
+         namespace which dropped all capabilities in the parent
+         namespace. */
+      if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
+        die_with_error ("prctl(PR_SET_DUMPABLE) failed");
+
+      /* Let parent continue to set the uid map */
+      val = 1;
+      res = write (userns_wait_fd, &val, 8);
+    }
 
   /* Wait for the parent to init uid/gid maps and drop caps */
   res = read (child_wait_fd, &val, 8);
