@@ -51,6 +51,24 @@ static int proc_fd = -1;
 static char *opt_exec_label = NULL;
 static char *opt_file_label = NULL;
 
+char *opt_chdir_path = NULL;
+bool opt_unshare_user = FALSE;
+bool opt_unshare_user_try = FALSE;
+bool opt_unshare_pid = FALSE;
+bool opt_unshare_ipc = FALSE;
+bool opt_unshare_net = FALSE;
+bool opt_unshare_uts = FALSE;
+bool opt_unshare_cgroup = FALSE;
+bool opt_unshare_cgroup_try = FALSE;
+bool opt_needs_devpts = FALSE;
+uid_t opt_sandbox_uid = -1;
+gid_t opt_sandbox_gid = -1;
+int opt_sync_fd = -1;
+int opt_block_fd = -1;
+int opt_info_fd = -1;
+int opt_seccomp_fd = -1;
+char *opt_sandbox_hostname = NULL;
+
 typedef enum {
   SETUP_BIND_MOUNT,
   SETUP_RO_BIND_MOUNT,
@@ -891,25 +909,6 @@ read_priv_sec_op (int          read_socket,
 
   return op->op;
 }
-
-char *opt_chdir_path = NULL;
-bool opt_unshare_user = FALSE;
-bool opt_unshare_user_try = FALSE;
-bool opt_unshare_pid = FALSE;
-bool opt_unshare_ipc = FALSE;
-bool opt_unshare_net = FALSE;
-bool opt_unshare_uts = FALSE;
-bool opt_unshare_cgroup = FALSE;
-bool opt_unshare_cgroup_try = FALSE;
-bool opt_needs_devpts = FALSE;
-uid_t opt_sandbox_uid = -1;
-gid_t opt_sandbox_gid = -1;
-int opt_sync_fd = -1;
-int opt_block_fd = -1;
-int opt_info_fd = -1;
-int opt_seccomp_fd = -1;
-char *opt_sandbox_hostname = NULL;
-
 
 static void
 parse_args_recurse (int    *argcp,
