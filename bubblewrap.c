@@ -1563,7 +1563,7 @@ main (int    argc,
     if (!stat ("/proc/self/ns/cgroup", &sbuf))
       clone_flags |= CLONE_NEWCGROUP;
 
-  if (opt_unshare_user)
+  if (is_privileged && opt_unshare_user)
     {
       userns_wait_fd = eventfd (0, EFD_CLOEXEC);
       if (userns_wait_fd == -1)
