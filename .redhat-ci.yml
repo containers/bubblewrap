@@ -9,7 +9,7 @@ container:
 tests:
     - yum -y install yum-utils gcc make redhat-rpm-config
     # Keep this in sync with the spec file
-    - yum -y install autoconf automake libtool libcap-devel pkgconfig(libselinux) libxslt docbook-style-xsl
+    - yum -y install autoconf automake libtool libcap-devel 'pkgconfig(libselinux)' libxslt docbook-style-xsl
     - ./autogen.sh
         --prefix=/usr
         --libdir=/usr/lib64
