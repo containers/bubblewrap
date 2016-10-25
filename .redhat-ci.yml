@@ -1,0 +1,26 @@
+branches:
+    - master
+    - auto
+    - try
+
+container:
+    image: centos:7
+
+tests:
+    - yum -y install yum-utils gcc make redhat-rpm-config
+    # Keep this in sync with the spec file
+    - yum -y install autoconf automake libtool libcap-devel 'pkgconfig(libselinux)' libxslt docbook-style-xsl
+    - ./autogen.sh
+        --prefix=/usr
+        --libdir=/usr/lib64
+        --enable-installed-tests
+        --enable-gtk-doc
+    - make -j2
+    - make check
+    - make install
+
+timeout: 30m
+
+artifacts:
+    - test-suite.log
+
