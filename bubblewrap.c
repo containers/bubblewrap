@@ -1907,6 +1907,7 @@ main (int    argc,
         }
       else
         {
+          int status;
           uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
           uint32_t op, flags;
           const char *arg1, *arg2;
@@ -1925,6 +1926,7 @@ main (int    argc,
             }
           while (op != PRIV_SEP_OP_DONE);
 
+          waitpid (child, &status, 0);
           /* Continue post setup */
         }
     }
