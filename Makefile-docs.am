@@ -15,3 +15,4 @@ if ENABLE_MAN
 man_MANS = bwrap.1
 CLEANFILES += $(man_MANS)
 endif
+EXTRA_DIST += bwrap.xml

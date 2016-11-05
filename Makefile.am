@@ -1,5 +1,6 @@
 AM_CFLAGS = $(WARN_CFLAGS)
 CLEANFILES =
+EXTRA_DIST =
 
 GITIGNOREFILES = build-aux/ gtk-doc.make config.h.in aclocal.m4
 
