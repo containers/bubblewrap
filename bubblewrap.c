@@ -898,6 +898,9 @@ read_priv_sec_op (int          read_socket,
   if (rec_len < 0)
     die_with_error ("Can't read from unprivileged helper");
 
+  if (rec_len == 0)
+    exit (1); /* Privileged helper died and printed error, so exit silently */
+
   if (rec_len < sizeof (PrivSepOp))
     die ("Invalid size %zd from unprivileged helper", rec_len);
 
