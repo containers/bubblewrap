@@ -573,8 +573,8 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
-      if (bind_mount (proc_fd, arg1, arg2, flags) != 0)
-        die_with_error ("Can't bind mount %s on %s", arg1, arg2);
+      if (bind_mount (proc_fd, NULL, arg2, BIND_READONLY) != 0)
+        die_with_error ("Can't remount readonly on %s", arg2);
       break;
 
     case PRIV_SEP_OP_BIND_MOUNT:
