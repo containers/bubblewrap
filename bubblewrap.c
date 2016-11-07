@@ -44,7 +44,7 @@
 /* Globals to avoid having to use getuid(), since the uid/gid changes during runtime */
 static uid_t uid;
 static gid_t gid;
-static bool is_privileged;
+static bool is_privileged; /* true if we're either setuid root, or really running as root */
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
@@ -403,13 +403,7 @@ acquire_caps (void)
   struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
   struct __user_cap_data_struct data[2] = { { 0 } };
 
-  if (capget (&hdr, data)  < 0)
-    die_with_error ("capget failed");
-
-  if (((data[0].effective & REQUIRED_CAPS_0) == REQUIRED_CAPS_0) &&
-      ((data[0].permitted & REQUIRED_CAPS_0) == REQUIRED_CAPS_0) &&
-      ((data[1].effective & REQUIRED_CAPS_1) == REQUIRED_CAPS_1) &&
-      ((data[1].permitted & REQUIRED_CAPS_1) == REQUIRED_CAPS_1))
+  if (geteuid () == 0)
     is_privileged = TRUE;
 
   if (getuid () != geteuid ())
