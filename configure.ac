@@ -74,12 +74,11 @@ changequote([,])dnl
 AC_SUBST(WARN_CFLAGS)
 
 AC_ARG_WITH(priv-mode,
-            AS_HELP_STRING([--with-priv-mode=setuid/caps/none],
+            AS_HELP_STRING([--with-priv-mode=setuid/none],
                            [How to set privilege-raising during make install)]),
             [],
             [with_priv_mode="none"])
 
-AM_CONDITIONAL(PRIV_MODE_FILECAPS, test "x$with_priv_mode" = "xcaps")
 AM_CONDITIONAL(PRIV_MODE_SETUID, test "x$with_priv_mode" = "xsetuid")
 
 AC_ARG_ENABLE(sudo,

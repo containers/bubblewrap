@@ -12,10 +12,6 @@ install-exec-hook:
 if PRIV_MODE_SETUID
 	$(SUDO_BIN) chown root $(DESTDIR)$(bindir)/bwrap
 	$(SUDO_BIN) chmod u+s $(DESTDIR)$(bindir)/bwrap
-else
-if PRIV_MODE_FILECAPS
-	$(SUDO_BIN) setcap cap_sys_admin,cap_net_admin,cap_sys_chroot,cap_setuid,cap_setgid+ep $(DESTDIR)$(bindir)/bwrap
-endif
 endif
 
 include Makefile-docs.am
