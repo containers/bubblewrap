@@ -41,7 +41,7 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %doc README.md
 %{_datadir}/bash-completion/completions/bwrap
 %if (0%{?rhel} != 0 && 0%{?rhel} <= 7)
-%attr(0755,root,root) %caps(cap_sys_admin,cap_net_admin,cap_sys_chroot,cap_setuid,cap_setgid=ep) %{_bindir}/bwrap
+%attr(4755,root,root) %{_bindir}/bwrap
 %else
 %{_bindir}/bwrap
 %endif

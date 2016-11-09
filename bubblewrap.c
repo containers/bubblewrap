@@ -29,6 +29,7 @@
 #include <sys/signalfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <sys/fsuid.h>
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
@@ -44,7 +45,7 @@
 /* Globals to avoid having to use getuid(), since the uid/gid changes during runtime */
 static uid_t uid;
 static gid_t gid;
-static bool is_privileged;
+static bool is_privileged; /* true if we're either setuid root, or really running as root */
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
@@ -392,64 +393,65 @@ do_init (int event_fd, pid_t initial_pid)
   return initial_exit_status;
 }
 
-/* low 32bit caps needed */
-#define REQUIRED_CAPS_0 (CAP_TO_MASK (CAP_SYS_ADMIN) | CAP_TO_MASK (CAP_SYS_CHROOT) | CAP_TO_MASK (CAP_NET_ADMIN) | CAP_TO_MASK (CAP_SETUID) | CAP_TO_MASK (CAP_SETGID))
-/* high 32bit caps needed */
-#define REQUIRED_CAPS_1 0
-
 static void
-acquire_caps (void)
+ensure_privileges (void)
 {
-  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
-  struct __user_cap_data_struct data[2] = { { 0 } };
+  uid_t euid, uid, new_fsuid;
 
-  if (capget (&hdr, data)  < 0)
-    die_with_error ("capget failed");
-
-  if (((data[0].effective & REQUIRED_CAPS_0) == REQUIRED_CAPS_0) &&
-      ((data[0].permitted & REQUIRED_CAPS_0) == REQUIRED_CAPS_0) &&
-      ((data[1].effective & REQUIRED_CAPS_1) == REQUIRED_CAPS_1) &&
-      ((data[1].permitted & REQUIRED_CAPS_1) == REQUIRED_CAPS_1))
+  uid = getuid ();
+  euid = geteuid ();
+  if (euid == 0)
     is_privileged = TRUE;
 
-  if (getuid () != geteuid ())
+  if (uid != euid)
     {
-      /* Tell kernel not clear capabilities when dropping root */
-      if (prctl (PR_SET_KEEPCAPS, 1, 0, 0, 0) < 0)
-        die_with_error ("prctl(PR_SET_KEEPCAPS) failed");
+      /* This shouldn't happen unless there was a setup mistake,
+         we need setuid root, not something else. */
+      if (euid != 0)
+        die ("Unexpected setuid user");
 
-      /* Drop root uid, but retain the required permitted caps */
-      if (setuid (getuid ()) < 0)
-        die_with_error ("unable to drop privs");
+      /* We want to protect against the user using the privileged
+       * parts of bwrap to read or modify files that were not
+       * otherwise accessible. For instance, you should not
+       * be able to do --file FD /etc/passwd to replace the
+       * passwd file, nor should you be able to do:
+       *  --bind /private-dir/public-file /public-dir
+       * to work around the users inability to read the
+       * private dir.
+       *
+       * However, we still need to run the privileged parts as
+       * root so we can do various priviliged operations. And
+       * additionally, we want to keep uid != euid to disallow
+       * the user to ptrace the app in the case of user namespaces
+       * (all processes in the parent user namespace have CAP_PTRACE
+       * in the sub-user-namespace so this is the only thing that
+       * otherwise limits this).
+       *
+       * The solution is to set fsuid to the real uid.
+       */
+      if (setfsuid (uid) < 0)
+        die_with_error ("Unable to set fsuid");
+
+      /* setfsuid can't properly report errors, check that it worked (as per manpage) */
+      new_fsuid = setfsuid (-1);
+      if (new_fsuid != uid)
+        die ("Unable to set fsuid (was %d)", (int)new_fsuid);
     }
-
-  if (is_privileged)
+  else
     {
-      /* Drop all non-require capabilities */
-      data[0].effective = REQUIRED_CAPS_0;
-      data[0].permitted = REQUIRED_CAPS_0;
-      data[0].inheritable = 0;
-      data[1].effective = REQUIRED_CAPS_1;
-      data[1].permitted = REQUIRED_CAPS_1;
-      data[1].inheritable = 0;
-      if (capset (&hdr, data) < 0)
-        die_with_error ("capset failed");
+      /* We try unprivileged user namespaces... */
     }
-  /* Else, we try unprivileged user namespaces */
-
 }
 
 static void
-drop_caps (void)
+drop_privileges (void)
 {
-  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
-  struct __user_cap_data_struct data[2] = { { 0 } };
-
   if (!is_privileged)
     return;
 
-  if (capset (&hdr, data) < 0)
-    die_with_error ("capset failed");
+  /* Drop root euid */
+  if (setresuid (getuid (), getuid(), getuid ()) < 0)
+    die_with_error ("unable to drop root");
 }
 
 static char *
@@ -481,6 +483,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   cleanup_free char *gid_map = NULL;
   cleanup_free char *dir = NULL;
   cleanup_fd int dir_fd = -1;
+  uid_t old_fsuid = -1;
 
   if (pid == -1)
     dir = xstrdup ("self");
@@ -497,6 +500,17 @@ write_uid_gid_map (uid_t sandbox_uid,
   else
     uid_map = xasprintf ("%d %d 1\n", sandbox_uid, parent_uid);
 
+  if (map_root && parent_gid != 0 && sandbox_gid != 0)
+    gid_map = xasprintf ("0 0 1\n"
+                         "%d %d 1\n", sandbox_gid, parent_gid);
+  else
+    gid_map = xasprintf ("%d %d 1\n", sandbox_gid, parent_gid);
+
+  /* We have to be root to be allowed to write to the uid map
+   * for setuid apps, so temporary set fsuid to 0 */
+  if (is_privileged)
+    old_fsuid = setfsuid (0);
+
   if (write_file_at (dir_fd, "uid_map", uid_map) != 0)
     die_with_error ("setting up uid map");
 
@@ -512,14 +526,15 @@ write_uid_gid_map (uid_t sandbox_uid,
         die_with_error ("error writing to setgroups");
     }
 
-  if (map_root && parent_gid != 0 && sandbox_gid != 0)
-    gid_map = xasprintf ("0 0 1\n"
-                         "%d %d 1\n", sandbox_gid, parent_gid);
-  else
-    gid_map = xasprintf ("%d %d 1\n", sandbox_gid, parent_gid);
-
   if (write_file_at (dir_fd, "gid_map", gid_map) != 0)
     die_with_error ("setting up gid map");
+
+  if (is_privileged)
+    {
+      setfsuid (old_fsuid);
+      if (setfsuid (-1) != uid)
+        die ("Unable to re-set fsuid");
+    }
 }
 
 static void
@@ -535,11 +550,15 @@ privileged_op (int         privileged_op_socket,
       PrivSepOp *op_buffer = (PrivSepOp *) buffer;
       size_t buffer_size = sizeof (PrivSepOp);
       uint32_t arg1_offset = 0, arg2_offset = 0;
+
+      /* We're unprivileged, send this request to the privileged part */
+
       if (arg1 != NULL)
         {
           arg1_offset = buffer_size;
           buffer_size += strlen (arg1) + 1;
         }
+
       if (arg2 != NULL)
         {
           arg2_offset = buffer_size;
@@ -566,6 +585,23 @@ privileged_op (int         privileged_op_socket,
 
       return;
     }
+
+  /*
+   * This runs a privileged request for the unprivileged setup
+   * code. Note that since the setup code is unprivileged it is not as
+   * trusted, so we need to verify that all requests only affect the
+   * child namespace as set up by the privileged parts of the setup,
+   * and that all the code is very careful about handling input.
+   *
+   * This means:
+   *  * Bind mounts are safe, since we always use filesystem namespace. They
+   *     must be recursive though, as otherwise you can use a non-recursive bind
+   *     mount to access an otherwise over-mounted mountpoint.
+   *  * Mounting proc, tmpfs, mqueue, devpts in the child namespace is assumed to
+   *    be safe.
+   *  * Remounting RO (even non-recursive) is safe because it decreases privileges.
+   *  * sethostname() is safe only in an UTS namespace
+   */
 
   switch (op)
     {
@@ -622,6 +658,9 @@ privileged_op (int         privileged_op_socket,
     }
 }
 
+/* This is run unprivileged in the child namespace but can request
+   some privileged operations (also in the child namespace) via the
+   privileged_op_socket */
 static void
 setup_newroot (bool unshare_pid,
                int  privileged_op_socket)
@@ -1432,7 +1471,6 @@ main (int    argc,
   char *old_cwd = NULL;
   pid_t pid;
   int event_fd = -1;
-  int userns_wait_fd = -1;
   int child_wait_fd = -1;
   const char *new_cwd;
   uid_t ns_uid;
@@ -1441,15 +1479,14 @@ main (int    argc,
   uint64_t val;
   int res UNUSED;
 
-  /* Get the (optional) capabilities we need, drop root */
-  acquire_caps ();
+  /* Ensure we have the proper privileges to set things up */
+  ensure_privileges ();
 
   /* Never gain any more privs during exec */
   if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
     die_with_error ("prctl(PR_SET_NO_NEW_CAPS) failed");
 
-  /* The initial code is run with high permissions
-     (i.e. CAP_SYS_ADMIN), so take lots of care. */
+  /* The initial code is run as root, so take lots of care. */
 
   argv0 = argv[0];
 
@@ -1566,13 +1603,6 @@ main (int    argc,
     if (!stat ("/proc/self/ns/cgroup", &sbuf))
       clone_flags |= CLONE_NEWCGROUP;
 
-  if (is_privileged && opt_unshare_user)
-    {
-      userns_wait_fd = eventfd (0, EFD_CLOEXEC);
-      if (userns_wait_fd == -1)
-        die_with_error ("eventfd()");
-    }
-
   child_wait_fd = eventfd (0, EFD_CLOEXEC);
   if (child_wait_fd == -1)
     die_with_error ("eventfd()");
@@ -1596,23 +1626,18 @@ main (int    argc,
 
   if (pid != 0)
     {
-      /* Parent, outside sandbox, privileged */
+      /* Parent, outside sandbox, privileged (initially) */
 
       if (is_privileged && opt_unshare_user)
         {
-          /* Wait for the child ensure DUMPABLE is set, which is needed
-           * because otherwise the write to the uid/gid maps below will
-           * fail because a non-dumpable child will have /proc/pid/uid_map
-           * files owned by root.
+          /* We're running as euid 0, but the uid we want to map is
+           * not 0. This means we're not allowed to write this from
+           * the child user namespace, so we do it from the parent.
+           *
+           * Also, we map uid/gid 0 if opt_needs_devpts is true, because
+           * otherwise the mount of devpts fails due to root not being
+           * mapped.
            */
-          res = read (userns_wait_fd, &val, 8);
-          close (userns_wait_fd);
-
-          /* Map the uid/gid 0 if opt_needs_devpts, as otherwise
-           * mounting it will fail.
-           * Due to this non-direct mapping we need to have set[ug]id
-           * caps in the parent namespaces, and thus we need to write
-           * the map in the parent namespace, not the child. */
           write_uid_gid_map (ns_uid, uid,
                              ns_gid, gid,
                              pid, TRUE, opt_needs_devpts);
@@ -1620,8 +1645,14 @@ main (int    argc,
 
       /* Initial launched process, wait for exec:ed command to exit */
 
-      /* We don't need any caps in the launcher, drop them immediately. */
-      drop_caps ();
+      /* We don't need any privileges anymore in the launcher, drop them immediately. */
+      drop_privileges ();
+
+      /* Let child run now that the uid maps are set up */
+      val = 1;
+      res = write (child_wait_fd, &val, 8);
+      /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
+      close (child_wait_fd);
 
       if (opt_info_fd != -1)
         {
@@ -1632,43 +1663,16 @@ main (int    argc,
           close (opt_info_fd);
         }
 
-      /* Let child run now that the uid maps are set up */
-      val = 1;
-      res = write (child_wait_fd, &val, 8);
-      /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
-      close (child_wait_fd);
-
       monitor_child (event_fd);
       exit (0); /* Should not be reached, but better safe... */
     }
 
-  /* Child, in sandbox, privileged in the parent *or* in the user namespace.
-   *
-   * NOTE: This is always ptrace:able in the case of user namespaces
-   * (due to all parent namespaces having CAP_SYS_PTRACE in the child
-   * namespaces), but it should be ok as it has no permissions in the
-   * parent namespace.
-   */
+  /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).  */
 
   if (opt_info_fd != -1)
     close (opt_info_fd);
 
-  if (is_privileged && opt_unshare_user)
-    {
-      /* We have to be dumpable for the parent to be able to set the
-         uid map for us. This enables ptracing for the child, but that
-         is believed safe, as at this point we entered a user
-         namespace which dropped all capabilities in the parent
-         namespace. */
-      if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
-        die_with_error ("prctl(PR_SET_DUMPABLE) failed");
-
-      /* Let parent continue to set the uid map */
-      val = 1;
-      res = write (userns_wait_fd, &val, 8);
-    }
-
-  /* Wait for the parent to init uid/gid maps and drop caps */
+  /* Wait for the parent to init uid/gid maps and drop privileges */
   res = read (child_wait_fd, &val, 8);
   close (child_wait_fd);
 
@@ -1748,7 +1752,8 @@ main (int    argc,
       if (child == 0)
         {
           /* Unprivileged setup process */
-          drop_caps ();
+          drop_privileges ();
+
           close (privsep_sockets[0]);
           setup_newroot (opt_unshare_pid, privsep_sockets[1]);
           exit (0);
@@ -1811,8 +1816,8 @@ main (int    argc,
   if (chdir ("/") != 0)
     die_with_error ("chdir /");
 
-  /* Now we have everything we need CAP_SYS_ADMIN for, so drop it */
-  drop_caps ();
+  /* Now we have everything we need root for, so drop it */
+  drop_privileges ();
 
   if (opt_block_fd != -1)
     {
@@ -1917,6 +1922,10 @@ main (int    argc,
 
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
+
+  /* Re-set the dumpable flag, so that the new process can be debugged */
+  if (is_privileged && prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) < 0)
+    die_with_error ("prctl(PR_SET_DUMPABLE) failed");
 
   if (execvp (argv[0], argv) == -1)
     die_with_error ("execvp %s", argv[0]);
