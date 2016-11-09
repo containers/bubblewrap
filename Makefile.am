@@ -19,9 +19,19 @@ if PRIV_MODE_FILECAPS
 endif
 endif
 
+check_PROGRAMS = test-bwrap
+
+test-bwrap: bwrap
+	rm -rf test-bwrap
+	cp bwrap test-bwrap
+if PRIV_MODE_SETUID
+	$(SUDO_BIN) chown root test-bwrap
+	$(SUDO_BIN) chmod u+s test-bwrap
+endif
+
 include Makefile-docs.am
 
-TESTS = tests/test-basic.sh
+TESTS = tests/test-basic.sh tests/test-run.sh
 TESTS_ENVIRONMENT = PATH=$$(cd $(top_builddir) && pwd):$${PATH}
 
 if ENABLE_BASH_COMPLETION
