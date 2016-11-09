@@ -30,6 +30,6 @@ assert_file_has_content () {
 # At the moment we're testing in Travis' container infrastructure
 # which also uses PR_SET_NO_NEW_PRIVS...but let's at least
 # verify --help works!
-bwrap --help >out.txt 2>&1
+test-bwrap --help >out.txt 2>&1
 assert_file_has_content out.txt "--lock-file"
 
