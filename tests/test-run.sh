@@ -53,8 +53,7 @@ if ! $BWRAP true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-#TODO: More ALTs when remount fixed:  "--unshare-pid" "--unshare-user --unshare-pid"
-for ALT in "" "--unshare-user" ; do
+for ALT in "" "--unshare-user"  "--unshare-pid" "--unshare-user --unshare-pid"; do
     # Test fuse fs as bind source
     if [ x$FUSE_DIR != x ]; then
         $BWRAP $ALT  --proc /proc --dev /dev --bind $FUSE_DIR /tmp/foo true
