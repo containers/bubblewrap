@@ -24,18 +24,6 @@
 #include "bind-mount.h"
 
 static char *
-skip_line (char *line)
-{
-  while (*line != 0 && *line != '\n')
-    line++;
-
-  if (*line == '\n')
-    line++;
-
-  return line;
-}
-
-static char *
 skip_token (char *line, bool eat_whitespace)
 {
   while (*line != ' ' && *line != '\n')
@@ -48,16 +36,15 @@ skip_token (char *line, bool eat_whitespace)
 }
 
 static char *
-unescape_mountpoint (const char *escaped, ssize_t len)
+unescape_inline (char *escaped)
 {
   char *unescaped, *res;
   const char *end;
 
-  if (len < 0)
-    len = strlen (escaped);
-  end = escaped + len;
+  res = escaped;
+  end = escaped + strlen (escaped);
 
-  unescaped = res = xmalloc (len + 1);
+  unescaped = escaped;
   while (escaped < end)
     {
       if (*escaped == '\\')
@@ -77,64 +64,24 @@ unescape_mountpoint (const char *escaped, ssize_t len)
   return res;
 }
 
-static char *
-get_mountinfo (int         proc_fd,
-               const char *mountpoint)
+static bool
+match_token (const char *token, const char *token_end, const char *str)
 {
-  char *line_mountpoint, *line_mountpoint_end;
-  cleanup_free char *mountinfo = NULL;
-  cleanup_free char *free_me = NULL;
-  char *line, *line_start;
-  char *res = NULL;
-  int i;
-
-  if (mountpoint[0] != '/')
+  while (token != token_end && *token == *str)
     {
-      cleanup_free char *cwd = getcwd (NULL, 0);
-      if (cwd == NULL)
-        die_oom ();
-
-      mountpoint = free_me = strconcat3 (cwd, "/", mountpoint);
+      token++;
+      str++;
     }
+  if (token == token_end)
+    return *str == 0;
 
-  mountinfo = load_file_at (proc_fd, "self/mountinfo");
-  if (mountinfo == NULL)
-    return NULL;
-
-  line = mountinfo;
-
-  while (*line != 0)
-    {
-      cleanup_free char *unescaped = NULL;
-
-      line_start = line;
-      for (i = 0; i < 4; i++)
-        line = skip_token (line, TRUE);
-      line_mountpoint = line;
-      line = skip_token (line, FALSE);
-      line_mountpoint_end = line;
-      line = skip_line (line);
-
-      unescaped = unescape_mountpoint (line_mountpoint, line_mountpoint_end - line_mountpoint);
-      if (strcmp (mountpoint, unescaped) == 0)
-        {
-          res = line_start;
-          line[-1] = 0;
-          /* Keep going, because we want to return the *last* match */
-        }
-    }
-
-  if (res)
-    return xstrdup (res);
-  return NULL;
+  return FALSE;
 }
 
 static unsigned long
-get_mountflags (int         proc_fd,
-                const char *mountpoint)
+decode_mountoptions (const char *options)
 {
-  cleanup_free char *line = NULL;
-  char *token, *end_token;
+  const char *token, *end_token;
   int i;
   unsigned long flags = 0;
   static const struct  { int   flag;
@@ -151,28 +98,23 @@ get_mountflags (int         proc_fd,
     { 0, NULL }
   };
 
-  line = get_mountinfo (proc_fd, mountpoint);
-  if (line == NULL)
-    return 0;
-
-  token = line;
-  for (i = 0; i < 5; i++)
-    token = skip_token (token, TRUE);
-
-  end_token = skip_token (token, FALSE);
-  *end_token = 0;
-
+  token = options;
   do
     {
       end_token = strchr (token, ',');
-      if (end_token != NULL)
-        *end_token = 0;
+      if (end_token == NULL)
+        end_token = token + strlen (token);
 
       for (i = 0; flags_data[i].name != NULL; i++)
-        if (strcmp (token, flags_data[i].name) == 0)
-          flags |= flags_data[i].flag;
+        {
+          if (match_token (token, end_token, flags_data[i].name))
+            {
+              flags |= flags_data[i].flag;
+              break;
+            }
+        }
 
-      if (end_token)
+      if (*end_token != 0)
         token = end_token + 1;
       else
         token = NULL;
@@ -182,54 +124,253 @@ get_mountflags (int         proc_fd,
   return flags;
 }
 
+typedef struct MountInfo MountInfo;
+struct MountInfo {
+  char *mountpoint;
+  unsigned long options;
+};
 
-static char **
-get_submounts (int         proc_fd,
-               const char *parent_mount)
+typedef MountInfo *MountTab;
+
+static void
+mount_tab_free (MountTab tab)
 {
-  char *mountpoint, *mountpoint_end;
-  char **submounts;
-  int i, n_submounts, submounts_size;
+  int i;
+
+  for (i = 0; tab[i].mountpoint != NULL; i++)
+    free (tab[i].mountpoint);
+  free (tab);
+}
+
+static inline void
+cleanup_mount_tabp (void *p)
+{
+  void **pp = (void **) p;
+
+  if (*pp)
+    mount_tab_free ((MountTab)*pp);
+}
+
+#define cleanup_mount_tab __attribute__((cleanup (cleanup_mount_tabp)))
+
+typedef struct MountInfoLine MountInfoLine;
+struct MountInfoLine {
+  const char *mountpoint;
+  const char *options;
+  bool covered;
+  int id;
+  int parent_id;
+  MountInfoLine *first_child;
+  MountInfoLine *next_sibling;
+};
+
+static unsigned int
+count_lines (const char *data)
+{
+  unsigned int count = 0;
+  const char *p = data;
+
+  while (*p != 0)
+    {
+      if (*p == '\n')
+        count++;
+      p++;
+    }
+
+  /* If missing final newline, add one */
+  if (p > data && *(p-1) != '\n')
+    count++;
+
+  return count;
+}
+
+static int
+count_mounts (MountInfoLine *line)
+{
+  MountInfoLine *child;
+  int res = 0;
+
+  if (!line->covered)
+    res += 1;
+
+  child = line->first_child;
+  while (child != NULL)
+    {
+      res += count_mounts (child);
+      child = child->next_sibling;
+    }
+
+  return res;
+}
+
+static MountInfo *
+collect_mounts (MountInfo *info, MountInfoLine *line)
+{
+  MountInfoLine *child;
+
+  if (!line->covered)
+    {
+      info->mountpoint = xstrdup (line->mountpoint);
+      info->options = decode_mountoptions (line->options);
+      info ++;
+    }
+
+  child = line->first_child;
+  while (child != NULL)
+    {
+      info = collect_mounts (info, child);
+      child = child->next_sibling;
+    }
+
+  return info;
+}
+
+static MountTab
+parse_mountinfo (int  proc_fd,
+                 const char *root_mount)
+{
   cleanup_free char *mountinfo = NULL;
+  cleanup_free MountInfoLine *lines = NULL;
+  cleanup_free MountInfoLine **by_id = NULL;
+  cleanup_mount_tab MountTab mount_tab = NULL;
+  MountInfo *end_tab;
+  int n_mounts;
   char *line;
+  int i;
+  int max_id;
+  unsigned int n_lines;
+  int root;
 
   mountinfo = load_file_at (proc_fd, "self/mountinfo");
   if (mountinfo == NULL)
-    return NULL;
+    die_with_error ("Can't open /proc/self/mountinfo");
 
-  submounts_size = 8;
-  n_submounts = 0;
-  submounts = xmalloc (sizeof (char *) * submounts_size);
+  n_lines = count_lines (mountinfo);
+  lines = xcalloc (n_lines * sizeof (MountInfoLine));
 
+  max_id = 0;
   line = mountinfo;
-
+  i = 0;
+  root = -1;
   while (*line != 0)
     {
-      cleanup_free char *unescaped = NULL;
-      for (i = 0; i < 4; i++)
-        line = skip_token (line, TRUE);
-      mountpoint = line;
-      line = skip_token (line, FALSE);
-      mountpoint_end = line;
-      line = skip_line (line);
-      *mountpoint_end = 0;
+      int rc, consumed = 0;
+      unsigned int maj, min;
+      char *end;
+      char *rest;
+      char *mountpoint;
+      char *mountpoint_end;
+      char *options;
+      char *options_end;
+      char *next_line;
 
-      unescaped = unescape_mountpoint (mountpoint, -1);
+      assert (i < n_lines);
 
-      if (has_path_prefix (unescaped, parent_mount))
+      end = strchr (line, '\n');
+      if (end != NULL)
         {
-          if (n_submounts + 1 >= submounts_size)
-            {
-              submounts_size *= 2;
-              submounts = xrealloc (submounts, sizeof (char *) * submounts_size);
-            }
-          submounts[n_submounts++] = xstrdup (unescaped);
+          *end = 0;
+          next_line = end + 1;
         }
+      else
+        next_line = line + strlen (line);
+
+      rc = sscanf (line, "%d %d %u:%u %n", &lines[i].id, &lines[i].parent_id, &maj, &min, &consumed);
+      if (rc != 4)
+        die ("Can't parse mountinfo line");
+      rest = line + consumed;
+
+      rest = skip_token (rest, TRUE); /* mountroot */
+      mountpoint = rest;
+      rest = skip_token (rest, FALSE); /* mountpoint */
+      mountpoint_end = rest++;
+      options = rest;
+      rest = skip_token (rest, FALSE); /* vfs options */
+      options_end = rest;
+
+      *mountpoint_end = 0;
+      lines[i].mountpoint = unescape_inline (mountpoint);
+
+      *options_end = 0;
+      lines[i].options = options;
+
+      if (lines[i].id > max_id)
+        max_id = lines[i].id;
+      if (lines[i].parent_id > max_id)
+        max_id = lines[i].parent_id;
+
+      if (path_equal (lines[i].mountpoint, root_mount))
+        root = i;
+
+      i++;
+      line = next_line;
+    }
+  assert (i == n_lines);
+
+  if (root == -1)
+    {
+      mount_tab = xcalloc (sizeof (MountInfo) * (1));
+      return steal_pointer (&mount_tab);
     }
 
-  submounts[n_submounts] = NULL;
+  by_id = xcalloc ((max_id + 1) * sizeof (MountInfoLine*));
+  for (i = 0; i < n_lines; i++)
+    by_id[lines[i].id] = &lines[i];
 
-  return submounts;
+  for (i = 0; i < n_lines; i++)
+    {
+      MountInfoLine *this = &lines[i];
+      MountInfoLine *parent = by_id[this->parent_id];
+      MountInfoLine **to_sibling;
+      MountInfoLine *sibling;
+      bool covered = FALSE;
+
+      if (!has_path_prefix (this->mountpoint, root_mount))
+        continue;
+
+      if (parent == NULL)
+        continue;
+
+      if (strcmp (parent->mountpoint, this->mountpoint) == 0)
+        parent->covered = TRUE;
+
+      to_sibling = &parent->first_child;
+      sibling = parent->first_child;
+      while (sibling != NULL)
+        {
+          /* If this mountpoint is a path prefix of the sibling,
+           * say this->mp=/foo/bar and sibling->mp=/foo, then it is
+           * covered by the sibling, and we drop it. */
+          if (has_path_prefix (this->mountpoint, sibling->mountpoint))
+            {
+              covered = TRUE;
+              break;
+            }
+
+          /* If the sibling is a path prefix of this mount point,
+           * say this->mp=/foo and sibling->mp=/foo/bar, then the sibling
+           * is covered, and we drop it.
+            */
+          if (has_path_prefix (sibling->mountpoint, this->mountpoint))
+            *to_sibling = sibling->next_sibling;
+          else
+            to_sibling = &sibling->next_sibling;
+          sibling = sibling->next_sibling;
+        }
+
+      if (covered)
+          continue;
+
+      *to_sibling = this;
+    }
+
+  n_mounts = count_mounts (&lines[root]);
+  mount_tab = xcalloc (sizeof (MountInfo) * (n_mounts + 1));
+
+  end_tab = collect_mounts (&mount_tab[0], &lines[root]);
+  assert (end_tab == &mount_tab[n_mounts]);
+
+  return steal_pointer (&mount_tab);
 }
 
 int
@@ -242,6 +383,7 @@ bind_mount (int           proc_fd,
   bool devices = (options & BIND_DEVICES) != 0;
   bool recursive = (options & BIND_RECURSIVE) != 0;
   unsigned long current_flags, new_flags;
+  cleanup_mount_tab MountTab mount_tab = NULL;
   int i;
 
   if (src)
@@ -250,8 +392,15 @@ bind_mount (int           proc_fd,
         return 1;
     }
 
-  current_flags = get_mountflags (proc_fd, dest);
+  mount_tab = parse_mountinfo (proc_fd, dest);
+  if (mount_tab[0].mountpoint == NULL)
+    {
+      errno = EINVAL;
+      return 2; /* No mountpoint at dest */
+    }
 
+  assert (path_equal (mount_tab[0].mountpoint, dest));
+  current_flags = mount_tab[0].options;
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
       mount ("none", dest,
@@ -264,16 +413,12 @@ bind_mount (int           proc_fd,
    */
   if (recursive)
     {
-      cleanup_strv char **submounts = get_submounts (proc_fd, dest);
-      if (submounts == NULL)
-        return 4;
-
-      for (i = 0; submounts[i] != NULL; i++)
+      for (i = 1; mount_tab[i].mountpoint != NULL; i++)
         {
-          current_flags = get_mountflags (proc_fd, submounts[i]);
+          current_flags = mount_tab[i].options;
           new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
           if (new_flags != current_flags &&
-              mount ("none", submounts[i],
+              mount ("none", mount_tab[i].mountpoint,
                      NULL, MS_MGC_VAL | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
             {
               /* If we can't read the mountpoint we can't remount it, but that should
