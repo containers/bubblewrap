@@ -173,6 +173,39 @@ has_path_prefix (const char *str,
 }
 
 bool
+path_equal (const char *path1,
+            const char *path2)
+{
+  while (TRUE)
+    {
+      /* Skip consecutive slashes to reach next path
+         element */
+      while (*path1 == '/')
+        path1++;
+      while (*path2 == '/')
+        path2++;
+
+      /* No more prefix path elements? Done! */
+      if (*path1 == 0 || *path2 == 0)
+        return *path1 == 0 && *path2 == 0;
+
+      /* Compare path element */
+      while (*path1 != 0 && *path1 != '/')
+        {
+          if (*path1 != *path2)
+            return FALSE;
+          path1++;
+          path2++;
+        }
+
+      /* Matched path1 path element, must be entire path element */
+      if (*path2 != '/' && *path2 != 0)
+        return FALSE;
+    }
+}
+
+
+bool
 has_prefix (const char *str,
             const char *prefix)
 {
