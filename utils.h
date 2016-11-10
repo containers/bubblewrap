@@ -75,6 +75,8 @@ bool  has_prefix (const char *str,
                   const char *prefix);
 bool  has_path_prefix (const char *str,
                        const char *prefix);
+bool  path_equal (const char *path1,
+                  const char *path2);
 int   fdwalk (int                     proc_fd,
               int                     (*cb)(void *data,
                                   int fd),
