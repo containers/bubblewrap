@@ -511,7 +511,7 @@ switch_to_user_with_privs (void)
   if (prctl (PR_SET_KEEPCAPS, 1, 0, 0, 0) < 0)
     die_with_error ("prctl(PR_SET_KEEPCAPS) failed");
 
-  if (setuid (real_uid) < 0)
+  if (setuid (opt_sandbox_uid) < 0)
     die_with_error ("unable to drop root uid");
 
   /* Regain effective required capabilities from permitted */
@@ -525,7 +525,7 @@ drop_privs (void)
     return;
 
   /* Drop root uid */
-  if (setuid (real_uid) < 0)
+  if (setuid (opt_sandbox_uid) < 0)
     die_with_error ("unable to drop root uid");
 
   drop_all_caps ();
