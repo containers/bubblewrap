@@ -444,7 +444,7 @@ has_caps (void)
  * unprivileged user namespaces to be used. This case is
  * "is_privileged = FALSE".
  *
- * If bwarp is setuid, then we do things in phases.
+ * If bwrap is setuid, then we do things in phases.
  * The first part is run as euid 0, but with with fsuid as the real user.
  * The second part, inside the child, is run as the real user but with
  * capabilities.
@@ -492,7 +492,7 @@ acquire_privs (void)
   else if (real_uid != 0 && has_caps ())
     {
       /* We have some capabilities in the non-setuid case, which should not happen.
-         Probablye caused by the binary being setcap instead of setuid which we
+         Probably caused by the binary being setcap instead of setuid which we
          don't support anymore */
       die ("Unexpected capabilities but not setuid, old file caps config?");
     }
