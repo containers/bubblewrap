@@ -103,11 +103,16 @@ decode_mountoptions (const char *options)
     {
       end_token = strchr (token, ',');
       if (end_token == NULL)
-        end_token = token + strlen(token);
+        end_token = token + strlen (token);
 
       for (i = 0; flags_data[i].name != NULL; i++)
-        if (match_token (token, end_token, flags_data[i].name))
-          flags |= flags_data[i].flag;
+        {
+          if (match_token (token, end_token, flags_data[i].name))
+            {
+              flags |= flags_data[i].flag;
+              break;
+            }
+        }
 
       if (*end_token != 0)
         token = end_token + 1;
@@ -342,7 +347,7 @@ parse_mountinfo (int  proc_fd,
               break;
             }
 
-          /* If this the sibling is a path prefix of this mount point,
+          /* If the sibling is a path prefix of this mount point,
            * say this->mp=/foo and sibling->mp=/foo/bar, then the sibling
            * is covered, and we drop it.
             */
