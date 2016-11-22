@@ -384,6 +384,7 @@ bind_mount (int           proc_fd,
   bool recursive = (options & BIND_RECURSIVE) != 0;
   unsigned long current_flags, new_flags;
   cleanup_mount_tab MountTab mount_tab = NULL;
+  cleanup_free char *resolved_dest = NULL;
   int i;
 
   if (src)
@@ -392,18 +393,22 @@ bind_mount (int           proc_fd,
         return 1;
     }
 
-  mount_tab = parse_mountinfo (proc_fd, dest);
+  /* The mount operation will resolve any symlinks in the destination
+     path, so to find it in the mount table we need to do that too. */
+  resolved_dest = realpath (dest, NULL);
+
+  mount_tab = parse_mountinfo (proc_fd, resolved_dest);
   if (mount_tab[0].mountpoint == NULL)
     {
       errno = EINVAL;
       return 2; /* No mountpoint at dest */
     }
 
-  assert (path_equal (mount_tab[0].mountpoint, dest));
+  assert (path_equal (mount_tab[0].mountpoint, resolved_dest));
   current_flags = mount_tab[0].options;
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
-      mount ("none", dest,
+      mount ("none", resolved_dest,
              NULL, MS_MGC_VAL | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
     return 3;
 
