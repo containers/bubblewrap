@@ -74,5 +74,8 @@ for ALT in "" "--unshare-user"  "--unshare-pid" "--unshare-user --unshare-pid"; 
             assert_not_reached Could read $UNREADABLE
         fi
     fi
+
+    # bind dest in symlink (https://github.com/projectatomic/bubblewrap/pull/119)
+    $BWRAP $ALT --dir /tmp/dir --symlink dir /tmp/link --bind /etc /tmp/link true
 done
 echo OK
