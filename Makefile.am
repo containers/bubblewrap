@@ -25,10 +25,14 @@ if PRIV_MODE_SETUID
 	$(SUDO_BIN) chmod u+s test-bwrap
 endif
 
+test_bwrap_SOURCES=
+
 include Makefile-docs.am
 
 TESTS = tests/test-basic.sh tests/test-run.sh
 TESTS_ENVIRONMENT = PATH=$$(cd $(top_builddir) && pwd):$${PATH}
+
+EXTRA_DIST += $(TESTS)
 
 if ENABLE_BASH_COMPLETION
 bashcompletiondir = $(BASH_COMPLETION_DIR)
@@ -36,3 +40,7 @@ dist_bashcompletion_DATA = completions/bash/bwrap
 endif
 
 -include $(top_srcdir)/git.mk
+
+AM_DISTCHECK_CONFIGURE_FLAGS =		\
+	--with-bash-completion-dir="\$(datadir)"/bash-completion/ \
+	$(NULL)
