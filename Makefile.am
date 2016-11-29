@@ -30,7 +30,7 @@ test_bwrap_SOURCES=
 include Makefile-docs.am
 
 TESTS = tests/test-basic.sh tests/test-run.sh
-TESTS_ENVIRONMENT = PATH=$$(cd $(top_builddir) && pwd):$${PATH}
+TESTS_ENVIRONMENT = BWRAP=$(abs_top_builddir)/test-bwrap
 
 EXTRA_DIST += $(TESTS)
 
