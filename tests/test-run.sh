@@ -32,7 +32,7 @@ assert_file_has_content () {
 }
 
 FUSE_DIR=
-for mp in `cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=`id -u` | awk '{print $2}'`; do
+for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
     if test -d $mp; then
         echo Using $mp as test fuse mount
         FUSE_DIR=$mp
