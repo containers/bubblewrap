@@ -459,12 +459,13 @@ acquire_privs (void)
   uid_t euid, new_fsuid;
 
   euid = geteuid ();
-  if (euid == 0)
-    is_privileged = TRUE;
 
+  /* Are we setuid ? */
   if (real_uid != euid)
     {
-      if (euid != 0)
+      if (euid == 0)
+        is_privileged = TRUE;
+      else
         die ("Unexpected setuid user %d, should be 0", euid);
 
       /* We want to keep running as euid=0 until at the clone()
