@@ -1631,8 +1631,10 @@ main (int    argc,
 
   parse_args (&argc, &argv);
 
-  /* We have to do this if we weren't installed setuid, so let's just DWIM */
-  if (!is_privileged)
+  /* We have to do this if we weren't installed setuid (and we're not
+   * root), so let's just DWIM
+*/
+  if (!is_privileged && getuid () != 0)
     opt_unshare_user = TRUE;
 
   if (opt_unshare_user_try &&
