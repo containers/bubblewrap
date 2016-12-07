@@ -71,38 +71,19 @@ exits. You can then use commandline options to construct the root
 filesystem and process environment and command to run in the
 namespace.
 
-A simple example is
-```
-bwrap --ro-bind / / bash
-```
-This will create a read-only bind mount of the host root at the
-sandbox root, and then start a bash.
-
-Another simple example would be a read-write chroot operation:
-```
-bwrap --bind /some/chroot/dir / bash
-```
-
-A more complex example is to run a with a custom (readonly) /usr,
-but your own (tmpfs) data, running in a PID and network namespace:
+There's a larger [demo script](./demos/bubblewrap-shell.sh) in the
+source code, but here's a trimmed down version which runs
+a new shell reusing the host's `/usr`.
 
 ```
-bwrap --ro-bind /usr /usr \
-   --tmpfs /tmp \
-   --proc /proc \
-   --dev /dev \
-   --ro-bind /etc/resolv.conf /etc/resolv.conf \
-   --symlink usr/lib /lib \
-   --symlink usr/lib64 /lib64 \
-   --symlink usr/bin /bin \
-   --symlink usr/sbin /sbin \
-   --chdir / \
-   --unshare-pid \
-   --unshare-net \
-   --dir /run/user/$(id -u) \
-   --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
-   /bin/sh
+bwrap --ro-bind /usr /usr --symlink usr/lib64 /lib64 --proc /proc --dev /dev --unshare-pid bash
 ```
+
+This is an incomplete example, but useful for purposes of
+illustration.  More often, rather than creating a container using the
+host's filesystem tree, you want to target a chroot.  There, rather
+than creating the symlink `lib64 -> usr/lib64` in the tmpfs, you might
+have already created it in the target rootfs.
 
 Sandboxing
 ----------
