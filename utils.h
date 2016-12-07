@@ -50,7 +50,7 @@ typedef int bool;
 void  die_with_error (const char *format,
                       ...) __attribute__((__noreturn__)) __attribute__((format (printf, 1, 2)));
 void  die (const char *format,
-           ...) __attribute__((__noreturn__));
+           ...) __attribute__((__noreturn__)) __attribute__((format (printf, 1, 2)));
 void  die_oom (void) __attribute__((__noreturn__));
 void  die_unless_label_valid (const char *label);
 
