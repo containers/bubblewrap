@@ -1,4 +1,4 @@
-AC_PREREQ([2.63])
+ac_PREREQ([2.63])
 AC_INIT([bubblewrap], [0.1.4], [atomic-devel@projectatomic.io])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
@@ -66,11 +66,25 @@ if test "x$enable_selinux" != "xno"; then
 fi
 AM_CONDITIONAL(HAVE_SELINUX, [test "$have_selinux" = "yes"])
 
-changequote(,)dnl
-if test "x$GCC" = "xyes"; then
-  WARN_CFLAGS="-Wall -Werror=missing-prototypes"
-fi
-changequote([,])dnl
+dnl Keep this in sync with ostree, except remove -Werror=declaration-after-statement
+CC_CHECK_FLAGS_APPEND([WARN_CFLAGS], [CFLAGS], [\
+        -pipe \
+        -Wall \
+	-Werror=empty-body \
+	-Werror=strict-prototypes \
+	-Werror=missing-prototypes \
+	-Werror=implicit-function-declaration \
+        "-Werror=format=2 -Werror=format-security -Werror=format-nonliteral" \
+	-Werror=pointer-arith -Werror=init-self \
+        -Werror=missing-declarations \
+        -Werror=return-type \
+        -Werror=overflow \
+        -Werror=int-conversion \
+        -Werror=parenthesis \
+        -Werror=incompatible-pointer-types \
+        -Werror=misleading-indentation \
+	-Werror=missing-include-dirs -Werror=aggregate-return \
+])
 AC_SUBST(WARN_CFLAGS)
 
 AC_ARG_WITH(priv-mode,
