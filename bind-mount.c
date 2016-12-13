@@ -396,6 +396,8 @@ bind_mount (int           proc_fd,
   /* The mount operation will resolve any symlinks in the destination
      path, so to find it in the mount table we need to do that too. */
   resolved_dest = realpath (dest, NULL);
+  if (resolved_dest == NULL)
+    return 2;
 
   mount_tab = parse_mountinfo (proc_fd, resolved_dest);
   if (mount_tab[0].mountpoint == NULL)
