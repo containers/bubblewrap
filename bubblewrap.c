@@ -2071,6 +2071,9 @@ main (int    argc,
   /* We want sigchild in the child */
   unblock_sigchild ();
 
+  if (setsid () == (pid_t) -1)
+    die_with_error ("setsid");
+
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
 
