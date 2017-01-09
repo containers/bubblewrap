@@ -53,9 +53,10 @@
   the namespace.
 </para>
 <para>
-  By default, <command>bwrap</command> creates a new user namespace for the sandbox.
-  Optionally it also sets up new ipc, pid, network and uts namespaces. The application
-  in the sandbox can be made to run with a different UID and GID.
+  By default, <command>bwrap</command> creates a new mount namespace for the sandbox.
+  Optionally it also sets up new user, ipc, pid, network and uts namespaces (but note the
+  user namespace is required if bwrap is not installed setuid root).
+  The application in the sandbox can be made to run with a different UID and GID.
 </para>
 <para>
   If needed (e.g. when using a PID namespace) <command>bwrap</command>
