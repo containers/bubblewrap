@@ -1,5 +1,5 @@
 AC_PREREQ([2.63])
-AC_INIT([bubblewrap], [0.1.5], [atomic-devel@projectatomic.io])
+AC_INIT([bubblewrap], [0.1.6], [atomic-devel@projectatomic.io])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
