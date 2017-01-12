@@ -221,12 +221,17 @@ static void
 block_sigchild (void)
 {
   sigset_t mask;
+  int status;
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
 
   if (sigprocmask (SIG_BLOCK, &mask, NULL) == -1)
     die_with_error ("sigprocmask");
+
+  /* Reap any outstanding zombies that we may have inherited */
+  while (waitpid (-1, &status, WNOHANG) > 0)
+    ;
 }
 
 static void
@@ -259,6 +264,25 @@ close_extra_fds (void *data, int fd)
   return 0;
 }
 
+static int
+propagate_exit_status (int status)
+{
+  if (WIFEXITED (status))
+    return WEXITSTATUS (status);
+
+  /* The process died of a signal, we can't really report that, but we
+   * can at least be bash-compatible. The bash manpage says:
+   *   The return value of a simple command is its
+   *   exit status, or 128+n if the command is
+   *   terminated by signal n.
+   */
+  if (WIFSIGNALED (status))
+    return 128 + WTERMSIG (status);
+
+  /* Weird? */
+  return 255;
+}
+
 /* This stays around for as long as the initial process in the app does
  * and when that exits it exits, propagating the exit status. We do this
  * by having pid 1 in the sandbox detect this exit and tell the monitor
@@ -266,7 +290,7 @@ close_extra_fds (void *data, int fd)
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static void
-monitor_child (int event_fd)
+monitor_child (int event_fd, pid_t child_pid)
 {
   int res;
   uint64_t val;
@@ -277,6 +301,8 @@ monitor_child (int event_fd)
   int num_fds;
   struct signalfd_siginfo fdsi;
   int dont_close[] = { event_fd, -1 };
+  pid_t died_pid;
+  int died_status;
 
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
@@ -318,16 +344,21 @@ monitor_child (int event_fd)
             exit ((int) val - 1);
         }
 
+      /* We need to read the signal_fd, or it will keep polling as read,
+       * however we ignore the details as we get them from waitpid
+       * below anway */
       s = read (signal_fd, &fdsi, sizeof (struct signalfd_siginfo));
       if (s == -1 && errno != EINTR && errno != EAGAIN)
+        die_with_error ("read signalfd");
+
+      /* We may actually get several sigchld compressed into one
+         SIGCHLD, so we have to handle all of them. */
+      while ((died_pid = waitpid (-1, &died_status, WNOHANG)) > 0)
         {
-          die_with_error ("read signalfd");
-        }
-      else if (s == sizeof (struct signalfd_siginfo))
-        {
-          if (fdsi.ssi_signo != SIGCHLD)
-            die ("Read unexpected signal\n");
-          exit (fdsi.ssi_status);
+          /* We may be getting sigchild from other children too. For instance if
+             someone created a child process, and then exec:ed bubblewrap. Ignore them */
+          if (died_pid == child_pid)
+            exit (propagate_exit_status (died_status));
         }
     }
 }
@@ -375,8 +406,7 @@ do_init (int event_fd, pid_t initial_pid)
           uint64_t val;
           int res UNUSED;
 
-          if (WIFEXITED (status))
-            initial_exit_status = WEXITSTATUS (status);
+          initial_exit_status = propagate_exit_status (status);
 
           val = initial_exit_status + 1;
           res = write (event_fd, &val, 8);
@@ -1792,7 +1822,7 @@ main (int    argc,
           close (opt_info_fd);
         }
 
-      monitor_child (event_fd);
+      monitor_child (event_fd, pid);
       exit (0); /* Should not be reached, but better safe... */
     }
 
