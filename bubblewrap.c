@@ -221,12 +221,17 @@ static void
 block_sigchild (void)
 {
   sigset_t mask;
+  int status;
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
 
   if (sigprocmask (SIG_BLOCK, &mask, NULL) == -1)
     die_with_error ("sigprocmask");
+
+  /* Reap any outstanding zombies that we may have inherited */
+  while (waitpid (-1, &status, WNOHANG) > 0)
+    ;
 }
 
 static void
@@ -266,7 +271,7 @@ close_extra_fds (void *data, int fd)
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static void
-monitor_child (int event_fd)
+monitor_child (int event_fd, pid_t child_pid)
 {
   int res;
   uint64_t val;
@@ -327,7 +332,11 @@ monitor_child (int event_fd)
         {
           if (fdsi.ssi_signo != SIGCHLD)
             die ("Read unexpected signal\n");
-          exit (fdsi.ssi_status);
+
+          /* We may be getting sigchild from other children too. For instance if
+             someone created a child process, and then exec:ed bubblewrap. Ignore them */
+          if (fdsi.ssi_pid == child_pid)
+            exit (fdsi.ssi_status);
         }
     }
 }
@@ -1792,7 +1801,7 @@ main (int    argc,
           close (opt_info_fd);
         }
 
-      monitor_child (event_fd);
+      monitor_child (event_fd, pid);
       exit (0); /* Should not be reached, but better safe... */
     }
 
