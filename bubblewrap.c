@@ -330,6 +330,9 @@ monitor_child (int event_fd, pid_t child_pid)
         }
       else if (s == sizeof (struct signalfd_siginfo))
         {
+          pid_t pid;
+          int status;
+
           if (fdsi.ssi_signo != SIGCHLD)
             die ("Read unexpected signal\n");
 
@@ -337,6 +340,14 @@ monitor_child (int event_fd, pid_t child_pid)
              someone created a child process, and then exec:ed bubblewrap. Ignore them */
           if (fdsi.ssi_pid == child_pid)
             exit (fdsi.ssi_status);
+
+          /* We may actually get several sigchld compressed into one, and we have to
+             handle all of them */
+          while ((pid = waitpid (-1, &status, WNOHANG)) > 0)
+            {
+              if (pid == child_pid)
+                exit (WEXITSTATUS(status));
+            }
         }
     }
 }
