@@ -469,6 +469,19 @@ has_caps (void)
   return data[0].permitted != 0 || data[1].permitted != 0;
 }
 
+static void
+drop_cap_bounding_set (void)
+{
+  unsigned long cap;
+
+  for (cap = 0; cap <= 63; cap++)
+    {
+      int res = prctl (PR_CAPBSET_DROP, cap, 0, 0, 0);
+      if (res == -1 && errno != EINVAL)
+        die_with_error ("Dropping capability %ld from bounds", cap);
+    }
+}
+
 /* This acquires the privileges that the bwrap will need it to work.
  * If bwrap is not setuid, then this does nothing, and it relies on
  * unprivileged user namespaces to be used. This case is
@@ -517,6 +530,9 @@ acquire_privs (void)
       if (new_fsuid != real_uid)
         die ("Unable to set fsuid (was %d)", (int)new_fsuid);
 
+      /* We never need capabilies after execve(), so lets drop everything from the bounding set */
+      drop_cap_bounding_set ();
+
       /* Keep only the required capabilities for setup */
       set_required_caps ();
     }
@@ -535,6 +551,10 @@ acquire_privs (void)
 static void
 switch_to_user_with_privs (void)
 {
+  /* If we're in a new user namespace, we got back the bounding set, clear it again */
+  if (opt_unshare_user)
+    drop_cap_bounding_set ();
+
   if (!is_privileged)
     return;
 
