@@ -52,6 +52,7 @@ packages:
   - docbook-style-xsl
   - clang
   - libubsan
+  - libasan
 
 env:
     CC: 'clang'
@@ -61,8 +62,8 @@ env:
 
 inherit: true
 
-context: ubsan-f25
+context: f25-asan-ubsan
 
 env:
     CC: 'gcc'
-    CFLAGS: '-g -Og -fsanitize=undefined'
+    CFLAGS: '-g -Og -fsanitize=undefined -fsanitize=address'
