@@ -1,16 +1,3 @@
-noinst_PROGRAMS += generate-seccomp
-
-generate_seccomp_SOURCES=\
-	$(bwrap_srcpath)/generate-seccomp.c \
-	$(bwrap_srcpath)/utils.h \
-	$(bwrap_srcpath)/utils.c \
-	$(NULL)
-generate_seccomp_CFLAGS = $(AM_CFLAGS)
-generate_seccomp_LDADD = $(LIBSECCOMP_LIBS) $(SELINUX_LIBS)
-
-seccomp-filter.h: generate-seccomp$(EXEEXT)
-	./generate-seccomp$(EXEEXT) > seccomp-filter.h
-
 bwrap_SOURCES = \
 	$(bwrap_srcpath)/bubblewrap.c \
 	$(bwrap_srcpath)/bind-mount.h \
@@ -20,14 +7,6 @@ bwrap_SOURCES = \
 	$(bwrap_srcpath)/utils.h \
 	$(bwrap_srcpath)/utils.c \
 	$(NULL)
-nodist_bwrap_SOURCES =	\
-	seccomp-filter.h \
-	$(NULL)
-
-CLEANFILES += seccomp-filter.h
 
 bwrap_CFLAGS = $(AM_CFLAGS)
-bwrap_LDADD = $(SELINUX_LIBS)
-
-MAINTAINERCLEANFILES += seccomp-filter.h
-BUILT_SOURCES += seccomp-filter.h
+bwrap_LDADD = $(LIBSECCOMP_LIBS) $(SELINUX_LIBS)

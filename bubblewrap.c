@@ -34,9 +34,12 @@
 #include <linux/seccomp.h>
 #include <linux/filter.h>
 
+#ifndef DISABLE_SECCOMP
+#include <seccomp.h>
+#endif
+
 #include "utils.h"
 #include "network.h"
-#include "seccomp-filter.h"
 #include "bind-mount.h"
 
 #ifndef CLONE_NEWCGROUP
@@ -2028,15 +2031,40 @@ main (int    argc,
       close (opt_block_fd);
     }
 
-#ifdef HAVE_BWRAP_SECCOMP_FILTER
+#ifndef DISABLE_SECCOMP
   {
-    struct sock_fprog prog;
+    scmp_filter_ctx ctx = NULL;
+    uint32_t extra_arches[][2] = {
+      {SCMP_ARCH_X86_64, SCMP_ARCH_X86},
+#ifdef SCMP_ARCH_AARCH64
+      {SCMP_ARCH_AARCH64, SCMP_ARCH_ARM},
+#endif
+      {0}
+    };
+    int i;
 
-    prog.len = N_ELEMENTS (bwrap_seccomp_filter) / 8;
-    prog.filter = (struct sock_filter *) bwrap_seccomp_filter;
+    ctx = seccomp_init (SCMP_ACT_ALLOW);
+    if (!ctx)
+      die ("Initialize seccomp failed\n");
 
-    if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0)
-      die_with_error ("prctl(PR_SET_SECCOMP)");
+    for (i = 0; extra_arches[i][0] != 0; i++)
+      {
+        if (seccomp_arch_native () == extra_arches[i][0])
+          {
+            int res = seccomp_arch_add (ctx, extra_arches[i][1]);
+            if (res < 0)
+              die ("Error adding extra arch\n");
+          }
+      }
+
+    if (seccomp_rule_add (ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(ioctl), 1,
+                          SCMP_A1(SCMP_CMP_EQ, (int)TIOCSTI)) < 0)
+      die ("Failed to add TIOCSTI rule\n");
+
+    if (seccomp_load (ctx) != 0)
+      die ("Unable to load seccomp rules");
+
+    seccomp_release (ctx);
   }
 #endif
 
@@ -2134,7 +2162,7 @@ main (int    argc,
   /* We want sigchild in the child */
   unblock_sigchild ();
 
-#ifndef HAVE_BWRAP_SECCOMP_FILTER
+#ifdef DISABLE_SECCOMP
   /* If we don'y have seccomp, then we need to setsid to protect against CVE-2017-5226
    * See e.g. https://github.com/projectatomic/bubblewrap/pull/143
    * This workaround is pretty bad though, as it breaks shell job control.
