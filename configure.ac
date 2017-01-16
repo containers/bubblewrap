@@ -57,7 +57,7 @@ AC_ARG_ENABLE([seccomp-tty-fix],
 
 if test "x$enable_seccomp_tty_fix" = "xno"; then
    AC_DEFINE([DISABLE_SECCOMP], [1],
-      [Define if using seccomp])
+      [Define if not using seccomp])
 else
    PKG_CHECK_MODULES(LIBSECCOMP, [libseccomp])
 fi
