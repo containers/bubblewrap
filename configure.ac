@@ -49,6 +49,19 @@ else
     BASH_COMPLETION_DIR="$with_bash_completion_dir"
 fi
 
+AC_ARG_ENABLE([seccomp-tty-fix],
+              AC_HELP_STRING([--disable-seccomp-tty-fix],
+                             [Disable libseccomp-based TIOCSTI ioctl workaround (not recommended)]),
+              [enable_seccomp_tty_fix=no],
+              [enable_seccomp_tty_fix=yes])
+
+if test "x$enable_seccomp_tty_fix" = "xno"; then
+   AC_DEFINE([DISABLE_SECCOMP], [1],
+      [Define if using seccomp])
+else
+   PKG_CHECK_MODULES(LIBSECCOMP, [libseccomp])
+fi
+
 AC_SUBST([BASH_COMPLETION_DIR])
 AM_CONDITIONAL([ENABLE_BASH_COMPLETION],[test "x$with_bash_completion_dir" != "xno"])
 # ------------------------------------------------------------------------------
@@ -111,6 +124,7 @@ echo "
 
     man pages (xsltproc):                         $enable_man
     SELinux:                                      $have_selinux
+    Seccomp tty fix:                              $enable_seccomp_tty_fix
     setuid mode on make install:                  $with_priv_mode
     mysteriously satisfying to pop:               yes"
 echo ""

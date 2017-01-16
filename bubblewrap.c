@@ -36,6 +36,7 @@
 
 #include "utils.h"
 #include "network.h"
+#include "seccomp-filter.h"
 #include "bind-mount.h"
 
 #ifndef CLONE_NEWCGROUP
@@ -2027,6 +2028,18 @@ main (int    argc,
       close (opt_block_fd);
     }
 
+#ifdef HAVE_BWRAP_SECCOMP_FILTER
+  {
+    struct sock_fprog prog;
+
+    prog.len = N_ELEMENTS (bwrap_seccomp_filter) / 8;
+    prog.filter = (struct sock_filter *) bwrap_seccomp_filter;
+
+    if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0)
+      die_with_error ("prctl(PR_SET_SECCOMP)");
+  }
+#endif
+
   if (opt_seccomp_fd != -1)
     {
       cleanup_free char *seccomp_data = NULL;
@@ -2121,8 +2134,14 @@ main (int    argc,
   /* We want sigchild in the child */
   unblock_sigchild ();
 
+#ifndef HAVE_BWRAP_SECCOMP_FILTER
+  /* If we don'y have seccomp, then we need to setsid to protect against CVE-2017-5226
+   * See e.g. https://github.com/projectatomic/bubblewrap/pull/143
+   * This workaround is pretty bad though, as it breaks shell job control.
+   */
   if (setsid () == (pid_t) -1)
     die_with_error ("setsid");
+#endif
 
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);

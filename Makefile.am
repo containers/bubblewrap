@@ -1,6 +1,9 @@
 AM_CFLAGS = $(WARN_CFLAGS)
 CLEANFILES =
+MAINTAINERCLEANFILES =
 EXTRA_DIST =
+BUILT_SOURCES =
+noinst_PROGRAMS =
 
 GITIGNOREFILES = build-aux/ gtk-doc.make config.h.in aclocal.m4
 
