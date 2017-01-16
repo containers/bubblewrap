@@ -180,6 +180,8 @@ usage (int ecode, FILE *out)
            "    --help                       Print this help\n"
            "    --version                    Print version\n"
            "    --args FD                    Parse nul-separated args from FD\n"
+           "    --unshare-all                Unshare every namespace we support by default\n"
+           "    --share-net                  Retain the network namespace (can only combine with --unshare-all)\n"
            "    --unshare-user               Create new user namespace (may be automatically implied if not setuid)\n"
            "    --unshare-user-try           Create new user namespace if possible else continue by skipping it\n"
            "    --unshare-ipc                Create new ipc namespace\n"
@@ -1214,6 +1216,17 @@ parse_args_recurse (int    *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--unshare-all") == 0)
+        {
+          /* Keep this in order with the older (legacy) --unshare arguments,
+           * we use the --try variants of user and cgroup, since we want
+           * to support systems/kernels without support for those.
+           */
+          opt_unshare_user_try = opt_unshare_ipc = opt_unshare_pid =
+            opt_unshare_uts = opt_unshare_cgroup_try =
+            opt_unshare_net = TRUE;
+        }
+      /* Begin here the older individual --unshare variants */
       else if (strcmp (arg, "--unshare-user") == 0)
         {
           opt_unshare_user = TRUE;
@@ -1246,6 +1259,12 @@ parse_args_recurse (int    *argcp,
         {
           opt_unshare_cgroup_try = TRUE;
         }
+      /* Begin here the newer --share variants */
+      else if (strcmp (arg, "--share-net") == 0)
+        {
+          opt_unshare_net = FALSE;
+        }
+      /* End --share variants, other arguments begin */
       else if (strcmp (arg, "--chdir") == 0)
         {
           if (argc < 2)

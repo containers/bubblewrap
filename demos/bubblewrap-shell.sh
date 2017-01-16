@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Use bubblewrap to run /bin/sh reusing the host OS binaries (/usr), but with
-# separate /tmp, /var, /run, and /etc. For /etc we just inherit the host's
-# resolv.conf, and set up "stub" passwd/group files.
+# separate /tmp, /home, /var, /run, and /etc. For /etc we just inherit the
+# host's resolv.conf, and set up "stub" passwd/group files.  Not sharing
+# /home for example is intentional.  If you wanted to, you could design
+# a bwrap-using program that shared individual parts of /home, perhaps
+# public content.
 #
-# You can build on this example; for example, use --unshare-net to disable
+# Another way to build on this example is to remove --share-net to disable
 # networking.
 set -euo pipefail
 (exec bwrap --ro-bind /usr /usr \
@@ -18,12 +21,8 @@ set -euo pipefail
       --symlink usr/bin /bin \
       --symlink usr/sbin /sbin \
       --chdir / \
-      --unshare-pid \
-      --unshare-user-try \
-      --unshare-ipc \
-      --unshare-net \
-      --unshare-uts \
-      --unshare-cgroup-try \
+      --unshare-all \
+      --share-net \
       --dir /run/user/$(id -u) \
       --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
       --setenv PS1 "bwrap-demo$ " \
