@@ -16,6 +16,7 @@ packages:
   - redhat-rpm-config
   - libcap-devel
   - pkgconfig(libselinux)
+  - pkgconfig(libseccomp)
   - libxslt
   - docbook-style-xsl
 
@@ -48,6 +49,7 @@ packages:
   - redhat-rpm-config
   - libcap-devel
   - pkgconfig(libselinux)
+  - pkgconfig(libseccomp)
   - libxslt
   - docbook-style-xsl
   - clang
