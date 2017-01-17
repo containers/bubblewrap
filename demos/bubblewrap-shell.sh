@@ -19,6 +19,11 @@ set -euo pipefail
       --symlink usr/sbin /sbin \
       --chdir / \
       --unshare-pid \
+      --unshare-user-try \
+      --unshare-ipc \
+      --unshare-net \
+      --unshare-uts \
+      --unshare-cgroup-try \
       --dir /run/user/$(id -u) \
       --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
       --setenv PS1 "bwrap-demo$ " \
