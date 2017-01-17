@@ -64,6 +64,7 @@ bool opt_unshare_uts = FALSE;
 bool opt_unshare_cgroup = FALSE;
 bool opt_unshare_cgroup_try = FALSE;
 bool opt_needs_devpts = FALSE;
+bool opt_new_session = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
@@ -213,6 +214,7 @@ usage (int ecode, FILE *out)
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
+           "    --new-session                Create a new terminal session\n"
           );
   exit (ecode);
 }
@@ -1586,6 +1588,10 @@ parse_args_recurse (int    *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--new-session") == 0)
+        {
+          opt_new_session = TRUE;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -2121,7 +2127,8 @@ main (int    argc,
   /* We want sigchild in the child */
   unblock_sigchild ();
 
-  if (setsid () == (pid_t) -1)
+  if (opt_new_session &&
+      setsid () == (pid_t) -1)
     die_with_error ("setsid");
 
   if (label_exec (opt_exec_label) == -1)
