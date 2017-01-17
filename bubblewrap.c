@@ -2080,6 +2080,13 @@ main (int    argc,
   xsetenv ("PWD", new_cwd, 1);
   free (old_cwd);
 
+  if (opt_new_session &&
+      setsid () == (pid_t) -1)
+    die_with_error ("setsid");
+
+  if (label_exec (opt_exec_label) == -1)
+    die_with_error ("label_exec %s", argv[0]);
+
   __debug__ (("forking for child\n"));
 
   if (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1)
@@ -2126,13 +2133,6 @@ main (int    argc,
 
   /* We want sigchild in the child */
   unblock_sigchild ();
-
-  if (opt_new_session &&
-      setsid () == (pid_t) -1)
-    die_with_error ("setsid");
-
-  if (label_exec (opt_exec_label) == -1)
-    die_with_error ("label_exec %s", argv[0]);
 
   if (execvp (argv[0], argv) == -1)
     die_with_error ("execvp %s", argv[0]);
