@@ -373,7 +373,7 @@ monitor_child (int event_fd, pid_t child_pid)
  * When there are no other processes in the sandbox the wait will return
  * ECHILD, and we then exit pid 1 to clean up the sandbox. */
 static int
-do_init (int event_fd, pid_t initial_pid)
+do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
 {
   int initial_exit_status = 1;
   LockFile *lock;
@@ -396,6 +396,10 @@ do_init (int event_fd, pid_t initial_pid)
 
       /* Keep fd open to hang on to lock */
     }
+
+  if (seccomp_prog != NULL &&
+      prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, seccomp_prog) != 0)
+    die_with_error ("prctl(PR_SET_SECCOMP)");
 
   while (TRUE)
     {
@@ -1658,6 +1662,9 @@ main (int    argc,
   struct stat sbuf;
   uint64_t val;
   int res UNUSED;
+  cleanup_free char *seccomp_data = NULL;
+  size_t seccomp_len;
+  struct sock_fprog seccomp_prog;
 
   real_uid = getuid ();
   real_gid = getgid ();
@@ -2035,10 +2042,6 @@ main (int    argc,
 
   if (opt_seccomp_fd != -1)
     {
-      cleanup_free char *seccomp_data = NULL;
-      size_t seccomp_len;
-      struct sock_fprog prog;
-
       seccomp_data = load_file_data (opt_seccomp_fd, &seccomp_len);
       if (seccomp_data == NULL)
         die_with_error ("Can't read seccomp data");
@@ -2046,13 +2049,10 @@ main (int    argc,
       if (seccomp_len % 8 != 0)
         die ("Invalid seccomp data, must be multiple of 8");
 
-      prog.len = seccomp_len / 8;
-      prog.filter = (struct sock_filter *) seccomp_data;
+      seccomp_prog.len = seccomp_len / 8;
+      seccomp_prog.filter = (struct sock_filter *) seccomp_data;
 
       close (opt_seccomp_fd);
-
-      if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0)
-        die_with_error ("prctl(PR_SET_SECCOMP)");
     }
 
   umask (old_umask);
@@ -2119,7 +2119,7 @@ main (int    argc,
             fdwalk (proc_fd, close_extra_fds, dont_close);
           }
 
-          return do_init (event_fd, pid);
+          return do_init (event_fd, pid, seccomp_data != NULL ? &seccomp_prog : NULL);
         }
     }
 
@@ -2133,6 +2133,10 @@ main (int    argc,
 
   /* We want sigchild in the child */
   unblock_sigchild ();
+
+  if (seccomp_data != NULL &&
+      prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
+    die_with_error ("prctl(PR_SET_SECCOMP)");
 
   if (execvp (argv[0], argv) == -1)
     die_with_error ("execvp %s", argv[0]);
