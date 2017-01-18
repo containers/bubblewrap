@@ -1718,6 +1718,10 @@ main (int    argc,
   if (!is_privileged && getuid () != 0)
     opt_unshare_user = TRUE;
 
+  /* user namespaces should also be used if installed suid for security reasons */
+  if (is_privileged && getuid () != 0)
+    opt_unshare_user_try = TRUE;
+  
   if (opt_unshare_user_try &&
       stat ("/proc/self/ns/user", &sbuf) == 0)
     {
