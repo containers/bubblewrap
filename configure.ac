@@ -89,7 +89,7 @@ AC_SUBST(WARN_CFLAGS)
 
 AC_ARG_WITH(priv-mode,
             AS_HELP_STRING([--with-priv-mode=setuid/none],
-                           [How to set privilege-raising during make install)]),
+                           [How to set privilege-raising during make install]),
             [],
             [with_priv_mode="none"])
 
