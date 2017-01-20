@@ -100,6 +100,24 @@ AC_ARG_ENABLE(sudo,
               [SUDO_BIN="sudo"], [SUDO_BIN=""])
 AC_SUBST([SUDO_BIN])
 
+AC_ARG_WITH(default-userns,
+            AS_HELP_STRING([--with-default-userns=yes/no],
+                           [Use user namespaces by default when installed suid)]),
+            [],
+            [with_default_userns="no"])
+
+AM_CONDITIONAL(HAVE_DEFAULT_USERNS, test "x$with_default_userns" = "xyes")
+
+
+if test "x$with_default_userns" = "xyes"; then
+AC_DEFINE(HAVE_DEFAULT_USERNS, 1, [Define if userns should be used by default in suid mode])
+	   with_default_userns=yes
+           AC_MSG_RESULT([yes])
+else
+	   with_default_userns=no
+   	   AC_MSG_RESULT([no])
+fi
+
 AC_CONFIG_FILES([
 Makefile
 ])
@@ -112,5 +130,6 @@ echo "
     man pages (xsltproc):                         $enable_man
     SELinux:                                      $have_selinux
     setuid mode on make install:                  $with_priv_mode
+    use default userns with suid:		  $with_default_userns		
     mysteriously satisfying to pop:               yes"
 echo ""
