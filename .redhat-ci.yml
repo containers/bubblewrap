@@ -1,69 +1,25 @@
+context: centos7
+required: true
+
 branches:
     - master
     - auto
     - try
 
-container:
-    image: centos:7
+host:
+    distro: centos/7/atomic
 
-packages:
-  # Core things to pull from the rpm spec when rhci does that
-  - autoconf
-  - automake
-  - libtool
-  - make
-  - gcc
-  - redhat-rpm-config
-  - libcap-devel
-  - pkgconfig(libselinux)
-  - libxslt
-  - docbook-style-xsl
-
-build:
-  config-opts: >
-    --prefix=/usr
-    --libdir=/usr/lib64
+tests:
+  - env BWRAP_SUID=true ./ci/redhat-ci.sh centos:7
 
 timeout: 30m
-
-artifacts:
-    - test-suite.log
-
----
-
-inherit: true
-
-context: clang-f25
-
-container:
-    image: fedora:25
-
-packages:
-  # Copy and paste of above since we can't inherit right now
-  - autoconf
-  - automake
-  - libtool
-  - make
-  - gcc
-  - redhat-rpm-config
-  - libcap-devel
-  - pkgconfig(libselinux)
-  - libxslt
-  - docbook-style-xsl
-  - clang
-  - libubsan
-  - libasan
-
-env:
-    CC: 'clang'
-    CFLAGS: '-Werror=unused-variable'
 
 ---
 
 inherit: true
 
 context: f25-asan-ubsan
+required: true
 
-env:
-    CC: 'gcc'
-    CFLAGS: '-g -Og -fsanitize=undefined -fsanitize=address'
+tests:
+  - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address' ./ci/redhat-ci.sh fedora:25
