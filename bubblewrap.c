@@ -1718,6 +1718,12 @@ main (int    argc,
   if (!is_privileged && getuid () != 0)
     opt_unshare_user = TRUE;
 
+#ifdef ENABLE_REQUIRE_USERNS
+  /* In this build option, we require userns. */
+  if (is_privileged && getuid () != 0)
+    opt_unshare_user = TRUE;
+#endif
+
   if (opt_unshare_user_try &&
       stat ("/proc/self/ns/user", &sbuf) == 0)
     {
