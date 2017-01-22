@@ -53,7 +53,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-for ALT in "" "--unshare-user"  "--unshare-pid" "--unshare-user --unshare-pid"; do
+for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshare-pid"; do
     # Test fuse fs as bind source
     if [ x$FUSE_DIR != x ]; then
         $RUN $ALT  --proc /proc --dev /dev --bind $FUSE_DIR /tmp/foo true
