@@ -1,4 +1,5 @@
 context: centos7
+required: true
 
 branches:
     - master
@@ -18,6 +19,7 @@ timeout: 30m
 inherit: true
 
 context: f25-asan-ubsan
+required: true
 
 tests:
   - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address' ./ci/redhat-ci.sh fedora:25
