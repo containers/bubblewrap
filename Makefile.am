@@ -29,7 +29,7 @@ test_bwrap_SOURCES=
 
 include Makefile-docs.am
 
-TESTS = tests/test-basic.sh tests/test-run.sh
+TESTS = tests/test-run.sh
 TESTS_ENVIRONMENT = BWRAP=$(abs_top_builddir)/test-bwrap
 
 EXTRA_DIST += $(TESTS)

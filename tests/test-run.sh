@@ -53,6 +53,10 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
+# Test help
+$BWRAP --help > help.txt
+assert_file_has_content help.txt "usage: bwrap"
+
 for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshare-pid"; do
     # Test fuse fs as bind source
     if [ x$FUSE_DIR != x ]; then
