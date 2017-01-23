@@ -17,6 +17,8 @@ function cleanup () {
 trap cleanup EXIT
 cd ${tempdir}
 
+: "${BWRAP:=bwrap}"
+
 skip () {
     echo $@ 1>&2; exit 77
 }
@@ -47,11 +49,15 @@ if test -x `dirname $UNREADABLE`; then
 fi
 
 # Default arg, bind whole host fs to /, tmpfs on /tmp
-RUN="${BWRAP:-bwrap} --bind / / --tmpfs /tmp"
+RUN="${BWRAP} --bind / / --tmpfs /tmp"
 
 if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
+
+# Test help
+${BWRAP} --help > help.txt
+assert_file_has_content help.txt "usage: bwrap"
 
 for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshare-pid"; do
     # Test fuse fs as bind source
