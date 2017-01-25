@@ -280,6 +280,15 @@
         the application can feed keyboard input to the terminal.
       </para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--die-with-parent</option></term>
+      <listitem><para>
+    Ensures child process (COMMAND) dies when bwrap's parent dies. Kills (SIGKILL)
+        all bwrap sandbox processes in sequence from parent to child
+        including COMMAND process when bwrap or bwrap's parent dies.
+        See prctl, PR_SET_PDEATHSIG.
+      </para></listitem>
+    </varlistentry>
   </variablelist>
 </refsect1>
 

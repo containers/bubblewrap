@@ -84,4 +84,49 @@ for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshar
     # bind dest in symlink (https://github.com/projectatomic/bubblewrap/pull/119)
     $RUN $ALT --dir /tmp/dir --symlink dir /tmp/link --bind /etc /tmp/link true
 done
+
+# Test --die-with-parent
+
+cat >lockf-n.py <<EOF
+#!/usr/bin/env python
+import struct,fcntl,sys
+path = sys.argv[1]
+if sys.argv[2] == 'wait':
+  locktype = fcntl.F_SETLKW
+else:
+  locktype = fcntl.F_SETLK
+lockdata = struct.pack("hhllhh", fcntl.F_WRLCK, 0, 0, 0, 0, 0)
+fd=open(sys.argv[1], 'a')
+try:
+  fcntl.fcntl(fd.fileno(), locktype, lockdata)
+except IOError as e:
+  sys.exit(1)
+sys.exit(0)
+EOF
+chmod a+x lockf-n.py
+touch lock
+
+for die_with_parent_argv in "--die-with-parent" "--die-with-parent --unshare-pid"; do
+    /bin/bash -c "$RUN ${die_with_parent_argv} --lock-file $(pwd)/lock sleep 1h && true" &
+    childshellpid=$!
+
+    # Wait for lock to be taken (yes hacky)
+    for x in $(seq 10); do
+        if ./lockf-n.py ./lock nowait; then
+            sleep 1
+        else
+            break
+        fi
+    done
+    if ./lockf-n.py ./lock nowait; then
+        assert_not_reached "timed out waiting for lock"
+    fi
+
+    # Kill the shell, which should kill bwrap (and the sleep)
+    kill -9 ${childshellpid}
+    # Lock file should be unlocked
+    ./lockf-n.py ./lock wait
+    echo "ok die with parent ${die_with_parent_argv}"
+done
+
 echo OK
