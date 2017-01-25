@@ -1911,8 +1911,8 @@ main (int    argc,
    */
   switch_to_user_with_privs ();
 
-  if (opt_unshare_net && loopback_setup () != 0)
-    die ("Can't create loopback device");
+  if (opt_unshare_net)
+    loopback_setup (); /* Will exit if unsuccessful */
 
   ns_uid = opt_sandbox_uid;
   ns_gid = opt_sandbox_gid;

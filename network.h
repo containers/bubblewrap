@@ -18,4 +18,4 @@
 
 #pragma once
 
-int loopback_setup (void);
+void loopback_setup (void);

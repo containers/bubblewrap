@@ -132,7 +132,7 @@ rtnl_setup_request (char  *buffer,
   return (struct nlmsghdr *) header;
 }
 
-int
+void
 loopback_setup (void)
 {
   int r, if_loopback;
@@ -148,15 +148,15 @@ loopback_setup (void)
 
   if_loopback = (int) if_nametoindex ("lo");
   if (if_loopback <= 0)
-    return -1;
+    die_with_error ("loopback: Failed to look up lo");
 
   rtnl_fd = socket (PF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
   if (rtnl_fd < 0)
-    return -1;
+    die_with_error ("loopback: Failed to create NETLINK_ROUTE socket");
 
   r = bind (rtnl_fd, (struct sockaddr *) &src_addr, sizeof (src_addr));
   if (r < 0)
-    return -1;
+    die_with_error ("loopback: Failed to bind NETLINK_ROUTE socket");
 
   header = rtnl_setup_request (buffer, RTM_NEWADDR,
                                NLM_F_CREATE | NLM_F_EXCL | NLM_F_ACK,
@@ -178,7 +178,7 @@ loopback_setup (void)
   assert (header->nlmsg_len < sizeof (buffer));
 
   if (rtnl_do_request (rtnl_fd, header) != 0)
-    return -1;
+    die_with_error ("loopback: Failed RTM_NEWADDR");
 
   header = rtnl_setup_request (buffer, RTM_NEWLINK,
                                NLM_F_ACK,
@@ -194,7 +194,5 @@ loopback_setup (void)
   assert (header->nlmsg_len < sizeof (buffer));
 
   if (rtnl_do_request (rtnl_fd, header) != 0)
-    return -1;
-
-  return 0;
+    die_with_error ("loopback: Failed RTM_NEWLINK");
 }
