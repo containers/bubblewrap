@@ -65,6 +65,7 @@ bool opt_unshare_cgroup = FALSE;
 bool opt_unshare_cgroup_try = FALSE;
 bool opt_needs_devpts = FALSE;
 bool opt_new_session = FALSE;
+bool opt_die_with_parent = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
@@ -217,8 +218,19 @@ usage (int ecode, FILE *out)
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --new-session                Create a new terminal session\n"
+           "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
           );
   exit (ecode);
+}
+
+/* If --die-with-parent was specified, use PDEATHSIG to ensure SIGKILL
+ * is sent to the current process when our parent dies.
+ */
+static void
+handle_die_with_parent (void)
+{
+  if (opt_die_with_parent && prctl (PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0)
+    die_with_error ("prctl");
 }
 
 static void
@@ -398,6 +410,9 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
 
       /* Keep fd open to hang on to lock */
     }
+
+  /* Optionally bind our lifecycle to that of the caller */
+  handle_die_with_parent ();
 
   if (seccomp_prog != NULL &&
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, seccomp_prog) != 0)
@@ -1627,6 +1642,10 @@ parse_args_recurse (int    *argcp,
         {
           opt_new_session = TRUE;
         }
+      else if (strcmp (arg, "--die-with-parent") == 0)
+        {
+          opt_die_with_parent = TRUE;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -1876,6 +1895,9 @@ main (int    argc,
 
       /* We don't need any privileges in the launcher, drop them immediately. */
       drop_privs ();
+
+      /* Optionally bind our lifecycle to that of the parent */
+      handle_die_with_parent ();
 
       /* Let child run now that the uid maps are set up */
       val = 1;
@@ -2171,6 +2193,11 @@ main (int    argc,
   /* We want sigchild in the child */
   unblock_sigchild ();
 
+  /* Optionally bind our lifecycle */
+  handle_die_with_parent ();
+
+  /* Should be the last thing before execve() so that filters don't
+   * need to handle anything above */
   if (seccomp_data != NULL &&
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
     die_with_error ("prctl(PR_SET_SECCOMP)");
