@@ -7,6 +7,8 @@ bwrap_SOURCES = \
 	$(bwrap_srcpath)/network.c \
 	$(bwrap_srcpath)/utils.h \
 	$(bwrap_srcpath)/utils.c \
+	$(bwrap_srcpath)/setproctitle.h \
+	$(bwrap_srcpath)/setproctitle.c \
 	$(NULL)
 
 bwrap_CFLAGS = $(AM_CFLAGS)
