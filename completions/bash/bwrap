@@ -25,6 +25,8 @@ _bwrap() {
 		--args
 		--bind
 		--bind-data
+		--overlay
+		--ro-overlay
 		--block-fd
 		--chdir
 		--dev
