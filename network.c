@@ -78,15 +78,22 @@ rtnl_read_reply (int rtnl_fd,
       while (received >= NLMSG_HDRLEN)
         {
           if (rheader->nlmsg_seq != seq_nr)
-            return -1;
+            {
+              errno = EINVAL;
+              return -1;
+            }
           if (rheader->nlmsg_pid != getpid ())
-            return -1;
+            {
+              errno = EINVAL;
+              return -1;
+            }
           if (rheader->nlmsg_type == NLMSG_ERROR)
             {
               uint32_t *err = NLMSG_DATA (rheader);
               if (*err == 0)
                 return 0;
 
+              errno = -*err;
               return -1;
             }
           if (rheader->nlmsg_type == NLMSG_DONE)
