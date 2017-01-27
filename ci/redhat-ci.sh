@@ -41,7 +41,7 @@ if test -z "${container:-}"; then
     rpm -Uvh https://kojipkgs.fedoraproject.org//packages/glibc/2.24/4.fc25/x86_64/{libcrypt-nss,glibc,glibc-common,glibc-all-langpacks}-2.24-4.fc25.x86_64.rpm
     useradd bwrap-tester
     runcontainer
-    runuser -u bwrap-tester ./tests/test-run.sh
+    runuser -u bwrap-tester env ASAN_OPTIONS=detect_leaks=false ./tests/test-run.sh
 else
     buildinstall_to_host
 fi
