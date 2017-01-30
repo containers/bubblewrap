@@ -1703,7 +1703,7 @@ main (int    argc,
 
   read_overflowids ();
 
-  bwrap_init_setproctitle(argc, argv);
+  bwrap_init_setproctitle (argc, argv);
 
   argv0 = argv[0];
 

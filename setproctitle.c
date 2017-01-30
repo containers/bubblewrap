@@ -53,9 +53,6 @@
 /* The original */
 static char **bwrap_os_argv;
 static char **bwrap_os_environ;
-/* A copy we make */
-static int bwrap_argc;
-static char **bwrap_argv;
 extern char **environ;
 
 static char *bwrap_os_argv_last;
@@ -66,18 +63,7 @@ static char *bwrap_os_argv_last;
 static void
 bwrap_save_argv(int argc, char *const *argv)
 {
-  int  i;
-
   bwrap_os_argv = (char **) argv;
-  bwrap_argc = argc;
-
-  bwrap_argv = xmalloc((argc + 1) * sizeof(char *));
-
-  for (i = 0; i < argc; i++) {
-    bwrap_argv[i] = xstrdup(argv[i]);
-  }
-
-  bwrap_argv[i] = NULL;
   bwrap_os_environ = environ;
 }
 
