@@ -482,10 +482,17 @@ drop_cap_bounding_set (void)
 {
   unsigned long cap;
 
+  /* We ignore both EINVAL and EPERM, as we are actually relying
+   * on PR_SET_NO_NEW_PRIVS to ensure the right capabilities are
+   * available.  EPERM in particular can happen with old, buggy
+   * kernels.  See:
+   *  https://github.com/projectatomic/bubblewrap/pull/175#issuecomment-278051373
+   *  https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/security/commoncap.c?id=160da84dbb39443fdade7151bc63a88f8e953077
+   */
   for (cap = 0; cap <= 63; cap++)
     {
       int res = prctl (PR_CAPBSET_DROP, cap, 0, 0, 0);
-      if (res == -1 && errno != EINVAL)
+      if (res == -1 && !(errno == EINVAL || errno == EPERM))
         die_with_error ("Dropping capability %ld from bounds", cap);
     }
 }
