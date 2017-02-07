@@ -855,7 +855,7 @@ setup_newroot (bool unshare_pid,
 
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, BIND_READONLY, NULL, dest);
+                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, 0, NULL, dest);
           break;
 
         case SETUP_MOUNT_PROC:
@@ -932,8 +932,7 @@ setup_newroot (bool unshare_pid,
             if (mkdir (pts, 0755) == -1)
               die_with_error ("Can't create %s/devpts", op->dest);
             privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_DEVPTS_MOUNT, BIND_DEVICES,
-                           pts, NULL);
+                           PRIV_SEP_OP_DEVPTS_MOUNT, 0, pts, NULL);
 
             if (symlink ("pts/ptmx", ptmx) != 0)
               die_with_error ("Can't make symlink at %s/ptmx", op->dest);
