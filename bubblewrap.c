@@ -1276,6 +1276,9 @@ parse_args_recurse (int    *argcp,
         }
       else if (strcmp (arg, "--remount-ro") == 0)
         {
+          if (argc < 2)
+            die ("--remount-ro takes one argument");
+
           SetupOp *op = setup_op_new (SETUP_REMOUNT_RO_NO_RECURSIVE);
           op->dest = argv[1];
 
