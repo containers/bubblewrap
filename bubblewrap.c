@@ -885,6 +885,9 @@ setup_newroot (bool unshare_pid,
           for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
             {
               cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
+              /* Some of these may not exist */
+              if (get_file_mode (subdir) == -1)
+                continue;
               privileged_op (privileged_op_socket,
                              PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
                              subdir, subdir);
