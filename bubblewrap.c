@@ -37,6 +37,7 @@
 #include "utils.h"
 #include "network.h"
 #include "bind-mount.h"
+#include "setproctitle.h"
 
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
@@ -398,6 +399,8 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
 
       /* Keep fd open to hang on to lock */
     }
+
+  bwrap_setproctitle ("cinit");
 
   if (seccomp_prog != NULL &&
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, seccomp_prog) != 0)
@@ -1711,6 +1714,8 @@ main (int    argc,
      (i.e. CAP_SYS_ADMIN), so take lots of care. */
 
   read_overflowids ();
+
+  bwrap_init_setproctitle (argc, argv);
 
   argv0 = argv[0];
 
