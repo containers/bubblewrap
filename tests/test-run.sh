@@ -57,7 +57,7 @@ fi
 
 # Test help
 ${BWRAP} --help > help.txt
-assert_file_has_content help.txt "usage: bwrap"
+assert_file_has_content help.txt "usage: ${BWRAP}"
 
 for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshare-pid"; do
     # Test fuse fs as bind source
