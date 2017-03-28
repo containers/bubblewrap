@@ -23,6 +23,7 @@ set -euo pipefail
       --chdir / \
       --unshare-all \
       --share-net \
+      --die-with-parent \
       --dir /run/user/$(id -u) \
       --setenv XDG_RUNTIME_DIR "/run/user/`id -u`" \
       --setenv PS1 "bwrap-demo$ " \
