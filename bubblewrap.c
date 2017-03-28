@@ -1142,6 +1142,13 @@ read_priv_sec_op (int          read_socket,
   return op->op;
 }
 
+static void __attribute__ ((noreturn))
+print_version_and_exit (void)
+{
+  printf ("%s\n", PACKAGE_STRING);
+  exit (0);
+}
+
 static void
 parse_args_recurse (int    *argcp,
                     char ***argvp,
@@ -1176,8 +1183,7 @@ parse_args_recurse (int    *argcp,
         }
       else if (strcmp (arg, "--version") == 0)
         {
-          printf ("%s\n", PACKAGE_STRING);
-          exit (0);
+          print_version_and_exit ();
         }
       else if (strcmp (arg, "--args") == 0)
         {
@@ -1715,6 +1721,14 @@ main (int    argc,
   cleanup_free char *seccomp_data = NULL;
   size_t seccomp_len;
   struct sock_fprog seccomp_prog;
+
+  /* Handle --version early on before we try to acquire/drop
+   * any capabilities so it works in a build environment;
+   * right now flatpak's build runs bubblewrap --version.
+   * https://github.com/projectatomic/bubblewrap/issues/185
+   */
+  if (argc == 2 && (strcmp (argv[1], "--version") == 0))
+    print_version_and_exit ();
 
   real_uid = getuid ();
   real_gid = getgid ();
