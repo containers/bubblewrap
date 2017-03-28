@@ -2109,7 +2109,7 @@ main (int    argc,
   if (opt_block_fd != -1)
     {
       char b[1];
-      read (opt_block_fd, b, 1);
+      (void) TEMP_FAILURE_RETRY (read (opt_block_fd, b, 1));
       close (opt_block_fd);
     }
 

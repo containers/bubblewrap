@@ -18,8 +18,8 @@ timeout: 30m
 
 inherit: true
 
-context: f25-asan-ubsan
+context: f25-sanitizer
 required: true
 
 tests:
-  - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address' ./ci/redhat-ci.sh fedora:25
+  - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address -O2 -Wp,-D_FORTIFY_SOURCE=2' ./ci/redhat-ci.sh fedora:25
