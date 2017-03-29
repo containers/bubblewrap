@@ -78,6 +78,8 @@ typedef enum {
   SETUP_BIND_MOUNT,
   SETUP_RO_BIND_MOUNT,
   SETUP_DEV_BIND_MOUNT,
+  SETUP_OVERLAY_MOUNT,
+  SETUP_RO_OVERLAY_MOUNT,
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
   SETUP_MOUNT_TMPFS,
@@ -102,6 +104,12 @@ struct _SetupOp
   SetupOpType type;
   const char *source;
   const char *dest;
+
+  /* for overlayfs: */
+  const char *layers;
+  const char *workdir;
+  const char *options;
+
   int         fd;
   SetupOpFlag flags;
   SetupOp    *next;
@@ -123,6 +131,7 @@ static LockFile *last_lock_file = NULL;
 enum {
   PRIV_SEP_OP_DONE,
   PRIV_SEP_OP_BIND_MOUNT,
+  PRIV_SEP_OP_OVERLAY_MOUNT,
   PRIV_SEP_OP_PROC_MOUNT,
   PRIV_SEP_OP_TMPFS_MOUNT,
   PRIV_SEP_OP_DEVPTS_MOUNT,
@@ -203,6 +212,11 @@ usage (int ecode, FILE *out)
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
            "    --remount-ro DEST            Remount DEST as readonly, it doesn't recursively remount\n"
+           "    --overlay LAYERS DEST WORKDIR Mount overlayfs on DEST.  LAYERS is a colon seperated list of\n"
+           "                                 directories.  WORKDIR must be an empty directory on the same\n"
+           "                                 filesystem as the last layer.\n"
+           "    --overlay-ro LAYERS DEST     Mount overlayfs read-only on DEST.  LAYERS is a colon seperated list\n"
+           "                                 of directories\n"
            "    --exec-label LABEL           Exec Label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
            "    --proc DEST                  Mount procfs on DEST\n"
@@ -800,6 +814,12 @@ privileged_op (int         privileged_op_socket,
         die_with_error ("Can't mount mqueue on %s", arg1);
       break;
 
+    case PRIV_SEP_OP_OVERLAY_MOUNT:
+      if (mount ("overlay", arg2, "overlay", MS_MGC_VAL, arg1) != 0)
+        die_with_error ("Can't make overlay mount on %s with options %s",
+                        arg2, arg1);
+      break;
+
     case PRIV_SEP_OP_SET_HOSTNAME:
       /* This is checked at the start, but lets verify it here in case
          something manages to send hacked priv-sep operation requests. */
@@ -812,6 +832,93 @@ privileged_op (int         privileged_op_socket,
     default:
       die ("Unexpected privileged op %d", op);
     }
+}
+
+struct _StringBuilder
+{
+  char * str;
+  size_t size;
+  size_t offset;
+};
+
+static void
+strappend(struct _StringBuilder *dest, const char *src)
+{
+  size_t len = strlen(src);
+  if (dest->offset + len >= dest->size) {
+    dest->size = (dest->size + len) * 2;
+    dest->str = realloc(dest->str, dest->size);
+    if (dest->str == NULL)
+      die ("Out of memory");
+  }
+
+  strcpy(dest->str + dest->offset, src);
+  dest->offset += len;
+}
+
+/*
+ * "/hello:/goodbye" -> "lowerdir=/oldroot/hello:/oldroot/goodbye"
+ */
+static char *
+ro_overlay_options(const char* layers)
+{
+  struct _StringBuilder sb = {0};
+  cleanup_free char *layers_mut = strdup(layers);
+  char buf[PATH_MAX];
+  char * token;
+  int first = 1;
+
+  strappend(&sb, "lowerdir=");
+
+  token = strtok(layers_mut, ":");
+  while (token != NULL) {
+    if (!first)
+      strappend(&sb, ":");
+    strappend(&sb, "/oldroot");
+    /* Resolve absolute symlinks before we remount under /oldroot: */
+    strappend(&sb, realpath (token, buf));
+
+    token = strtok(NULL, ":");
+    first = 0;
+  }
+  return sb.str;
+}
+
+/*
+ * "/hello:/goodbye", "/moo" -> "lowerdir=/oldroot/hello,upperdir=/oldroot/goodbye,workdir=/oldroot/moo"
+ * "/hello:/3:/goodbye", "/moo" -> "lowerdir=/oldroot/hello:/oldroot/3,upperdir=/oldroot/goodbye,workdir=/oldroot/moo"
+ */
+static char *
+rw_overlay_options(const char* layers, const char* workdir)
+{
+  struct _StringBuilder sb = {0};
+  cleanup_free char *layers_mut = strdup(layers);
+  char buf[PATH_MAX];
+  char *path, *next;
+  int first = 1;
+
+  strappend(&sb, "lowerdir=");
+
+  next = strtok(layers_mut, ":");
+  while (1) {
+    path = next;
+    next = strtok(NULL, ":");
+    if (next == NULL)
+      break;
+
+    if (!first)
+      strappend(&sb, ":");
+    strappend(&sb, "/oldroot");
+    /* Resolve absolute symlinks before we remount under /oldroot: */
+    strappend(&sb, realpath (path, buf));
+
+    first = 0;
+  }
+  strappend(&sb, ",upperdir=/oldroot");
+  strappend(&sb, realpath (path, buf));
+  strappend(&sb, ",workdir=/oldroot");
+  strappend(&sb, realpath (workdir, buf));
+  return sb.str;
 }
 
 /* This is run unprivileged in the child namespace but can request
@@ -866,6 +973,18 @@ setup_newroot (bool unshare_pid,
                          (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
                          (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
                          source, dest);
+          break;
+
+        case SETUP_OVERLAY_MOUNT:
+        case SETUP_RO_OVERLAY_MOUNT:
+          {
+            cleanup_free char *options = NULL;
+            if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+              die_with_error ("Can't mkdir %s", op->dest);
+
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_OVERLAY_MOUNT, 0, op->options, dest);
+          }
           break;
 
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
@@ -1086,6 +1205,12 @@ resolve_symlinks_in_ops (void)
           op->source = realpath (old_source, NULL);
           if (op->source == NULL)
             die_with_error ("Can't find source path %s", old_source);
+          break;
+        case SETUP_RO_OVERLAY_MOUNT:
+          op->options = ro_overlay_options(op->layers);
+          break;
+        case SETUP_OVERLAY_MOUNT:
+          op->options = rw_overlay_options(op->layers, op->workdir);
           break;
         default:
           break;
@@ -1346,6 +1471,31 @@ parse_args_recurse (int    *argcp,
 
           op = setup_op_new (SETUP_DEV_BIND_MOUNT);
           op->source = argv[1];
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--overlay") == 0)
+        {
+          if (argc < 4)
+            die ("--overlay takes three arguments");
+
+          op = setup_op_new (SETUP_OVERLAY_MOUNT);
+          op->layers = argv[1];
+          op->dest = argv[2];
+          op->workdir = argv[3];
+
+          argv += 3;
+          argc -= 3;
+        }
+      else if (strcmp (arg, "--ro-overlay") == 0)
+        {
+          if (argc < 3)
+            die ("--ro-overlay takes two arguments");
+
+          op = setup_op_new (SETUP_RO_OVERLAY_MOUNT);
+          op->layers = argv[1];
           op->dest = argv[2];
 
           argv += 2;

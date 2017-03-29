@@ -196,6 +196,41 @@
       <listitem><para>Remount the path <arg choice="plain">DEST</arg> as readonly.  It works only on the specified mount point, without changing any other mount point under the specified path</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--overlay <arg choice="plain">LAYERS</arg> <arg choice="plain">DEST</arg> <arg choice="plain">WORKDIR</arg></option></term>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--ro-overlay <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
+      <listitem>
+        <para>Use overlayfs to bind mount the host paths
+          <arg choice="plain">LAYERS</arg> on <arg choice="plain">DEST</arg>.
+          <arg choice="plain">LAYERS</arg> is a colon seperated list of paths.
+          <arg choice="plain">DEST</arg> will contain the union of all the files
+          in all the <arg choice="plain">LAYERS</arg>.  The paths listed in
+          LAYERS may not contain a comma (,) or a colon (:).
+        </para>
+        <para>
+          With <arg choice="plain">--overlay</arg> all writes will go to the
+          top layer which is the last layer in the list.
+          <arg choice="plain">WORKDIR</arg> must be an empty directory on the
+          same filesystem as the top layer.
+        </para>
+        <para>
+          With <arg choice="plain">--ro-overlay</arg> the filesystem will be
+          mounted read-only so a <arg choice="plain">WORKDIR</arg> is not needed
+          and shouldn't be provided.
+        </para>
+        <para>
+          Using <arg choice="plain">--ro-overlay</arg> or providing more than
+          one layer requires a Linux kernel version of 4.0 or later. 
+        </para>
+        <para>
+          For more information see the Overlay Filesystem documentation in the
+          Linux kernel at
+          https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--proc <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Mount procfs on <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
