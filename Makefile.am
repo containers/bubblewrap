@@ -4,7 +4,7 @@ EXTRA_DIST =
 
 GITIGNOREFILES = build-aux/ gtk-doc.make config.h.in aclocal.m4
 
-bin_PROGRAMS = bwrap
+bin_PROGRAMS = bwrap bwrap-oci
 
 bwrap_srcpath := $(srcdir)
 include Makefile-bwrap.am

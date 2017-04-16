@@ -57,4 +57,28 @@ _bwrap() {
 
 	return 0
 }
+
+_bwrap_oci() {
+    local cur prev words cword
+    _init_completion || return
+
+	local boolean_options="
+		--help
+		--dry-run
+		--version
+	"
+
+	local options_with_args="
+		$boolean_optons
+		--configuration
+	"
+
+	if [[ "$cur" == -* ]]; then
+	    COMPREPLY=( $( compgen -W "$boolean_options $options_with_args" -- "$cur" ) )
+	fi
+
+	return 0
+}
+
 complete -F _bwrap bwrap
+complete -F _bwrap_oci bwrap-oci

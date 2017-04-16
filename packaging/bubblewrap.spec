@@ -17,6 +17,8 @@ BuildRequires: libcap-devel
 BuildRequires: pkgconfig(libselinux)
 BuildRequires: libxslt
 BuildRequires: docbook-style-xsl
+BuildRequires: json-glib-devel
+BuildRequires: libseccomp-devel
 
 %description
 Bubblewrap (/usr/bin/bwrap) is a core execution engine for unprivileged
@@ -46,4 +48,5 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_bindir}/bwrap
 %endif
 %{_mandir}/man1/*
+%{_bindir}/bwrap-oci
 
