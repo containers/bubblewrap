@@ -33,6 +33,7 @@
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
+#include <sys/resource.h>
 
 #include "utils.h"
 #include "network.h"
@@ -72,6 +73,7 @@ int opt_sync_fd = -1;
 int opt_block_fd = -1;
 int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
+int opt_limit_mem = 0;
 char *opt_sandbox_hostname = NULL;
 
 typedef enum {
@@ -219,6 +221,7 @@ usage (int ecode, FILE *out)
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
+           "    --limit-mem VALUE            Limit the sandbox' virtual memory allocation to VALUE MB.\n"
           );
   exit (ecode);
 }
@@ -1652,6 +1655,23 @@ parse_args_recurse (int    *argcp,
         {
           opt_die_with_parent = TRUE;
         }
+      else if (strcmp (arg, "--limit-mem") == 0)
+        {
+          int target_limit;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--limit-mem takes an argument");
+
+          target_limit = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || target_limit < 1)
+            die ("Invalid memory size: %s", argv[1]);
+
+          opt_limit_mem = target_limit;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -1721,6 +1741,7 @@ main (int    argc,
   cleanup_free char *seccomp_data = NULL;
   size_t seccomp_len;
   struct sock_fprog seccomp_prog;
+  struct rlimit limit_mem;
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2215,6 +2236,13 @@ main (int    argc,
   if (seccomp_data != NULL &&
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
     die_with_error ("prctl(PR_SET_SECCOMP)");
+
+  /* Optionally limit memory. This must occur after the fork and
+   * before the exec* call. */
+  if (opt_limit_mem) {
+    limit_mem.rlim_cur = limit_mem.rlim_max = opt_limit_mem * 1048576;
+    setrlimit(RLIMIT_DATA, &limit_mem);
+  }
 
   if (execvp (argv[0], argv) == -1)
     die_with_error ("execvp %s", argv[0]);
