@@ -289,6 +289,12 @@
         See prctl, PR_SET_PDEATHSIG.
       </para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--as-pid-1</option></term>
+      <listitem><para>
+	Do not create a process with PID=1 in the sandbox to reap child processes.
+      </para></listitem>
+    </varlistentry>
   </variablelist>
 </refsect1>
 

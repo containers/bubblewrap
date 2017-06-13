@@ -53,6 +53,7 @@ static const char *host_tty_dev;
 static int proc_fd = -1;
 static char *opt_exec_label = NULL;
 static char *opt_file_label = NULL;
+static bool opt_as_pid_1;
 
 char *opt_chdir_path = NULL;
 bool opt_unshare_user = FALSE;
@@ -219,6 +220,7 @@ usage (int ecode, FILE *out)
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
+           "    --as-pid-1                   Do not install a reaper process with PID=1\n"
           );
   exit (ecode);
 }
@@ -1652,6 +1654,10 @@ parse_args_recurse (int    *argcp,
         {
           opt_die_with_parent = TRUE;
         }
+      else if (strcmp (arg, "--as-pid-1") == 0)
+        {
+          opt_as_pid_1 = TRUE;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -1810,6 +1816,12 @@ main (int    argc,
   if (!opt_unshare_uts && opt_sandbox_hostname != NULL)
     die ("Specifying --hostname requires --unshare-uts");
 
+  if (opt_as_pid_1 && !opt_unshare_pid)
+    die ("Specifying --as-pid-1 requires --unshare-pid");
+
+  if (opt_as_pid_1 && lock_files != NULL)
+    die ("Specifying --as-pid-1 and --lock-file is not permitted");
+
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
   proc_fd = open ("/proc", O_RDONLY | O_PATH);
@@ -1829,7 +1841,7 @@ main (int    argc,
 
   __debug__ (("creating new namespace\n"));
 
-  if (opt_unshare_pid)
+  if (opt_unshare_pid && !opt_as_pid_1)
     {
       event_fd = eventfd (0, EFD_CLOEXEC | EFD_NONBLOCK);
       if (event_fd == -1)
@@ -2162,7 +2174,7 @@ main (int    argc,
 
   __debug__ (("forking for child\n"));
 
-  if (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1)
+  if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
     {
       /* We have to have a pid 1 in the pid namespace, because
        * otherwise we'll get a bunch of zombies as nothing reaps
@@ -2201,8 +2213,13 @@ main (int    argc,
   if (proc_fd != -1)
     close (proc_fd);
 
-  if (opt_sync_fd != -1)
-    close (opt_sync_fd);
+  /* If we are using --as-pid-1 leak the sync fd into the sandbox.
+     --sync-fd will still work unless the container process doesn't close this file.  */
+  if (!opt_as_pid_1)
+    {
+      if (opt_sync_fd != -1)
+        close (opt_sync_fd);
+    }
 
   /* We want sigchild in the child */
   unblock_sigchild ();

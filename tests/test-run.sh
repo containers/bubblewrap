@@ -85,6 +85,10 @@ for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshar
     $RUN $ALT --dir /tmp/dir --symlink dir /tmp/link --bind /etc /tmp/link true
 done
 
+# Test --as-pid-1
+$RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
+assert_file_has_content as_pid_1.txt "1"
+
 # Test --die-with-parent
 
 cat >lockf-n.py <<EOF
