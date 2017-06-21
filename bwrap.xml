@@ -263,6 +263,14 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--userns-block-fd <arg choice="plain">FD</arg></option></term>
+      <listitem><para>
+	Do not initialize the user namespace but wait on FD until it is ready.  This allow
+        external processes (like newuidmap/newgidmap) to setup the user namespace before it
+        is used by the sandbox process.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--info-fd <arg choice="plain">FD</arg></option></term>
       <listitem><para>
 	Write information in JSON format about the sandbox to FD.
