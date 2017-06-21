@@ -71,6 +71,7 @@ uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
 int opt_block_fd = -1;
+int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
 char *opt_sandbox_hostname = NULL;
@@ -220,6 +221,7 @@ usage (int ecode, FILE *out)
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
+           "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
@@ -1600,6 +1602,23 @@ parse_args_recurse (int    *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--userns-block-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--userns-block-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_userns_block_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--info-fd") == 0)
         {
           int the_fd;
@@ -1871,6 +1890,12 @@ main (int    argc,
   if ((requested_caps[0] || requested_caps[1]) && is_privileged)
     die ("--cap-add in setuid mode can be used only by root");
 
+  if (opt_userns_block_fd != -1 && !opt_unshare_user)
+    die ("--userns-block-fd requires --unshare-user");
+
+  if (opt_userns_block_fd != -1 && opt_info_fd == -1)
+    die ("--userns-block-fd requires --info-fd");
+
   /* We have to do this if we weren't installed setuid (and we're not
    * root), so let's just DWIM */
   if (!is_privileged && getuid () != 0)
@@ -2009,7 +2034,7 @@ main (int    argc,
     {
       /* Parent, outside sandbox, privileged (initially) */
 
-      if (is_privileged && opt_unshare_user)
+      if (is_privileged && opt_unshare_user && opt_userns_block_fd == -1)
         {
           /* We're running as euid 0, but the uid we want to map is
            * not 0. This means we're not allowed to write this from
@@ -2032,12 +2057,6 @@ main (int    argc,
       /* Optionally bind our lifecycle to that of the parent */
       handle_die_with_parent ();
 
-      /* Let child run now that the uid maps are set up */
-      val = 1;
-      res = write (child_wait_fd, &val, 8);
-      /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
-      close (child_wait_fd);
-
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
@@ -2046,6 +2065,19 @@ main (int    argc,
             die_with_error ("Write to info_fd");
           close (opt_info_fd);
         }
+
+      if (opt_userns_block_fd != -1)
+        {
+          char b[1];
+          (void) TEMP_FAILURE_RETRY (read (opt_userns_block_fd, b, 1));
+          close (opt_userns_block_fd);
+        }
+
+      /* Let child run now that the uid maps are set up */
+      val = 1;
+      res = write (child_wait_fd, &val, 8);
+      /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
+      close (child_wait_fd);
 
       monitor_child (event_fd, pid);
       exit (0); /* Should not be reached, but better safe... */
@@ -2083,7 +2115,7 @@ main (int    argc,
 
   ns_uid = opt_sandbox_uid;
   ns_gid = opt_sandbox_gid;
-  if (!is_privileged && opt_unshare_user)
+  if (!is_privileged && opt_unshare_user && opt_userns_block_fd == -1)
     {
       /* In the unprivileged case we have to write the uid/gid maps in
        * the child, because we have no caps in the parent */
@@ -2200,7 +2232,8 @@ main (int    argc,
     die_with_error ("unmount old root");
 
   if (opt_unshare_user &&
-      (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid))
+      (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid) &&
+      opt_userns_block_fd == -1)
     {
       /* Now that devpts is mounted and we've no need for mount
          permissions we can create a new userspace and map our uid

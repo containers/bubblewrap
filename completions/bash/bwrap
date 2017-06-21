@@ -52,6 +52,7 @@ _bwrap() {
 		--die-with-parent
                 --cap-add
                 --cap-drop
+		--userns-block-fd
 	"
 
 	if [[ "$cur" == -* ]]; then
