@@ -2316,6 +2316,40 @@ main (int    argc,
   if (umount2 ("oldroot", MNT_DETACH))
     die_with_error ("unmount old root");
 
+  /* This is our second pivot. It's like we're a Silicon Valley startup flush
+   * with cash but short on ideas!
+   *
+   * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
+   * that we need a temporary place to store it before we can unmount it.
+   */
+  { cleanup_free char *pivot_tmp = xstrdup ("bwrap-pivot-old-XXXXXX");
+    if (mount ("/newroot", "/newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+      die_with_error ("setting up newroot bind");
+    if (chdir ("/newroot") != 0)
+      die_with_error ("chdir /newroot");
+    if (mkdtemp (pivot_tmp) == NULL)
+      {
+        /* If the user did a bind mount of /, try /tmp */
+        if (errno == EPERM || errno == EACCES)
+          {
+            free (pivot_tmp);
+            pivot_tmp = xstrdup ("tmp/bwrap-pivot-old-XXXXXX");
+            if (mkdtemp (pivot_tmp) == NULL)
+              die_with_error ("mkdtemp");
+          }
+        else
+          die_with_error ("mkdtemp");
+      }
+    if (pivot_root (".", pivot_tmp) != 0)
+      die_with_error ("pivot_root(/newroot)");
+    if (chroot (".") != 0)
+      die_with_error ("chroot .");
+    if (chdir ("/") != 0)
+      die_with_error ("chdir /");
+    if (umount2 (pivot_tmp, MNT_DETACH) < 0)
+      die_with_error ("unmount old root");
+  }
+
   if (opt_unshare_user &&
       (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid) &&
       opt_userns_block_fd == -1)
@@ -2331,14 +2365,6 @@ main (int    argc,
                          opt_sandbox_gid, ns_gid,
                          -1, FALSE, FALSE);
     }
-
-  /* Now make /newroot the real root */
-  if (chdir ("/newroot") != 0)
-    die_with_error ("chdir newroot");
-  if (chroot ("/newroot") != 0)
-    die_with_error ("chroot /newroot");
-  if (chdir ("/") != 0)
-    die_with_error ("chdir /");
 
   /* All privileged ops are done now, so drop caps we don't need */
   drop_privs (!is_privileged);
