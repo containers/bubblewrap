@@ -263,6 +263,14 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--userns-block-fd <arg choice="plain">FD</arg></option></term>
+      <listitem><para>
+	Do not initialize the user namespace but wait on FD until it is ready.  This allow
+        external processes (like newuidmap/newgidmap) to setup the user namespace before it
+        is used by the sandbox process.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--info-fd <arg choice="plain">FD</arg></option></term>
       <listitem><para>
 	Write information in JSON format about the sandbox to FD.
@@ -293,6 +301,25 @@
       <term><option>--as-pid-1</option></term>
       <listitem><para>
 	Do not create a process with PID=1 in the sandbox to reap child processes.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--cap-add <arg choice="plain">CAP</arg></option></term>
+      <listitem><para>
+        Add the specified capability when running as privileged user.  It accepts
+        the special value ALL to add all the permitted caps.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--cap-drop <arg choice="plain">CAP</arg></option></term>
+      <listitem><para>
+        Drop the specified capability when running as privileged user.  It accepts
+        the special value ALL to drop all the caps.
+
+        By default no caps are left in the sandboxed process.  The
+        <option>--cap-add</option> and <option>--cap-drop</option>
+        options are processed in the order they are specified on the
+        command line.  Please be careful to the order they are specified.
       </para></listitem>
     </varlistentry>
   </variablelist>
