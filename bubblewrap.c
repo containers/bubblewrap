@@ -485,10 +485,20 @@ set_required_caps (void)
 }
 
 static void
-drop_all_caps (void)
+drop_all_caps (bool keep_requested_caps)
 {
   struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
   struct __user_cap_data_struct data[2] = { { 0 } };
+
+  if (keep_requested_caps)
+    {
+      data[0].effective = requested_caps[0];
+      data[0].permitted = requested_caps[0];
+      data[0].inheritable = requested_caps[0];
+      data[1].effective = requested_caps[1];
+      data[1].permitted = requested_caps[1];
+      data[1].inheritable = requested_caps[1];
+    }
 
   if (capset (&hdr, data) < 0)
     die_with_error ("capset failed");
@@ -660,16 +670,13 @@ switch_to_user_with_privs (void)
 }
 
 static void
-drop_privs (void)
+drop_privs (bool keep_requested_caps)
 {
-  if (!is_privileged)
-    return;
-
   /* Drop root uid */
-  if (setuid (opt_sandbox_uid) < 0)
+  if (getuid () == 0 && setuid (opt_sandbox_uid) < 0)
     die_with_error ("unable to drop root uid");
 
-  drop_all_caps ();
+  drop_all_caps (keep_requested_caps);
 }
 
 static char *
@@ -2052,7 +2059,7 @@ main (int    argc,
       /* Initial launched process, wait for exec:ed command to exit */
 
       /* We don't need any privileges in the launcher, drop them immediately. */
-      drop_privs ();
+      drop_privs (FALSE);
 
       /* Optionally bind our lifecycle to that of the parent */
       handle_die_with_parent ();
@@ -2189,7 +2196,7 @@ main (int    argc,
       if (child == 0)
         {
           /* Unprivileged setup process */
-          drop_privs ();
+          drop_privs (FALSE);
           close (privsep_sockets[0]);
           setup_newroot (opt_unshare_pid, privsep_sockets[1]);
           exit (0);
@@ -2256,7 +2263,7 @@ main (int    argc,
     die_with_error ("chdir /");
 
   /* All privileged ops are done now, so drop caps we don't need */
-  drop_privs ();
+  drop_privs (!is_privileged);
 
   if (opt_block_fd != -1)
     {
@@ -2328,6 +2335,8 @@ main (int    argc,
 
       if (pid != 0)
         {
+          drop_all_caps (FALSE);
+
           /* Close fds in pid 1, except stdio and optionally event_fd
              (for syncing pid 2 lifetime with monitor_child) and
              opt_sync_fd (for syncing sandbox lifetime with outside
