@@ -620,7 +620,7 @@ acquire_privs (void)
       if (new_fsuid != real_uid)
         die ("Unable to set fsuid (was %d)", (int)new_fsuid);
 
-      /* We never need capabilies after execve(), so lets drop everything from the bounding set */
+      /* We never need capabilities after execve(), so lets drop everything from the bounding set */
       drop_cap_bounding_set (TRUE);
 
       /* Keep only the required capabilities for setup */
