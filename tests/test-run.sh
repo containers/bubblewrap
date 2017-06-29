@@ -70,7 +70,15 @@ for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshar
     $RUN $ALT --unshare-net --proc /proc --dev /dev true
     # Unreadable file
     echo -n "expect EPERM: "
-    if $RUN $ALT --unshare-net --proc /proc --bind /etc/shadow  /tmp/foo cat /etc/shadow; then
+
+    # Test caps when bwrap is not setuid
+    if ! test -u ${BWRAP}; then
+        CAP="--cap-add ALL"
+    else
+        CAP=""
+    fi
+
+    if $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow  /tmp/foo cat /etc/shadow; then
         assert_not_reached Could read /etc/shadow
     fi
     # Unreadable dir
@@ -88,6 +96,12 @@ done
 # Test --as-pid-1
 $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
+
+# Check that by default we have no caps left
+for OPT in "" "--unshare-user-try --as-pid-1" "--unshare-user-try" "--as-pid-1"; do
+    $RUN $OPT --unshare-pid getpcaps 1 2> /tmp/caps
+    grep -q ": =$" /tmp/caps
+done
 
 # Test --die-with-parent
 
