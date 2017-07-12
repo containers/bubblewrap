@@ -55,6 +55,7 @@ non-root operation, such as:
 
  - [Flatpak](http://www.flatpak.org)
  - [rpm-ostree unprivileged](https://github.com/projectatomic/rpm-ostree/pull/209)
+ - [bwrap-oci](https://github.com/projectatomic/bwrap-oci)
 
 We would also like to see this be available in Kubernetes/OpenShift
 clusters.  Having the ability for unprivileged users to use container
