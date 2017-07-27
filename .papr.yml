@@ -10,7 +10,7 @@ host:
     distro: centos/7/atomic
 
 tests:
-  - env BWRAP_SUID=true ./ci/redhat-ci.sh centos:7
+  - env BWRAP_SUID=true ./ci/papr.sh centos:7
 
 timeout: 30m
 
