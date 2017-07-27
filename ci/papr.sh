@@ -5,14 +5,14 @@ set -xeuo pipefail
 distro=$1
 
 runcontainer() {
-    docker run --rm --env=container=true --env=BWRAP_SUID=${BWRAP_SUID:-} --env CFLAGS="${CFLAGS:-}" --net=host --privileged -v /usr:/host/usr -v $(pwd):/srv/code -w /srv/code $distro ./ci/redhat-ci.sh $distro
+    docker run --rm --env=container=true --env=BWRAP_SUID=${BWRAP_SUID:-} --env CFLAGS="${CFLAGS:-}" --net=host --privileged -v /usr:/host/usr -v $(pwd):/srv/code -w /srv/code $distro ./ci/papr.sh $distro
 }
 
 buildinstall_to_host() {
 
     yum -y install git autoconf automake libtool make gcc redhat-rpm-config \
         libcap-devel  'pkgconfig(libselinux)' 'libxslt' 'docbook-style-xsl' \
-        lib{a,ub,t}san /usr/bin/eu-readelf
+        lib{a,ub,t}san /usr/bin/eu-readelf rsync
 
     echo testing: $(git describe --tags --always --abbrev=42)
 
@@ -37,8 +37,6 @@ buildinstall_to_host() {
 
 if test -z "${container:-}"; then
     ostree admin unlock
-    # Hack until the host tree is updated in rhci
-    rpm -Uvh https://kojipkgs.fedoraproject.org//packages/glibc/2.24/4.fc25/x86_64/{libcrypt-nss,glibc,glibc-common,glibc-all-langpacks}-2.24-4.fc25.x86_64.rpm
     useradd bwrap-tester
     runcontainer
     runuser -u bwrap-tester env ASAN_OPTIONS=detect_leaks=false ./tests/test-run.sh
