@@ -1,0 +1,28 @@
+context: centos7
+required: true
+
+branches:
+    - master
+    - auto
+    - try
+
+host:
+    distro: centos/7/atomic
+
+tests:
+  - env BWRAP_SUID=true ./ci/papr.sh centos:7
+
+timeout: 30m
+
+---
+
+inherit: true
+
+host:
+    distro: fedora/26/atomic
+
+context: f26-sanitizer
+required: true
+
+tests:
+  - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address -O2 -Wp,-D_FORTIFY_SOURCE=2' ./ci/papr.sh registry.fedoraproject.org/fedora:26
