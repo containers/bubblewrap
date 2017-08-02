@@ -1,6 +1,9 @@
-# Core source library for shell script tests; this
-# file is intended to be the canonical source, which at
-# is copied at least into:
+# Core source library for shell script tests; the
+# canonical version lives in:
+#
+#   https://github.com/ostreedev/ostree
+#
+# Known copies are in the following repos:
 #
 # - https://github.com/projectatomic/rpm-ostree
 #
