@@ -18,6 +18,9 @@ timeout: 30m
 
 inherit: true
 
+host:
+    distro: fedora/26/atomic
+
 context: f26-sanitizer
 required: true
 
