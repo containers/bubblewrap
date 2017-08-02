@@ -3,6 +3,9 @@
 set -xeuo pipefail
 
 srcd=$(cd $(dirname $0) && pwd)
+
+. ${srcd}/libtest-core.sh
+
 bn=$(basename $0)
 tempdir=$(mktemp -d /var/tmp/tap-test.XXXXXX)
 touch ${tempdir}/.testtmp
@@ -18,20 +21,6 @@ trap cleanup EXIT
 cd ${tempdir}
 
 : "${BWRAP:=bwrap}"
-
-skip () {
-    echo $@ 1>&2; exit 77
-}
-
-assert_not_reached () {
-    echo $@ 1>&2; exit 1
-}
-
-assert_file_has_content () {
-    if ! grep -q -e "$2" "$1"; then
-        echo 1>&2 "File '$1' doesn't match regexp '$2'"; exit 1
-    fi
-}
 
 FUSE_DIR=
 for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
