@@ -12,7 +12,7 @@ buildinstall_to_host() {
 
     yum -y install git autoconf automake libtool make gcc redhat-rpm-config \
         libcap-devel  'pkgconfig(libselinux)' 'libxslt' 'docbook-style-xsl' \
-        lib{a,ub,t}san /usr/bin/eu-readelf
+        lib{a,ub,t}san /usr/bin/eu-readelf rsync
 
     echo testing: $(git describe --tags --always --abbrev=42)
 
