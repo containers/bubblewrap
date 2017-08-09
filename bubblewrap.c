@@ -1058,6 +1058,16 @@ setup_newroot (bool unshare_pid,
                 die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
             }
 
+          /* /dev/fd and /dev/core - legacy, but both nspawn and docker do these */
+          { cleanup_free char *dev_fd = strconcat (dest, "/fd");
+            if (symlink ("/proc/self/fd", dev_fd) < 0)
+              die_with_error ("Can't create symlink %s", dev_fd);
+          }
+          { cleanup_free char *dev_core = strconcat (dest, "/core");
+            if (symlink ("/proc/kcore", dev_core) < 0)
+              die_with_error ("Can't create symlink %s", dev_core);
+          }
+
           {
             cleanup_free char *pts = strconcat (dest, "/pts");
             cleanup_free char *ptmx = strconcat (dest, "/ptmx");
