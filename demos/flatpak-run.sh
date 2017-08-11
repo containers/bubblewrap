@@ -1,17 +1,17 @@
 #!/bin/bash
 # For this to work you first have to run these commands:
-#  curl -O http://sdk.gnome.org/nightly/keys/nightly.gpg
-#  flatpak --user remote-add --gpg-key=nightly.gpg gnome-nightly http://sdk.gnome.org/nightly/repo/
-#  flatpak --user install gnome-nightly org.gnome.Platform
-#  flatpak --user install gnome-nightly org.gnome.Weather
+#  flatpak --user remote-add --from gnome-apps https://sdk.gnome.org/gnome-apps.flatpakrepo
+#  flatpak --user install gnome-apps org.gnome.Weather
+#  flatpak --user remote-add --from gnome https://sdk.gnome.org/gnome.flatpakrepo
+#  flatpak --user install gnome org.gnome.Platform//3.24
 
 mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config ~/.var/app/org.gnome.Weather/data
 
 (
     exec bwrap \
-    --ro-bind ~/.local/share/flatpak/runtime/org.gnome.Platform/x86_64/master/active/files /usr \
+    --ro-bind ~/.local/share/flatpak/runtime/org.gnome.Platform/x86_64/3.24/active/files /usr \
     --lock-file /usr/.ref \
-    --ro-bind ~/.local/share/flatpak/app/org.gnome.Weather/x86_64/master/active/files/ /app \
+    --ro-bind ~/.local/share/flatpak/app/org.gnome.Weather/x86_64/stable/active/files/ /app \
     --lock-file /app/.ref \
     --dev /dev \
     --proc /proc \
@@ -61,5 +61,5 @@ mkdir -p ~/.var/app/org.gnome.Weather/cache ~/.var/app/org.gnome.Weather/config 
     10<<EOF
 [Application]
 name=org.gnome.Weather
-runtime=runtime/org.gnome.Platform/x86_64/master
+runtime=org.gnome.Platform/x86_64/3.24
 EOF
