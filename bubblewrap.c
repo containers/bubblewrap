@@ -47,7 +47,7 @@ static uid_t real_uid;
 static gid_t real_gid;
 static uid_t overflow_uid;
 static gid_t overflow_gid;
-static bool is_privileged;
+static bool is_privileged; /* See acquire_privs() */
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
@@ -460,6 +460,9 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
 
+/* Set if --cap-add or --cap-drop were used */
+static bool opt_cap_add_or_drop_used;
+/* The capability set we'll target, used if above is true */
 static uint32_t requested_caps[2] = {0, 0};
 
 /* low 32bit caps needed */
@@ -492,6 +495,16 @@ drop_all_caps (bool keep_requested_caps)
 
   if (keep_requested_caps)
     {
+      /* Avoid calling capset() unless we need to; currently
+       * systemd-nspawn at least is known to install a seccomp
+       * policy denying capset() for dubious reasons.
+       * <https://github.com/projectatomic/bubblewrap/pull/122>
+       */
+      if (!opt_cap_add_or_drop_used && real_uid == 0)
+        {
+          assert (!is_privileged);
+          return;
+        }
       data[0].effective = requested_caps[0];
       data[0].permitted = requested_caps[0];
       data[0].inheritable = requested_caps[0];
@@ -501,7 +514,17 @@ drop_all_caps (bool keep_requested_caps)
     }
 
   if (capset (&hdr, data) < 0)
-    die_with_error ("capset failed");
+    {
+      /* While the above logic ensures we don't call capset() for the primary
+       * process unless configured to do so, we still try to drop privileges for
+       * the init process unconditionally. Since due to the systemd secomp
+       * filter that will fail, let's just ignore it.
+       */
+      if (errno == EPERM && real_uid == 0 && !is_privileged)
+        return;
+      else
+        die_with_error ("capset failed");
+    }
 }
 
 static bool
@@ -643,6 +666,21 @@ acquire_privs (void)
          don't support anymore */
       die ("Unexpected capabilities but not setuid, old file caps config?");
     }
+  else if (real_uid == 0)
+    {
+      /* If our uid is 0, default to inheriting all caps; the caller
+       * can drop them via --cap-drop.  This is used by at least rpm-ostree.
+       * Note this needs to happen before the argument parsing of --cap-drop.
+       */
+      struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
+      struct __user_cap_data_struct data[2] = { { 0 } };
+
+      if (capget (&hdr, data) < 0)
+        die_with_error ("capget (for uid == 0) failed");
+
+      requested_caps[0] = data[0].effective;
+      requested_caps[1] = data[1].effective;
+    }
 
   /* Else, we try unprivileged user namespaces */
 }
@@ -669,9 +707,11 @@ switch_to_user_with_privs (void)
   set_required_caps ();
 }
 
+/* Call setuid() and use capset() to adjust capabilities */
 static void
 drop_privs (bool keep_requested_caps)
 {
+  assert (!keep_requested_caps || !is_privileged);
   /* Drop root uid */
   if (getuid () == 0 && setuid (opt_sandbox_uid) < 0)
     die_with_error ("unable to drop root uid");
@@ -1746,6 +1786,8 @@ parse_args_recurse (int    *argcp,
           if (argc < 2)
             die ("--cap-add takes an argument");
 
+          opt_cap_add_or_drop_used = TRUE;
+
           if (strcasecmp (argv[1], "ALL") == 0)
             {
               requested_caps[0] = requested_caps[1] = 0xFFFFFFFF;
@@ -1769,6 +1811,8 @@ parse_args_recurse (int    *argcp,
           cap_value_t cap;
           if (argc < 2)
             die ("--cap-drop takes an argument");
+
+          opt_cap_add_or_drop_used = TRUE;
 
           if (strcasecmp (argv[1], "ALL") == 0)
             {

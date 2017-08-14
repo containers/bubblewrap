@@ -39,7 +39,10 @@ if test -z "${container:-}"; then
     ostree admin unlock
     useradd bwrap-tester
     runcontainer
+    # Unprivileged invocation
     runuser -u bwrap-tester env ASAN_OPTIONS=detect_leaks=false ./tests/test-run.sh
+    # Privileged invocation
+    env ASAN_OPTIONS=detect_leaks=false ./tests/test-run.sh
 else
     buildinstall_to_host
 fi
