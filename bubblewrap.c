@@ -51,11 +51,11 @@ static bool is_privileged; /* See acquire_privs() */
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
-static char *opt_exec_label = NULL;
-static char *opt_file_label = NULL;
+static const char *opt_exec_label = NULL;
+static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
 
-char *opt_chdir_path = NULL;
+const char *opt_chdir_path = NULL;
 bool opt_unshare_user = FALSE;
 bool opt_unshare_user_try = FALSE;
 bool opt_unshare_pid = FALSE;
@@ -74,7 +74,7 @@ int opt_block_fd = -1;
 int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
-char *opt_sandbox_hostname = NULL;
+const char *opt_sandbox_hostname = NULL;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -1257,14 +1257,14 @@ print_version_and_exit (void)
 }
 
 static void
-parse_args_recurse (int    *argcp,
-                    char ***argvp,
-                    bool    in_file,
-                    int    *total_parsed_argc_p)
+parse_args_recurse (int          *argcp,
+                    const char ***argvp,
+                    bool          in_file,
+                    int          *total_parsed_argc_p)
 {
   SetupOp *op;
   int argc = *argcp;
-  char **argv = *argvp;
+  const char **argv = *argvp;
   /* I can't imagine a case where someone wants more than this.
    * If you do...you should be able to pass multiple files
    * via a single tmpfs and linking them there, etc.
@@ -1850,8 +1850,8 @@ parse_args_recurse (int    *argcp,
 }
 
 static void
-parse_args (int    *argcp,
-            char ***argvp)
+parse_args (int          *argcp,
+            const char ***argvp)
 {
   int total_parsed_argc = *argcp;
 
@@ -1936,7 +1936,7 @@ main (int    argc,
   if (argc == 0)
     usage (EXIT_FAILURE, stderr);
 
-  parse_args (&argc, &argv);
+  parse_args (&argc, (const char ***) &argv);
 
   if ((requested_caps[0] || requested_caps[1]) && is_privileged)
     die ("--cap-add in setuid mode can be used only by root");
