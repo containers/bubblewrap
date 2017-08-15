@@ -51,11 +51,11 @@ static bool is_privileged; /* See acquire_privs() */
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
-static char *opt_exec_label = NULL;
-static char *opt_file_label = NULL;
+static const char *opt_exec_label = NULL;
+static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
 
-char *opt_chdir_path = NULL;
+const char *opt_chdir_path = NULL;
 bool opt_unshare_user = FALSE;
 bool opt_unshare_user_try = FALSE;
 bool opt_unshare_pid = FALSE;
@@ -74,7 +74,7 @@ int opt_block_fd = -1;
 int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
-char *opt_sandbox_hostname = NULL;
+const char *opt_sandbox_hostname = NULL;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -117,6 +117,7 @@ typedef struct _LockFile LockFile;
 struct _LockFile
 {
   const char *path;
+  int         fd;
   LockFile   *next;
 };
 
@@ -418,6 +419,7 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
         die_with_error ("Unable to lock file %s", lock->path);
 
       /* Keep fd open to hang on to lock */
+      lock->fd = fd;
     }
 
   /* Optionally bind our lifecycle to that of the caller */
@@ -451,6 +453,16 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
           if (errno != ECHILD)
             die_with_error ("init wait()");
           break;
+        }
+    }
+
+  /* Close FDs. */
+  for (lock = lock_files; lock != NULL; lock = lock->next)
+    {
+      if (lock->fd >= 0)
+        {
+          close (lock->fd);
+          lock->fd = -1;
         }
     }
 
@@ -1137,6 +1149,8 @@ setup_newroot (bool unshare_pid,
 
             close (op->fd);
 
+            assert (dest != NULL);
+
             if (ensure_file (dest, 0666) != 0)
               die_with_error ("Can't create file at %s", op->dest);
 
@@ -1153,11 +1167,13 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MAKE_SYMLINK:
+          assert (op->source != NULL);  /* guaranteed by the constructor */
           if (symlink (op->source, dest) != 0)
             die_with_error ("Can't make symlink at %s", op->dest);
           break;
 
         case SETUP_SET_HOSTNAME:
+          assert (op->dest != NULL);  /* guaranteed by the constructor */
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_SET_HOSTNAME, 0,
                          op->dest, NULL);
@@ -1257,14 +1273,14 @@ print_version_and_exit (void)
 }
 
 static void
-parse_args_recurse (int    *argcp,
-                    char ***argvp,
-                    bool    in_file,
-                    int    *total_parsed_argc_p)
+parse_args_recurse (int          *argcp,
+                    const char ***argvp,
+                    bool          in_file,
+                    int          *total_parsed_argc_p)
 {
   SetupOp *op;
   int argc = *argcp;
-  char **argv = *argvp;
+  const char **argv = *argvp;
   /* I can't imagine a case where someone wants more than this.
    * If you do...you should be able to pass multiple files
    * via a single tmpfs and linking them there, etc.
@@ -1296,11 +1312,11 @@ parse_args_recurse (int    *argcp,
         {
           int the_fd;
           char *endptr;
-          char *data, *p;
-          char *data_end;
+          cleanup_free char *data = NULL;
+          const char *p, *data_end;
           size_t data_len;
-          cleanup_free char **data_argv = NULL;
-          char **data_argv_copy;
+          cleanup_free const char **data_argv = NULL;
+          const char **data_argv_copy;
           int data_argc;
           int i;
 
@@ -1850,8 +1866,8 @@ parse_args_recurse (int    *argcp,
 }
 
 static void
-parse_args (int    *argcp,
-            char ***argvp)
+parse_args (int          *argcp,
+            const char ***argvp)
 {
   int total_parsed_argc = *argcp;
 
@@ -1936,7 +1952,7 @@ main (int    argc,
   if (argc == 0)
     usage (EXIT_FAILURE, stderr);
 
-  parse_args (&argc, &argv);
+  parse_args (&argc, (const char ***) &argv);
 
   if ((requested_caps[0] || requested_caps[1]) && is_privileged)
     die ("--cap-add in setuid mode can be used only by root");
