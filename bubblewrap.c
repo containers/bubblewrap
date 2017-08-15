@@ -1149,6 +1149,8 @@ setup_newroot (bool unshare_pid,
 
             close (op->fd);
 
+            assert (dest != NULL);
+
             if (ensure_file (dest, 0666) != 0)
               die_with_error ("Can't create file at %s", op->dest);
 
@@ -1165,11 +1167,13 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MAKE_SYMLINK:
+          assert (op->source != NULL);  /* guaranteed by the constructor */
           if (symlink (op->source, dest) != 0)
             die_with_error ("Can't make symlink at %s", op->dest);
           break;
 
         case SETUP_SET_HOSTNAME:
+          assert (op->dest != NULL);  /* guaranteed by the constructor */
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_SET_HOSTNAME, 0,
                          op->dest, NULL);
