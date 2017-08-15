@@ -117,6 +117,7 @@ typedef struct _LockFile LockFile;
 struct _LockFile
 {
   const char *path;
+  int         fd;
   LockFile   *next;
 };
 
@@ -418,6 +419,7 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
         die_with_error ("Unable to lock file %s", lock->path);
 
       /* Keep fd open to hang on to lock */
+      lock->fd = fd;
     }
 
   /* Optionally bind our lifecycle to that of the caller */
@@ -451,6 +453,16 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
           if (errno != ECHILD)
             die_with_error ("init wait()");
           break;
+        }
+    }
+
+  /* Close FDs. */
+  for (lock = lock_files; lock != NULL; lock = lock->next)
+    {
+      if (lock->fd >= 0)
+        {
+          close (lock->fd);
+          lock->fd = -1;
         }
     }
 
