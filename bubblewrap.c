@@ -1296,11 +1296,11 @@ parse_args_recurse (int          *argcp,
         {
           int the_fd;
           char *endptr;
-          char *data, *p;
-          char *data_end;
+          cleanup_free char *data = NULL;
+          const char *p, *data_end;
           size_t data_len;
-          cleanup_free char **data_argv = NULL;
-          char **data_argv_copy;
+          cleanup_free const char **data_argv = NULL;
+          const char **data_argv_copy;
           int data_argc;
           int i;
 
