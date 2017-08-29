@@ -33,6 +33,7 @@ TESTS = tests/test-run.sh
 TESTS_ENVIRONMENT = BWRAP=$(abs_top_builddir)/test-bwrap
 
 EXTRA_DIST += $(TESTS)
+EXTRA_DIST += tests/libtest-core.sh
 
 if ENABLE_BASH_COMPLETION
 bashcompletiondir = $(BASH_COMPLETION_DIR)
