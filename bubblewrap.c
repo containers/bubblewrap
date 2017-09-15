@@ -1988,6 +1988,15 @@ main (int    argc,
             disabled = TRUE;
         }
 
+      /* Check for max_user_namespaces */
+      if (stat ("/proc/sys/user/max_user_namespaces", &sbuf) == 0)
+        {
+          cleanup_free char *max_user_ns = NULL;
+          max_user_ns = load_file_at (AT_FDCWD, "/proc/sys/user/max_user_namespaces");
+          if (max_user_ns != NULL && strcmp(max_user_ns, "0\n") == 0)
+            disabled = TRUE;
+        }
+
       /* Debian lets you disable *unprivileged* user namespaces. However this is not
          a problem if we're privileged, and if we're not opt_unshare_user is TRUE
          already, and there is not much we can do, its just a non-working setup. */
