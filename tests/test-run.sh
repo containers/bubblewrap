@@ -53,7 +53,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..33"
+echo "1..36"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -198,5 +198,20 @@ done
 printf '%s--dir\0/tmp/hello/world\0' '' > test.args
 $RUN --args 3 test -d /tmp/hello/world 3<test.args
 echo "ok - we can parse arguments from a fd"
+
+mkdir bin
+echo "#!/bin/sh" > bin/--inadvisable-executable-name--
+echo "echo hello" >> bin/--inadvisable-executable-name--
+chmod +x bin/--inadvisable-executable-name--
+PATH="${srcd}:$PATH" $RUN -- sh -c "echo hello" > stdout
+assert_file_has_content stdout hello
+echo "ok - we can run with --"
+PATH="$(pwd)/bin:$PATH" $RUN -- --inadvisable-executable-name-- > stdout
+assert_file_has_content stdout hello
+echo "ok - we can run an inadvisable executable name with --"
+if $RUN -- --dev-bind /dev /dev sh -c 'echo should not have run'; then
+    assert_not_reached "'--dev-bind' should have been interpreted as a (silly) executable name"
+fi
+echo "ok - options like --dev-bind are defanged by --"
 
 echo "ok - End of test"

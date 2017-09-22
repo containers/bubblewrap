@@ -182,7 +182,7 @@ lock_file_new (const char *path)
 static void
 usage (int ecode, FILE *out)
 {
-  fprintf (out, "usage: %s [OPTIONS...] COMMAND [ARGS...]\n\n", argv0);
+  fprintf (out, "usage: %s [OPTIONS...] [--] COMMAND [ARGS...]\n\n", argv0);
 
   fprintf (out,
            "    --help                       Print this help\n"
@@ -1884,6 +1884,12 @@ parse_args_recurse (int          *argcp,
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--") == 0)
+        {
+          argv += 1;
+          argc -= 1;
+          break;
         }
       else if (*arg == '-')
         {
