@@ -641,11 +641,10 @@ acquire_privs (void)
   /* Are we setuid ? */
   if (real_uid != euid)
     {
-      if (euid == 0)
-        is_privileged = TRUE;
-      else
+      if (euid != 0)
         die ("Unexpected setuid user %d, should be 0", euid);
 
+      is_privileged = TRUE;
       /* We want to keep running as euid=0 until at the clone()
        * operation because doing so will make the user namespace be
        * owned by root, which makes it not ptrace:able by the user as
