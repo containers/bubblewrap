@@ -896,20 +896,20 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_PROC_MOUNT:
-      if (mount ("proc", arg1, "proc", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+      if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
         die_with_error ("Can't mount proc on %s", arg1);
       break;
 
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
         cleanup_free char *opt = label_mount ("mode=0755", opt_file_label);
-        if (mount ("tmpfs", arg1, "tmpfs", MS_MGC_VAL | MS_NOSUID | MS_NODEV, opt) != 0)
+        if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
           die_with_error ("Can't mount tmpfs on %s", arg1);
         break;
       }
 
     case PRIV_SEP_OP_DEVPTS_MOUNT:
-      if (mount ("devpts", arg1, "devpts", MS_MGC_VAL | MS_NOSUID | MS_NOEXEC,
+      if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
                  "newinstance,ptmxmode=0666,mode=620") != 0)
         die_with_error ("Can't mount devpts on %s", arg1);
       break;
