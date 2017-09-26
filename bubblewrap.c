@@ -529,7 +529,7 @@ drop_all_caps (bool keep_requested_caps)
     {
       /* While the above logic ensures we don't call capset() for the primary
        * process unless configured to do so, we still try to drop privileges for
-       * the init process unconditionally. Since due to the systemd secomp
+       * the init process unconditionally. Since due to the systemd seccomp
        * filter that will fail, let's just ignore it.
        */
       if (errno == EPERM && real_uid == 0 && !is_privileged)
