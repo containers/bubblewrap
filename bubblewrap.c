@@ -1333,6 +1333,7 @@ parse_args_recurse (int          *argcp,
           data = load_file_data (the_fd, &data_len);
           if (data == NULL)
             die_with_error ("Can't read --args data");
+          (void) close (the_fd);
 
           data_end = data + data_len;
           data_argc = 0;
