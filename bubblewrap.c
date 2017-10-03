@@ -2457,7 +2457,7 @@ main (int    argc,
   if (!is_privileged)
     set_ambient_capabilities ();
 
-  /* Should be the last thing before execve() so that filters don't
+  /* Should be the last thing before execvp() so that filters don't
    * need to handle anything above */
   if (seccomp_data != NULL &&
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
