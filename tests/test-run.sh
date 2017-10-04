@@ -162,4 +162,13 @@ for die_with_parent_argv in "--die-with-parent" "--die-with-parent --unshare-pid
     echo "ok die with parent ${die_with_parent_argv}"
 done
 
+RUN="${BWRAP} --bind / / python3 -c "
+# Check executable name
+$RUN "import sys; print(sys.executable)" >python3_output.txt
+assert_file_has_content python3_output.txt "python3"
+
+RUN="${BWRAP} --bind / / --exec-filename python3 bash -c "
+$RUN "import sys; print(sys.executable)" >python3_output.txt
+assert_file_has_content python3_output.txt "bash"
+
 echo OK

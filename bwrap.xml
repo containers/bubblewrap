@@ -192,6 +192,10 @@
       <listitem><para>Bind mount the host path <arg choice="plain">SRC</arg> readonly on <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--exec-filename <arg choice="plain">PATH</arg></option></term>
+      <listitem><para>Path to the application to be executed inside the sandbox</para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--remount-ro <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Remount the path <arg choice="plain">DEST</arg> as readonly.  It works only on the specified mount point, without changing any other mount point under the specified path</para></listitem>
     </varlistentry>

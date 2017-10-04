@@ -51,6 +51,7 @@ static bool is_privileged; /* See acquire_privs() */
 static const char *argv0;
 static const char *host_tty_dev;
 static int proc_fd = -1;
+static const char *opt_exec_filename = NULL;
 static const char *opt_exec_label = NULL;
 static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
@@ -209,6 +210,7 @@ usage (int ecode, FILE *out)
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
+           "    --exec-filename PATH         Path to the application to be executed inside the sandbox\n"
            "    --exec-label LABEL           Exec label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
            "    --proc DEST                  Mount new procfs on DEST\n"
@@ -1378,6 +1380,15 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--exec-filename") == 0)
+        {
+          if (argc < 2)
+            die ("--exec-filename takes an argument");
+
+          opt_exec_filename = argv[1];
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--unshare-all") == 0)
         {
           /* Keep this in order with the older (legacy) --unshare arguments,
@@ -2463,8 +2474,11 @@ main (int    argc,
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
     die_with_error ("prctl(PR_SET_SECCOMP)");
 
-  if (execvp (argv[0], argv) == -1)
-    die_with_error ("execvp %s", argv[0]);
+  /* filepath and argv[0] can be different */
+  argv0 = (opt_exec_filename) ? opt_exec_filename : argv[0];
+
+  if (execvp (argv0, argv) == -1)
+    die_with_error ("execvp %s", opt_exec_filename);
 
   return 0;
 }
