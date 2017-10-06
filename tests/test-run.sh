@@ -2,6 +2,9 @@
 
 set -xeuo pipefail
 
+# Make sure /sbin/getpcaps etc. are in our PATH even if non-root
+PATH="$PATH:/usr/sbin:/sbin"
+
 srcd=$(cd $(dirname $0) && pwd)
 
 . ${srcd}/libtest-core.sh
