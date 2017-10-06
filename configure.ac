@@ -116,6 +116,9 @@ AS_IF([ test "x$enable_require_userns" = "xyes" ], [
         AC_DEFINE(ENABLE_REQUIRE_USERNS, 1, [Define if userns should be used by default in suid mode])
      ])
 
+AC_PROG_AWK
+AC_REQUIRE_AUX_FILE([tap-driver.sh])
+
 AC_CONFIG_FILES([
 Makefile
 ])
