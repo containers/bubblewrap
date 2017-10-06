@@ -50,7 +50,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..31"
+echo "1..32"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -181,5 +181,9 @@ for die_with_parent_argv in "--die-with-parent" "--die-with-parent --unshare-pid
     ./lockf-n.py ./lock wait
     echo "ok die with parent ${die_with_parent_argv}"
 done
+
+printf '%s--dir\0/tmp/hello/world\0' '' > test.args
+$RUN --args 3 test -d /tmp/hello/world 3<test.args
+echo "ok - we can parse arguments from a fd"
 
 echo "ok - End of test"
