@@ -50,6 +50,8 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
+echo "1..3"
+
 # Test help
 ${BWRAP} --help > help.txt
 assert_file_has_content help.txt "usage: ${BWRAP}"
@@ -165,4 +167,4 @@ for die_with_parent_argv in "--die-with-parent" "--die-with-parent --unshare-pid
     echo "ok die with parent ${die_with_parent_argv}"
 done
 
-echo OK
+echo "ok - End of test"

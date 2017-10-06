@@ -29,6 +29,8 @@ test_bwrap_SOURCES=
 
 include Makefile-docs.am
 
+LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) $(top_srcdir)/build-aux/tap-driver.sh
+LOG_COMPILER =
 TESTS = tests/test-run.sh
 TESTS_ENVIRONMENT = BWRAP=$(abs_top_builddir)/test-bwrap
 
