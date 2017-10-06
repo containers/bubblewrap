@@ -98,8 +98,8 @@ assert_file_has_content as_pid_1.txt "1"
 if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
     for OPT in "" "--unshare-user-try --as-pid-1" "--unshare-user-try" "--as-pid-1"; do
-        $RUN $OPT --unshare-pid getpcaps 1 2> /tmp/caps
-        grep -q ": =$" /tmp/caps
+        $RUN $OPT --unshare-pid getpcaps 1 2> caps.test
+        grep -q ": =$" caps.test
     done
 else
     capsh --print > caps.orig
