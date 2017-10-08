@@ -10,6 +10,7 @@ _bwrap() {
 	local boolean_options="
 		--as-pid-1
 		--help
+		--new-session
 		--unshare-cgroup
 		--unshare-cgroup-try
 		--unshare-user
