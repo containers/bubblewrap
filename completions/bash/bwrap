@@ -48,8 +48,6 @@ _bwrap() {
 		--sync-fd
 		--uid
 		--unsetenv
-		--seccomp
-		--symlink
 		--die-with-parent
                 --cap-add
                 --cap-drop
