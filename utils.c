@@ -29,6 +29,8 @@ die_with_error (const char *format, ...)
   va_list args;
   int errsv;
 
+  fprintf (stderr, "bwrap: ");
+
   errsv = errno;
 
   va_start (args, format);
@@ -44,6 +46,8 @@ void
 die (const char *format, ...)
 {
   va_list args;
+
+  fprintf (stderr, "bwrap: ");
 
   va_start (args, format);
   vfprintf (stderr, format, args);
