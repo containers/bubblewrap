@@ -113,6 +113,13 @@ $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
 
+# Test error prefixing
+if $RUN --unshare-pid  --bind /source-enoent /dest true 2>err.txt; then
+    assert_not_reached "bound nonexistent source"
+fi
+assert_file_has_content err.txt "^bwrap: Can't find source path.*source-enoent"
+echo "ok error prefxing"
+
 if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
     for OPT in "" "--unshare-user-try --as-pid-1" "--unshare-user-try" "--as-pid-1"; do
