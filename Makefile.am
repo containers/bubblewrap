@@ -1,6 +1,18 @@
 AM_CFLAGS = $(WARN_CFLAGS)
 CLEANFILES =
-EXTRA_DIST =
+EXTRA_DIST = \
+	.dir-locals.el \
+	.editorconfig \
+	README.md \
+	autogen.sh \
+	demos/bubblewrap-shell.sh \
+	demos/flatpak-run.sh \
+	demos/flatpak.bpf \
+	demos/userns-block-fd.py \
+	packaging/bubblewrap.spec \
+	uncrustify.cfg \
+	uncrustify.sh \
+	$(NULL)
 
 GITIGNOREFILES = build-aux/ gtk-doc.make config.h.in aclocal.m4
 
