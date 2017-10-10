@@ -53,7 +53,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..32"
+echo "1..33"
 
 # Test help
 ${BWRAP} --help > help.txt

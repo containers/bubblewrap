@@ -75,6 +75,7 @@ int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
 int opt_seccomp_fd = -1;
 const char *opt_sandbox_hostname = NULL;
+char *opt_args_data = NULL;  /* owned */
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -1321,7 +1322,6 @@ parse_args_recurse (int          *argcp,
         {
           int the_fd;
           char *endptr;
-          char *data = NULL;
           const char *p, *data_end;
           size_t data_len;
           cleanup_free const char **data_argv = NULL;
@@ -1339,15 +1339,18 @@ parse_args_recurse (int          *argcp,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
-          data = load_file_data (the_fd, &data_len);
-          if (data == NULL)
+          /* opt_args_data is essentially a recursive argv array, which we must
+           * keep allocated until exit time, since its argv entries get used
+           * by the other cases in parse_args_recurse() when we recurse. */
+          opt_args_data = load_file_data (the_fd, &data_len);
+          if (opt_args_data == NULL)
             die_with_error ("Can't read --args data");
           (void) close (the_fd);
 
-          data_end = data + data_len;
+          data_end = opt_args_data + data_len;
           data_argc = 0;
 
-          p = data;
+          p = opt_args_data;
           while (p != NULL && p < data_end)
             {
               data_argc++;
@@ -1362,7 +1365,7 @@ parse_args_recurse (int          *argcp,
           data_argv = xcalloc (sizeof (char *) * (data_argc + 1));
 
           i = 0;
-          p = data;
+          p = opt_args_data;
           while (p != NULL && p < data_end)
             {
               /* Note: load_file_data always adds a nul terminator, so this is safe
@@ -1927,6 +1930,7 @@ main (int    argc,
   cleanup_free char *seccomp_data = NULL;
   size_t seccomp_len;
   struct sock_fprog seccomp_prog;
+  cleanup_free char *args_data = NULL;
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -1963,6 +1967,10 @@ main (int    argc,
     usage (EXIT_FAILURE, stderr);
 
   parse_args (&argc, (const char ***) &argv);
+
+  /* suck the args into a cleanup_free variable to control their lifecycle */
+  args_data = opt_args_data;
+  opt_args_data = NULL;
 
   if ((requested_caps[0] || requested_caps[1]) && is_privileged)
     die ("--cap-add in setuid mode can be used only by root");
