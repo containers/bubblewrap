@@ -10,15 +10,16 @@ _bwrap() {
 	local boolean_options="
 		--as-pid-1
 		--help
+		--die-with-parent
 		--new-session
+		--unshare-all
 		--unshare-cgroup
 		--unshare-cgroup-try
-		--unshare-user
-		--unshare-user-try
-		--unshare-all
 		--unshare-ipc
 		--unshare-net
 		--unshare-pid
+		--unshare-user
+		--unshare-user-try
 		--unshare-uts
 		--version
 	"
@@ -34,7 +35,6 @@ _bwrap() {
 		--chdir
 		--dev
 		--dev-bind
-		--die-with-parent
 		--dir
 		--exec-label
 		--file
@@ -43,13 +43,16 @@ _bwrap() {
 		--hostname
 		--info-fd
 		--lock-file
+		--mqueue
 		--proc
 		--remount-ro
 		--ro-bind
+		--ro-bind-data
 		--seccomp
 		--setenv
 		--symlink
 		--sync-fd
+		--tmpfs
 		--uid
 		--unsetenv
 		--userns-block-fd
