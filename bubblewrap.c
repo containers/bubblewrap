@@ -584,9 +584,15 @@ prctl_caps (uint32_t *caps, bool do_cap_bounding, bool do_set_ambient)
 
       if (keep && do_set_ambient)
         {
+#ifdef PR_CAP_AMBIENT
           int res = prctl (PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, cap, 0, 0);
           if (res == -1 && !(errno == EINVAL || errno == EPERM))
             die_with_error ("Adding ambient capability %ld", cap);
+#else
+          /* We ignore the EINVAL that results from not having PR_CAP_AMBIENT
+           * in the current kernel at runtime, so also ignore not having it
+           * in the current kernel headers at compile-time */
+#endif
         }
 
       if (!keep && do_cap_bounding)
