@@ -1147,6 +1147,7 @@ setup_newroot (bool unshare_pid,
               die_with_error ("Can't write data to file %s", op->dest);
 
             close (op->fd);
+            op->fd = -1;
           }
           break;
 
@@ -1164,6 +1165,7 @@ setup_newroot (bool unshare_pid,
               die_with_error ("Can't write data to file %s", op->dest);
 
             close (op->fd);
+            op->fd = -1;
 
             assert (dest != NULL);
 
@@ -1201,6 +1203,22 @@ setup_newroot (bool unshare_pid,
     }
   privileged_op (privileged_op_socket,
                  PRIV_SEP_OP_DONE, 0, NULL, NULL);
+}
+
+/* Do not leak file descriptors already used by setup_newroot () */
+static void
+close_ops_fd (void)
+{
+  SetupOp *op;
+
+  for (op = ops; op != NULL; op = op->next)
+    {
+      if (op->fd != -1)
+        {
+          (void) close (op->fd);
+          op->fd = -1;
+        }
+    }
 }
 
 /* We need to resolve relative symlinks in the sandbox before we
@@ -2323,6 +2341,8 @@ main (int    argc,
     {
       setup_newroot (opt_unshare_pid, -1);
     }
+
+  close_ops_fd ();
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
   if (mount ("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) != 0)
