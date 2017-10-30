@@ -773,7 +773,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   else
     dir = xasprintf ("%d", pid);
 
-  dir_fd = openat (proc_fd, dir, O_RDONLY | O_PATH);
+  dir_fd = openat (proc_fd, dir, O_PATH);
   if (dir_fd < 0)
     die_with_error ("open /proc/%s failed", dir);
 
@@ -2056,7 +2056,7 @@ main (int    argc,
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
-  proc_fd = open ("/proc", O_RDONLY | O_PATH);
+  proc_fd = open ("/proc", O_PATH);
   if (proc_fd == -1)
     die_with_error ("Can't open /proc");
 
