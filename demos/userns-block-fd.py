@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, select, subprocess, json
+import os, select, subprocess, sys, json
 
 pipe_info = os.pipe()
 userns_block = os.pipe()
@@ -19,10 +19,14 @@ if pid != 0:
     subprocess.call(["newuidmap", child_pid, "0", str(os.getuid()), "1"])
     subprocess.call(["newgidmap", child_pid, "0", str(os.getgid()), "1"])
 
-    os.write(userns_block[1], '1')
+    os.write(userns_block[1], b'1')
 else:
     os.close(pipe_info[0])
     os.close(userns_block[1])
+
+    if sys.version_info >= (3, 4):
+        os.set_inheritable(pipe_info[1], True)
+        os.set_inheritable(userns_block[0], True)
 
     args = ["bwrap",
             "bwrap",
