@@ -33,4 +33,4 @@ else:
             "--bind", "/", "/",
             "cat", "/proc/self/uid_map"]
 
-    os.execl(*args)
+    os.execlp(*args)
