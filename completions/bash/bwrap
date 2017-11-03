@@ -8,17 +8,19 @@ _bwrap() {
     _init_completion || return
 
 	local boolean_options="
+		--as-pid-1
 		--help
+		--new-session
 		--unshare-cgroup
 		--unshare-cgroup-try
 		--unshare-user
 		--unshare-user-try
+		--unshare-all
 		--unshare-ipc
 		--unshare-net
 		--unshare-pid
 		--unshare-uts
 		--version
-		--as-pid-1
 	"
 
 	local options_with_args="
@@ -27,9 +29,12 @@ _bwrap() {
 		--bind
 		--bind-data
 		--block-fd
+		--cap-add
+		--cap-drop
 		--chdir
 		--dev
 		--dev-bind
+		--die-with-parent
 		--dir
 		--exec-filename
 		--exec-label
@@ -40,19 +45,14 @@ _bwrap() {
 		--info-fd
 		--lock-file
 		--proc
-		--ro-bind
 		--remount-ro
+		--ro-bind
 		--seccomp
 		--setenv
 		--symlink
 		--sync-fd
 		--uid
 		--unsetenv
-		--seccomp
-		--symlink
-		--die-with-parent
-                --cap-add
-                --cap-drop
 		--userns-block-fd
 	"
 

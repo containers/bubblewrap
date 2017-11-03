@@ -1,5 +1,5 @@
 AC_PREREQ([2.63])
-AC_INIT([bubblewrap], [0.1.8], [atomic-devel@projectatomic.io])
+AC_INIT([bubblewrap], [0.2.0], [atomic-devel@projectatomic.io])
 AC_CONFIG_HEADER([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -115,6 +115,9 @@ AC_ARG_ENABLE(require-userns,
 AS_IF([ test "x$enable_require_userns" = "xyes" ], [
         AC_DEFINE(ENABLE_REQUIRE_USERNS, 1, [Define if userns should be used by default in suid mode])
      ])
+
+AC_PROG_AWK
+AC_REQUIRE_AUX_FILE([tap-driver.sh])
 
 AC_CONFIG_FILES([
 Makefile
