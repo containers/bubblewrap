@@ -126,9 +126,12 @@ assert_file_has_content () {
 }
 
 assert_file_has_content_literal () {
-    if ! grep -q -F -e "$2" "$1"; then
-        _fatal_print_file "$1" "File '$1' doesn't match fixed string list '$2'"
-    fi
+    fpath=$1; shift
+    for s in "$@"; do
+        if ! grep -q -F -e "$s" "$fpath"; then
+            _fatal_print_file "$fpath" "File '$fpath' doesn't match fixed string list '$s'"
+        fi
+    done
 }
 
 assert_file_has_mode () {
