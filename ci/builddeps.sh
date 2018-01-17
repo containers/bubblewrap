@@ -65,7 +65,6 @@ if dpkg-vendor --derives-from Debian; then
         libselinux1-dev \
         libtool \
         pkg-config \
-        python-is-python2 \
         python3 \
         xsltproc \
         ${NULL+}
