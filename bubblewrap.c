@@ -2371,7 +2371,7 @@ main (int    argc,
     if (mkdtemp (pivot_tmp) == NULL)
       {
         /* If the user did a bind mount of /, try /tmp */
-        if (errno == EPERM || errno == EACCES)
+        if (errno == EROFS || errno == EPERM || errno == EACCES)
           {
             free (pivot_tmp);
             pivot_tmp = xstrdup ("tmp/bwrap-pivot-old-XXXXXX");
