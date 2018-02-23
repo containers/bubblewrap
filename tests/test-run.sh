@@ -53,7 +53,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..36"
+echo "1..37"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -112,6 +112,15 @@ echo "ok - all expected devices were created"
 $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
+
+if ! test -u ${BWRAP}; then
+    echo "ok - # SKIP no --cap-add support"
+else
+    $BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --proc /proc \
+           $BWRAP --unshare-all --bind / / --proc /proc echo hello > recursive_proc.txt
+    assert_file_has_content recursive_proc.txt "hello"
+    echo "ok - can mount /proc recursively"
+fi
 
 # Test error prefixing
 if $RUN --unshare-pid  --bind /source-enoent /dest true 2>err.txt; then

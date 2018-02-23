@@ -1025,9 +1025,15 @@ setup_newroot (bool unshare_pid,
           for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
             {
               cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
-              /* Some of these may not exist */
-              if (get_file_mode (subdir) == -1)
-                continue;
+              if (access (subdir, W_OK) < 0)
+                {
+                  /* The file is already read-only or doesn't exist.  */
+                  if (errno == EACCES || errno == ENOENT)
+                    continue;
+
+                  die_with_error ("Can't access %s", subdir);
+                }
+
               privileged_op (privileged_op_socket,
                              PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
                              subdir, subdir);
