@@ -434,7 +434,7 @@ ensure_file (const char *path,
 
   /* We check this ahead of time, otherwise
      the create file will fail in the read-only
-     case with EROFD instead of EEXIST */
+     case with EROFS instead of EEXIST */
   if (stat (path, &buf) ==  0 &&
       S_ISREG (buf.st_mode))
     return 0;
@@ -593,6 +593,34 @@ get_file_mode (const char *pathname)
   return buf.st_mode & S_IFMT;
 }
 
+int
+ensure_dir (const char *path,
+            mode_t      mode)
+{
+  struct stat buf;
+
+  /* We check this ahead of time, otherwise
+     the mkdir call can fail in the read-only
+     case with EROFS instead of EEXIST on some
+     filesystems (such as NFS) */
+  if (stat (path, &buf) == 0)
+    {
+      if (!S_ISDIR (buf.st_mode))
+        {
+          errno = ENOTDIR;
+          return -1;
+        }
+
+      return 0;
+    }
+
+  if (mkdir (path, mode) == -1 && errno != EEXIST)
+    return -1;
+
+  return 0;
+}
+
+
 /* Sets errno on error (!= 0) */
 int
 mkdir_with_parents (const char *pathname,
@@ -601,7 +629,6 @@ mkdir_with_parents (const char *pathname,
 {
   cleanup_free char *fn = NULL;
   char *p;
-  struct stat buf;
 
   if (pathname == NULL || *pathname == '\0')
     {
@@ -628,16 +655,8 @@ mkdir_with_parents (const char *pathname,
       if (!create_last && p == NULL)
         break;
 
-      if (stat (fn, &buf) !=  0)
-        {
-          if (mkdir (fn, mode) == -1 && errno != EEXIST)
-            return -1;
-        }
-      else if (!S_ISDIR (buf.st_mode))
-        {
-          errno = ENOTDIR;
-          return -1;
-        }
+      if (ensure_dir (fn, mode) != 0)
+        return -1;
 
       if (p)
         {
