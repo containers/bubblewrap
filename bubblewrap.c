@@ -980,7 +980,7 @@ setup_newroot (bool unshare_pid,
         case SETUP_BIND_MOUNT:
           if (source_mode == S_IFDIR)
             {
-              if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+              if (ensure_dir (dest, 0755) != 0)
                 die_with_error ("Can't mkdir %s", op->dest);
             }
           else if (ensure_file (dest, 0666) != 0)
@@ -999,7 +999,7 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MOUNT_PROC:
-          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
           if (unshare_pid)
@@ -1036,7 +1036,7 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MOUNT_DEV:
-          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
@@ -1112,7 +1112,7 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MOUNT_TMPFS:
-          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
@@ -1121,7 +1121,7 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MOUNT_MQUEUE:
-          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
@@ -1130,7 +1130,7 @@ setup_newroot (bool unshare_pid,
           break;
 
         case SETUP_MAKE_DIR:
-          if (mkdir (dest, 0755) != 0 && errno != EEXIST)
+          if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
           break;
@@ -2081,11 +2081,11 @@ main (int    argc,
   /* We need *some* mountpoint where we can mount the root tmpfs.
      We first try in /run, and if that fails, try in /tmp. */
   base_path = xasprintf ("/run/user/%d/.bubblewrap", real_uid);
-  if (mkdir (base_path, 0755) && errno != EEXIST)
+  if (ensure_dir (base_path, 0755))
     {
       free (base_path);
       base_path = xasprintf ("/tmp/.bubblewrap-%d", real_uid);
-      if (mkdir (base_path, 0755) && errno != EEXIST)
+      if (ensure_dir (base_path, 0755))
         die_with_error ("Creating root mountpoint failed");
     }
 

@@ -101,6 +101,8 @@ int   create_file (const char *path,
                    const char *content);
 int   ensure_file (const char *path,
                    mode_t      mode);
+int   ensure_dir (const char *path,
+                  mode_t      mode);
 int   get_file_mode (const char *pathname);
 int   mkdir_with_parents (const char *pathname,
                           int         mode,
