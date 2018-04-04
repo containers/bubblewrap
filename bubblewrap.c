@@ -1020,20 +1020,23 @@ setup_newroot (bool unshare_pid,
           /* There are a bunch of weird old subdirs of /proc that could potentially be
              problematic (for instance /proc/sysrq-trigger lets you shut down the machine
              if you have write access). We should not have access to these as a non-privileged
-             user, but lets cover them anyway if we have no CAP_SYS_ADMIN just to make sure */
-          if (!opt_cap_add_or_drop_used || !(requested_caps[0] & CAP_TO_MASK_0 (CAP_SYS_ADMIN)))
+             user, but lets cover them anyway just to make sure */
+          const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
+          for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
             {
-              const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
-              for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
+              cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
+              if (access (subdir, W_OK) < 0)
                 {
-                  cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
-                  /* Some of these may not exist */
-                  if (get_file_mode (subdir) == -1)
+                  /* The file is already read-only or doesn't exist.  */
+                  if (errno == EACCES || errno == ENOENT)
                     continue;
-                  privileged_op (privileged_op_socket,
-                                 PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
-                                 subdir, subdir);
+
+                  die_with_error ("Can't access %s", subdir);
                 }
+
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
+                             subdir, subdir);
             }
 
           break;
