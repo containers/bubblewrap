@@ -55,6 +55,23 @@ fi
 
 echo "1..36"
 
+have_userns=false
+if ${BWRAP} --bind / / --unshare-user true 2>/dev/null; then
+    have_userns=true
+fi
+
+BIND_HOST_USR_ARGS="--ro-bind /usr /usr \
+          --ro-bind /var /var \
+          --ro-bind /tmp /tmp \
+          --ro-bind /sys /sys \
+          --proc /proc \
+          --dev /dev \
+          --symlink usr/lib /lib \
+          --symlink usr/lib64 /lib64 \
+          --symlink usr/bin /bin \
+          --symlink usr/sbin /sbin"
+BWRAP_HOST="${BWRAP} ${BIND_HOST_USR_ARGS}"
+
 # Test help
 ${BWRAP} --help > help.txt
 assert_file_has_content help.txt "usage: ${BWRAP}"
@@ -146,6 +163,24 @@ else
     # But we should still have net_bind_service for example
     assert_file_has_content caps.test '^Current: =.*cap_net_bind_service'
     echo "ok - we have the expected caps as uid 0"
+fi
+
+if ! $have_userns; then
+    if ! ${is_uidzero}; then
+        # We shouldn't be able to retain caps when setuid and running as non-root
+        if ${BWRAP_HOST} --unshare-all --cap-add ALL; then
+            assert_not_reached "--keep-caps worked when suid, bad!"
+        fi
+    fi
+else
+    cat > recursive-bwrap.sh <<EOF
+#!/usr/bin/sh
+exec ${BWRAP_HOST} echo hello from a recursive namespace uid=\$(id -u)
+EOF
+    chmod a+x recursive-bwrap.sh
+    ${BWRAP_HOST} --unshare-all --cap-add ALL --uid 0 --gid 0 $(pwd)/recursive-bwrap.sh > out.txt
+    assert_file_has_content out.txt 'hello from a recursive namespace uid=0'
+    echo "ok keep caps"
 fi
 
 # Test --die-with-parent
