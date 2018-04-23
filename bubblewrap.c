@@ -2295,6 +2295,9 @@ main (int    argc,
   if (mkdir ("newroot", 0755))
     die_with_error ("Creating newroot failed");
 
+  if (mount ("newroot", "newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+    die_with_error ("setting up newroot bind");
+
   if (mkdir ("oldroot", 0755))
     die_with_error ("Creating oldroot failed");
 
@@ -2369,32 +2372,29 @@ main (int    argc,
    * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
    * that we need a temporary place to store it before we can unmount it.
    */
-  { cleanup_free char *pivot_tmp = xstrdup ("bwrap-pivot-old-XXXXXX");
-    if (mount ("/newroot", "/newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
-      die_with_error ("setting up newroot bind");
+  { cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
+    if (oldrootfd < 0)
+      die_with_error ("can't open /");
     if (chdir ("/newroot") != 0)
       die_with_error ("chdir /newroot");
-    if (mkdtemp (pivot_tmp) == NULL)
-      {
-        /* If the user did a bind mount of /, try /tmp */
-        if (errno == EROFS || errno == EPERM || errno == EACCES)
-          {
-            free (pivot_tmp);
-            pivot_tmp = xstrdup ("tmp/bwrap-pivot-old-XXXXXX");
-            if (mkdtemp (pivot_tmp) == NULL)
-              die_with_error ("mkdtemp");
-          }
-        else
-          die_with_error ("mkdtemp");
-      }
-    if (pivot_root (".", pivot_tmp) != 0)
+    /* While the documentation claims that put_old must be underneath
+     * new_root, it is perfectly fine to use the same directory as the
+     * kernel checks only if old_root is accessible from new_root.
+     *
+     * Both runc and LXC are using this "alternative" method for
+     * setting up the root of the container:
+     *
+     * https://github.com/opencontainers/runc/blob/master/libcontainer/rootfs_linux.go#L671
+     * https://github.com/lxc/lxc/blob/master/src/lxc/conf.c#L1121
+     */
+    if (pivot_root (".", ".") != 0)
       die_with_error ("pivot_root(/newroot)");
-    if (chroot (".") != 0)
-      die_with_error ("chroot .");
+    if (fchdir (oldrootfd) < 0)
+      die_with_error ("fchdir to oldroot");
+    if (umount2 (".", MNT_DETACH) < 0)
+      die_with_error ("umount old root");
     if (chdir ("/") != 0)
       die_with_error ("chdir /");
-    if (umount2 (pivot_tmp, MNT_DETACH) < 0)
-      die_with_error ("unmount old root");
   }
 
   if (opt_unshare_user &&

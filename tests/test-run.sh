@@ -24,6 +24,9 @@ trap cleanup EXIT
 cd ${tempdir}
 
 : "${BWRAP:=bwrap}"
+if test -u "$(type -p ${BWRAP})"; then
+    bwrap_is_suid=true
+fi
 
 FUSE_DIR=
 for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
@@ -46,6 +49,17 @@ if ${is_uidzero} || test -x `dirname $UNREADABLE`; then
     UNREADABLE=
 fi
 
+# https://github.com/projectatomic/bubblewrap/issues/217
+BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
+          --ro-bind /etc /etc
+          --dir /var/tmp
+          --symlink usr/lib /lib
+          --symlink usr/lib64 /lib64
+          --symlink usr/bin /bin
+          --symlink usr/sbin /sbin
+          --proc /proc
+          --dev /dev"
+
 # Default arg, bind whole host fs to /, tmpfs on /tmp
 RUN="${BWRAP} --bind / / --tmpfs /tmp"
 
@@ -53,7 +67,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..37"
+echo "1..38"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -78,7 +92,7 @@ for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshar
     echo -n "expect EPERM: " >&2
 
     # Test caps when bwrap is not setuid
-    if ! test -u ${BWRAP}; then
+    if test -n "${bwrap_is_suid:-}"; then
         CAP="--cap-add ALL"
     else
         CAP=""
@@ -113,13 +127,19 @@ $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
 
-if ! test -u ${BWRAP}; then
+# These tests require --unshare-user
+if test -n "${bwrap_is_suid:-}"; then
+    echo "ok - # SKIP no --cap-add support"
     echo "ok - # SKIP no --cap-add support"
 else
-    $BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --proc /proc \
-           $BWRAP --unshare-all --bind / / --proc /proc echo hello > recursive_proc.txt
+    BWRAP_RECURSE="$BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --bind /proc /proc"
+    $BWRAP_RECURSE -- $BWRAP --unshare-all --bind / / --bind /proc /proc echo hello > recursive_proc.txt
     assert_file_has_content recursive_proc.txt "hello"
     echo "ok - can mount /proc recursively"
+
+    $BWRAP_RECURSE -- $BWRAP --unshare-all  ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
+    assert_file_has_content recursive-newroot.txt "/usr"
+    echo "ok - can pivot to new rootfs recursively"
 fi
 
 # Test error prefixing
