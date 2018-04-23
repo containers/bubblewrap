@@ -2369,32 +2369,21 @@ main (int    argc,
    * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
    * that we need a temporary place to store it before we can unmount it.
    */
-  { cleanup_free char *pivot_tmp = xstrdup ("bwrap-pivot-old-XXXXXX");
+  { cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
+    if (oldrootfd < 0)
+      die_with_error ("can't open /");
     if (mount ("/newroot", "/newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
       die_with_error ("setting up newroot bind");
     if (chdir ("/newroot") != 0)
       die_with_error ("chdir /newroot");
-    if (mkdtemp (pivot_tmp) == NULL)
-      {
-        /* If the user did a bind mount of /, try /tmp */
-        if (errno == EROFS || errno == EPERM || errno == EACCES)
-          {
-            free (pivot_tmp);
-            pivot_tmp = xstrdup ("tmp/bwrap-pivot-old-XXXXXX");
-            if (mkdtemp (pivot_tmp) == NULL)
-              die_with_error ("mkdtemp");
-          }
-        else
-          die_with_error ("mkdtemp");
-      }
-    if (pivot_root (".", pivot_tmp) != 0)
+    if (pivot_root (".", ".") != 0)
       die_with_error ("pivot_root(/newroot)");
-    if (chroot (".") != 0)
-      die_with_error ("chroot .");
+    if (fchdir (oldrootfd) < 0)
+      die_with_error ("fchdir to oldroot");
+    if (umount2 (".", MNT_DETACH) < 0)
+      die_with_error ("umount old root");
     if (chdir ("/") != 0)
       die_with_error ("chdir /");
-    if (umount2 (pivot_tmp, MNT_DETACH) < 0)
-      die_with_error ("unmount old root");
   }
 
   if (opt_unshare_user &&
