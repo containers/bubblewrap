@@ -2295,6 +2295,9 @@ main (int    argc,
   if (mkdir ("newroot", 0755))
     die_with_error ("Creating newroot failed");
 
+  if (mount ("newroot", "newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+    die_with_error ("setting up newroot bind");
+
   if (mkdir ("oldroot", 0755))
     die_with_error ("Creating oldroot failed");
 
