@@ -2372,10 +2372,18 @@ main (int    argc,
   { cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
     if (oldrootfd < 0)
       die_with_error ("can't open /");
-    if (mount ("/newroot", "/newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
-      die_with_error ("setting up newroot bind");
     if (chdir ("/newroot") != 0)
       die_with_error ("chdir /newroot");
+    /* While the documentation claims that put_old must be underneath
+     * new_root, it is perfectly fine to use the same directory as the
+     * kernel checks only if old_root is accessible from new_root.
+     *
+     * Both runc and LXC are using this "alternative" method for
+     * setting up the root of the container:
+     *
+     * https://github.com/opencontainers/runc/blob/master/libcontainer/rootfs_linux.go#L671
+     * https://github.com/lxc/lxc/blob/master/src/lxc/conf.c#L1121
+     */
     if (pivot_root (".", ".") != 0)
       die_with_error ("pivot_root(/newroot)");
     if (fchdir (oldrootfd) < 0)
