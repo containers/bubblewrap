@@ -64,7 +64,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..37"
+echo "1..38"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -129,8 +129,8 @@ $BWRAP_RECURSE -- $BWRAP --unshare-all --bind / / --proc /proc echo hello > recu
 assert_file_has_content recursive_proc.txt "hello"
 echo "ok - can mount /proc recursively"
 
-$BWRAP_RECURSE -- $BWRAP --unshare-all  ${BWRAP_RO_HOST_ARGS} /proc echo hello > recursive_proc.txt
-assert_file_has_content recursive_proc.txt "hello"
+$BWRAP_RECURSE -- $BWRAP --unshare-all  ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
+assert_file_has_content recursive-newroot.txt "/usr"
 echo "ok - can pivot to new rootfs recursively"
 
 # Test error prefixing
