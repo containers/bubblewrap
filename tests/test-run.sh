@@ -46,6 +46,17 @@ if ${is_uidzero} || test -x `dirname $UNREADABLE`; then
     UNREADABLE=
 fi
 
+# https://github.com/projectatomic/bubblewrap/issues/217
+BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
+          --ro-bind /etc /etc
+          --dir /var/tmp
+          --symlink usr/lib /lib
+          --symlink usr/lib64 /lib64
+          --symlink usr/bin /bin
+          --symlink usr/sbin /sbin
+          --proc /proc
+          --dev /dev"
+
 # Default arg, bind whole host fs to /, tmpfs on /tmp
 RUN="${BWRAP} --bind / / --tmpfs /tmp"
 
@@ -113,14 +124,14 @@ $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
 
-if ! test -u ${BWRAP}; then
-    echo "ok - # SKIP no --cap-add support"
-else
-    $BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --proc /proc \
-           $BWRAP --unshare-all --bind / / --proc /proc echo hello > recursive_proc.txt
-    assert_file_has_content recursive_proc.txt "hello"
-    echo "ok - can mount /proc recursively"
-fi
+BWRAP_RECURSE="$BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --proc /proc"
+$BWRAP_RECURSE -- $BWRAP --unshare-all --bind / / --proc /proc echo hello > recursive_proc.txt
+assert_file_has_content recursive_proc.txt "hello"
+echo "ok - can mount /proc recursively"
+
+$BWRAP_RECURSE -- $BWRAP --unshare-all  ${BWRAP_RO_HOST_ARGS} /proc echo hello > recursive_proc.txt
+assert_file_has_content recursive_proc.txt "hello"
+echo "ok - can pivot to new rootfs recursively"
 
 # Test error prefixing
 if $RUN --unshare-pid  --bind /source-enoent /dest true 2>err.txt; then
