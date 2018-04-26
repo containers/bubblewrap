@@ -19,10 +19,10 @@ timeout: 30m
 inherit: true
 
 host:
-    distro: fedora/26/atomic
+    distro: fedora/27/atomic
 
-context: f26-sanitizer
+context: f27-sanitizer
 required: true
 
 tests:
-  - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address -O2 -Wp,-D_FORTIFY_SOURCE=2' ./ci/papr.sh registry.fedoraproject.org/fedora:26
+  - env CFLAGS='-g -Og -fsanitize=undefined -fsanitize=address -O2 -Wp,-D_FORTIFY_SOURCE=2' ./ci/papr.sh registry.fedoraproject.org/fedora:27
