@@ -29,7 +29,7 @@ buildinstall_to_host() {
         fi
     done
     rsync -rlv ${tmpd}/usr/ /host/usr/
-    if ${BWRAP_SUID}; then
+    if -n "${BWRAP_SUID:-}"; then
         chmod u+s /host/usr/bin/bwrap
     fi
     rm ${tmpd} -rf
