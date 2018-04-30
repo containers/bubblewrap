@@ -24,6 +24,9 @@ trap cleanup EXIT
 cd ${tempdir}
 
 : "${BWRAP:=bwrap}"
+if test -u "$(type -p ${BWRAP})"; then
+    bwrap_is_suid=true
+fi
 
 FUSE_DIR=
 for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
@@ -89,7 +92,7 @@ for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshar
     echo -n "expect EPERM: " >&2
 
     # Test caps when bwrap is not setuid
-    if ! test -u ${BWRAP}; then
+    if test -n "${bwrap_is_suid:-}"; then
         CAP="--cap-add ALL"
     else
         CAP=""
@@ -125,7 +128,7 @@ assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
 
 # These tests require --unshare-user
-if test -u ${BWRAP}; then
+if test -n "${bwrap_is_suid:-}"; then
     echo "ok - # SKIP no --cap-add support"
     echo "ok - # SKIP no --cap-add support"
 else
