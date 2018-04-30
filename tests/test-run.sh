@@ -124,14 +124,20 @@ $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
 
-BWRAP_RECURSE="$BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --proc /proc"
-$BWRAP_RECURSE -- $BWRAP --unshare-all --bind / / --proc /proc echo hello > recursive_proc.txt
-assert_file_has_content recursive_proc.txt "hello"
-echo "ok - can mount /proc recursively"
+# These tests require --unshare-user
+if test -u ${BWRAP}; then
+    echo "ok - # SKIP no --cap-add support"
+    echo "ok - # SKIP no --cap-add support"
+else
+    BWRAP_RECURSE="$BWRAP --unshare-all --uid 0 --gid 0 --cap-add ALL --bind / / --bind /proc /proc"
+    $BWRAP_RECURSE -- $BWRAP --unshare-all --bind / / --bind /proc /proc echo hello > recursive_proc.txt
+    assert_file_has_content recursive_proc.txt "hello"
+    echo "ok - can mount /proc recursively"
 
-$BWRAP_RECURSE -- $BWRAP --unshare-all  ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
-assert_file_has_content recursive-newroot.txt "/usr"
-echo "ok - can pivot to new rootfs recursively"
+    $BWRAP_RECURSE -- $BWRAP --unshare-all  ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
+    assert_file_has_content recursive-newroot.txt "/usr"
+    echo "ok - can pivot to new rootfs recursively"
+fi
 
 # Test error prefixing
 if $RUN --unshare-pid  --bind /source-enoent /dest true 2>err.txt; then
