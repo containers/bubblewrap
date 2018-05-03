@@ -1167,6 +1167,9 @@ setup_newroot (bool unshare_pid,
             if (dest_fd == -1)
               die_with_error ("Can't create tmpfile for %s", op->dest);
 
+            if (fchmod (dest_fd, 0666) != 0)
+              die_with_error ("Can't chmod tmpfile for %s", op->dest);
+
             if (copy_file_data (op->fd, dest_fd) != 0)
               die_with_error ("Can't write data to file %s", op->dest);
 
