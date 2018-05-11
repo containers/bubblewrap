@@ -310,6 +310,23 @@ propagate_exit_status (int status)
   return 255;
 }
 
+static void
+dump_info (int fd, const char *output, bool exit_on_error)
+{
+  size_t len = strlen (output);
+  if (write (fd, output, len) != len)
+    if (exit_on_error)
+      die_with_error ("Write to info_fd");
+}
+
+static void
+report_child_exit_status (int info_fd, int exitc)
+{
+  cleanup_free char *output = xasprintf ("{\n    \"exit-code\": %i\n}\n", exitc);
+  dump_info (info_fd, output, FALSE);
+  close (info_fd);
+}
+
 /* This stays around for as long as the initial process in the app does
  * and when that exits it exits, propagating the exit status. We do this
  * by having pid 1 in the sandbox detect this exit and tell the monitor
@@ -317,7 +334,7 @@ propagate_exit_status (int status)
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static int
-monitor_child (int event_fd, pid_t child_pid)
+monitor_child (int event_fd, int info_fd, pid_t child_pid)
 {
   int res;
   uint64_t val;
@@ -327,12 +344,19 @@ monitor_child (int event_fd, pid_t child_pid)
   struct pollfd fds[2];
   int num_fds;
   struct signalfd_siginfo fdsi;
-  int dont_close[] = { event_fd, -1 };
+  int dont_close[3];
+  int j = 0;
+  int exitc;
   pid_t died_pid;
   int died_status;
 
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
+  if (event_fd != -1)
+    dont_close[j++] = event_fd;
+  if (info_fd != -1)
+    dont_close[j++] = info_fd;
+  dont_close[j++] = -1;
   fdwalk (proc_fd, close_extra_fds, dont_close);
 
   sigemptyset (&mask);
@@ -368,7 +392,12 @@ monitor_child (int event_fd, pid_t child_pid)
           if (s == -1 && errno != EINTR && errno != EAGAIN)
             die_with_error ("read eventfd");
           else if (s == 8)
-            return ((int) val - 1);
+            {
+              exitc = (int) val - 1;
+              if (info_fd != -1)
+                report_child_exit_status (info_fd, exitc);
+              return exitc;
+            }
         }
 
       /* We need to read the signal_fd, or it will keep polling as read,
@@ -385,7 +414,12 @@ monitor_child (int event_fd, pid_t child_pid)
           /* We may be getting sigchild from other children too. For instance if
              someone created a child process, and then exec:ed bubblewrap. Ignore them */
           if (died_pid == child_pid)
-            return propagate_exit_status (died_status);
+            {
+              exitc = propagate_exit_status (died_status);
+              if (info_fd != -1)
+                report_child_exit_status (info_fd, exitc);
+              return exitc;
+            }
         }
     }
 
@@ -2194,10 +2228,7 @@ main (int    argc,
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
-          size_t len = strlen (output);
-          if (write (opt_info_fd, output, len) != len)
-            die_with_error ("Write to info_fd");
-          close (opt_info_fd);
+          dump_info (opt_info_fd, output, TRUE);
         }
 
       if (opt_userns_block_fd != -1)
@@ -2213,7 +2244,7 @@ main (int    argc,
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
-      return monitor_child (event_fd, pid);
+      return monitor_child (event_fd, opt_info_fd, pid);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
