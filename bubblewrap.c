@@ -24,6 +24,7 @@
 #include <grp.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <sys/eventfd.h>
 #include <sys/fsuid.h>
@@ -92,6 +93,7 @@ typedef enum {
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
   SETUP_MAKE_RO_BIND_FILE,
+  SETUP_MAKE_SOCKET,
   SETUP_MAKE_SYMLINK,
   SETUP_REMOUNT_RO_NO_RECURSIVE,
   SETUP_SET_HOSTNAME,
@@ -221,6 +223,7 @@ usage (int ecode, FILE *out)
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
            "    --ro-bind-data FD DEST       Copy from FD to file which is readonly bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
+           "    --socket FD DEST             Bind the AF_UNIX socket at DEST\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
@@ -1196,6 +1199,26 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't make symlink at %s", op->dest);
           break;
 
+        case SETUP_MAKE_SOCKET:
+          {
+            struct sockaddr_un address = { AF_UNIX };
+
+            if (strlen (dest) + 1 > sizeof(address.sun_path))
+              die ("Can't make socket with too long name %s", op->dest);
+
+            strcpy (address.sun_path, dest);
+
+            if (bind (op->fd, (const struct sockaddr *) &address, sizeof(address)) != 0)
+              die_with_error ("Can't bind socket at %s", op->dest);
+
+            /* We need to also listen to the socket so that any peers that connect to
+               it are queued up until the socket consumer starts up, which is likely
+               blocking on waiting for the sandbox to be set up */
+            if (listen (op->fd, SOMAXCONN))
+              die_with_error ("Can't listen to socket at %s", op->dest);
+          }
+          break;
+
         case SETUP_SET_HOSTNAME:
           assert (op->dest != NULL);  /* guaranteed by the constructor */
           privileged_op (privileged_op_socket,
@@ -1659,6 +1682,25 @@ parse_args_recurse (int          *argcp,
 
           op = setup_op_new (SETUP_MAKE_SYMLINK);
           op->source = argv[1];
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--socket") == 0)
+        {
+          int file_fd;
+          char *endptr;
+
+          if (argc < 3)
+            die ("--socket takes two arguments");
+
+          file_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          op = setup_op_new (SETUP_MAKE_SOCKET);
+          op->fd = file_fd;
           op->dest = argv[2];
 
           argv += 2;
