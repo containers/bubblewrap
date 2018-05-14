@@ -71,6 +71,7 @@ bool opt_die_with_parent = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
+int opt_close_fd = -1;
 int opt_block_fd = -1;
 int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
@@ -208,6 +209,7 @@ usage (int ecode, FILE *out)
            "    --unsetenv VAR               Unset an environment variable\n"
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
            "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
+           "    --close-fd FD                Close this fd when sandbox setup is done\n"
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
@@ -1733,6 +1735,23 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--close-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--close-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_close_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--block-fd") == 0)
         {
           int the_fd;
@@ -2229,6 +2248,9 @@ main (int    argc,
       /* Optionally bind our lifecycle to that of the parent */
       handle_die_with_parent ();
 
+      if (opt_close_fd != -1)
+        close (opt_close_fd);
+
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
@@ -2457,6 +2479,9 @@ main (int    argc,
 
   /* All privileged ops are done now, so drop caps we don't need */
   drop_privs (!is_privileged);
+
+  if (opt_close_fd != -1)
+    close (opt_close_fd);
 
   if (opt_block_fd != -1)
     {
