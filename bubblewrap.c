@@ -24,6 +24,7 @@
 #include <grp.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <sys/eventfd.h>
 #include <sys/fsuid.h>
@@ -70,6 +71,7 @@ bool opt_die_with_parent = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
 int opt_sync_fd = -1;
+int opt_notify_complete_fd = -1;
 int opt_block_fd = -1;
 int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
@@ -92,6 +94,7 @@ typedef enum {
   SETUP_MAKE_FILE,
   SETUP_MAKE_BIND_FILE,
   SETUP_MAKE_RO_BIND_FILE,
+  SETUP_MAKE_SOCKET,
   SETUP_MAKE_SYMLINK,
   SETUP_REMOUNT_RO_NO_RECURSIVE,
   SETUP_SET_HOSTNAME,
@@ -206,6 +209,7 @@ usage (int ecode, FILE *out)
            "    --unsetenv VAR               Unset an environment variable\n"
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
            "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
+           "    --notify-complete-fd FD      Close this fd when sandbox setup is done, signaling to the parent\n"
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
@@ -221,6 +225,7 @@ usage (int ecode, FILE *out)
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
            "    --ro-bind-data FD DEST       Copy from FD to file which is readonly bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
+           "    --socket FD DEST             Bind the AF_UNIX socket at DEST\n"
            "    --seccomp FD                 Load and use seccomp rules from FD\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
@@ -1196,6 +1201,26 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't make symlink at %s", op->dest);
           break;
 
+        case SETUP_MAKE_SOCKET:
+          {
+            struct sockaddr_un address = { AF_UNIX };
+
+            if (strlen (dest) + 1 > sizeof(address.sun_path))
+              die ("Can't make socket with too long name %s", op->dest);
+
+            strcpy (address.sun_path, dest);
+
+            if (bind (op->fd, (const struct sockaddr *) &address, sizeof(address)) != 0)
+              die_with_error ("Can't bind socket at %s", op->dest);
+
+            /* We need to also listen to the socket so that any peers that connect to
+               it are queued up until the socket consumer starts up, which is likely
+               blocking on waiting for the sandbox to be set up */
+            if (listen (op->fd, SOMAXCONN))
+              die_with_error ("Can't listen to socket at %s", op->dest);
+          }
+          break;
+
         case SETUP_SET_HOSTNAME:
           assert (op->dest != NULL);  /* guaranteed by the constructor */
           privileged_op (privileged_op_socket,
@@ -1664,6 +1689,25 @@ parse_args_recurse (int          *argcp,
           argv += 2;
           argc -= 2;
         }
+      else if (strcmp (arg, "--socket") == 0)
+        {
+          int file_fd;
+          char *endptr;
+
+          if (argc < 3)
+            die ("--socket takes two arguments");
+
+          file_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          op = setup_op_new (SETUP_MAKE_SOCKET);
+          op->fd = file_fd;
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
       else if (strcmp (arg, "--lock-file") == 0)
         {
           if (argc < 2)
@@ -1687,6 +1731,23 @@ parse_args_recurse (int          *argcp,
             die ("Invalid fd: %s", argv[1]);
 
           opt_sync_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--close-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--close-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_notify_complete_fd = the_fd;
 
           argv += 1;
           argc -= 1;
@@ -2187,6 +2248,9 @@ main (int    argc,
       /* Optionally bind our lifecycle to that of the parent */
       handle_die_with_parent ();
 
+      if (opt_notify_complete_fd != -1)
+        close (opt_notify_complete_fd);
+
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
@@ -2415,6 +2479,9 @@ main (int    argc,
 
   /* All privileged ops are done now, so drop caps we don't need */
   drop_privs (!is_privileged);
+
+  if (opt_notify_complete_fd != -1)
+    close (opt_notify_complete_fd);
 
   if (opt_block_fd != -1)
     {
