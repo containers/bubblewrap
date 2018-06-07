@@ -316,7 +316,7 @@ propagate_exit_status (int status)
  * the exit status via a eventfd. We also track the exit of the sandbox
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
-static void
+static int
 monitor_child (int event_fd, pid_t child_pid)
 {
   int res;
@@ -368,7 +368,7 @@ monitor_child (int event_fd, pid_t child_pid)
           if (s == -1 && errno != EINTR && errno != EAGAIN)
             die_with_error ("read eventfd");
           else if (s == 8)
-            exit ((int) val - 1);
+            return ((int) val - 1);
         }
 
       /* We need to read the signal_fd, or it will keep polling as read,
@@ -385,9 +385,13 @@ monitor_child (int event_fd, pid_t child_pid)
           /* We may be getting sigchild from other children too. For instance if
              someone created a child process, and then exec:ed bubblewrap. Ignore them */
           if (died_pid == child_pid)
-            exit (propagate_exit_status (died_status));
+            return propagate_exit_status (died_status);
         }
     }
+
+  die ("Should not be reached");
+
+  return 0;
 }
 
 /* This is pid 1 in the app sandbox. It is needed because we're using
@@ -2209,8 +2213,7 @@ main (int    argc,
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
-      monitor_child (event_fd, pid);
-      exit (0); /* Should not be reached, but better safe... */
+      return monitor_child (event_fd, pid);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
