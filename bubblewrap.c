@@ -315,16 +315,21 @@ dump_info (int fd, const char *output, bool exit_on_error)
 {
   size_t len = strlen (output);
   if (write (fd, output, len) != len)
-    if (exit_on_error)
-      die_with_error ("Write to info_fd");
+    {
+      if (exit_on_error)
+        die_with_error ("Write to info_fd");
+    }
 }
 
 static void
-report_child_exit_status (int info_fd, int exitc)
+report_child_exit_status (int exitc)
 {
+  if (opt_info_fd == -1)
+    return;
   cleanup_free char *output = xasprintf ("{\n    \"exit-code\": %i\n}\n", exitc);
-  dump_info (info_fd, output, FALSE);
-  close (info_fd);
+  dump_info (opt_info_fd, output, FALSE);
+  close (opt_info_fd);
+  opt_info_fd = -1;
 }
 
 /* This stays around for as long as the initial process in the app does
@@ -394,8 +399,7 @@ monitor_child (int event_fd, int info_fd, pid_t child_pid)
           else if (s == 8)
             {
               exitc = (int) val - 1;
-              if (info_fd != -1)
-                report_child_exit_status (info_fd, exitc);
+              report_child_exit_status (exitc);
               return exitc;
             }
         }
@@ -416,8 +420,7 @@ monitor_child (int event_fd, int info_fd, pid_t child_pid)
           if (died_pid == child_pid)
             {
               exitc = propagate_exit_status (died_status);
-              if (info_fd != -1)
-                report_child_exit_status (info_fd, exitc);
+              report_child_exit_status (exitc);
               return exitc;
             }
         }
@@ -2535,6 +2538,7 @@ main (int    argc,
             if (opt_sync_fd != -1)
               dont_close[j++] = opt_sync_fd;
             dont_close[j++] = -1;
+            assert (j <= (sizeof(dont_close)/sizeof(*dont_close)));
             fdwalk (proc_fd, close_extra_fds, dont_close);
           }
 

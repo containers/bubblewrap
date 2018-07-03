@@ -67,7 +67,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..38"
+echo "1..39"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -126,6 +126,14 @@ echo "ok - all expected devices were created"
 $RUN --unshare-pid --as-pid-1 --bind / / bash -c 'echo $$' > as_pid_1.txt
 assert_file_has_content as_pid_1.txt "1"
 echo "ok - can run as pid 1"
+
+# Test --info-fd
+if $RUN --unshare-all --info-fd 42 -- bash -c 'exit 42' 42>info.json 2>err.txt; then
+    fatal "should have been exit 42"
+fi
+assert_file_has_content info.json '"child-pid": [0-9]'
+assert_file_has_content_literal info.json '"exit-code": 42'
+echo "ok info fd"
 
 # These tests require --unshare-user
 if test -n "${bwrap_is_suid:-}"; then
