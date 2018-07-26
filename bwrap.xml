@@ -48,7 +48,7 @@
 <para>
   It works by creating a new, completely empty, filesystem namespace where the root
   is on a tmpfs that is invisible from the host, and which will be automatically
-  cleaned up when the last process exists. You can then use commandline options to
+  cleaned up when the last process exits. You can then use commandline options to
   construct the root filesystem and process environment for the command to run in
   the namespace.
 </para>
