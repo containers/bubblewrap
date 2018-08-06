@@ -99,6 +99,7 @@ typedef enum {
 
 typedef enum {
   NO_CREATE_DEST = (1 << 0),
+  ALLOW_NOTEXIST = (2 << 0),
 } SetupOpFlag;
 
 typedef struct _SetupOp SetupOp;
@@ -207,8 +208,11 @@ usage (int ecode, FILE *out)
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
            "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
+           "    --bind-try SRC DEST          Equal to --bind but ignores non-existant SRC\n"
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
+           "    --dev-bind-try SRC DEST      Equal to --dev-bind but ignores non-existant SRC\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
+           "    --ro-bind-try SRC DEST       Equal to --ro-bind but ignores non-existant SRC\n"
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
            "    --exec-label LABEL           Exec label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
@@ -966,7 +970,11 @@ setup_newroot (bool unshare_pid,
           source = get_oldroot_path (op->source);
           source_mode = get_file_mode (source);
           if (source_mode < 0)
-            die_with_error ("Can't get type of source %s", op->source);
+            {
+              if (op->flags & ALLOW_NOTEXIST && errno == ENOENT)
+                continue; /* Ignore and move on */
+              die_with_error("Can't get type of source %s", op->source);
+            }
         }
 
       if (op->dest &&
@@ -1252,7 +1260,12 @@ resolve_symlinks_in_ops (void)
           old_source = op->source;
           op->source = realpath (old_source, NULL);
           if (op->source == NULL)
-            die_with_error ("Can't find source path %s", old_source);
+            {
+              if (op->flags & ALLOW_NOTEXIST && errno == ENOENT)
+                op->source = old_source;
+              else
+                die_with_error("Can't find source path %s", old_source);
+            }
           break;
         default:
           break;
@@ -1485,38 +1498,47 @@ parse_args_recurse (int          *argcp,
           argv++;
           argc--;
         }
-      else if (strcmp (arg, "--bind") == 0)
+      else if (strcmp(arg, "--bind") == 0 ||
+               strcmp(arg, "--bind-try") == 0)
         {
           if (argc < 3)
-            die ("--bind takes two arguments");
+            die ("%s takes two arguments", arg);
 
           op = setup_op_new (SETUP_BIND_MOUNT);
           op->source = argv[1];
           op->dest = argv[2];
+          if (strcmp(arg, "--bind-try") == 0)
+            op->flags = ALLOW_NOTEXIST;
 
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--ro-bind") == 0)
+      else if (strcmp(arg, "--ro-bind") == 0 ||
+               strcmp(arg, "--ro-bind-try") == 0)
         {
           if (argc < 3)
-            die ("--ro-bind takes two arguments");
+            die ("%s takes two arguments", arg);
 
           op = setup_op_new (SETUP_RO_BIND_MOUNT);
           op->source = argv[1];
           op->dest = argv[2];
+          if (strcmp(arg, "--ro-bind-try") == 0)
+            op->flags = ALLOW_NOTEXIST;
 
           argv += 2;
           argc -= 2;
         }
-      else if (strcmp (arg, "--dev-bind") == 0)
+      else if (strcmp (arg, "--dev-bind") == 0 ||
+               strcmp (arg, "--dev-bind-try") == 0)
         {
           if (argc < 3)
-            die ("--dev-bind takes two arguments");
+            die ("%s takes two arguments", arg);
 
           op = setup_op_new (SETUP_DEV_BIND_MOUNT);
           op->source = argv[1];
           op->dest = argv[2];
+          if (strcmp(arg, "--dev-bind-try") == 0)
+            op->flags = ALLOW_NOTEXIST;
 
           argv += 2;
           argc -= 2;
