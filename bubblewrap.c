@@ -73,6 +73,7 @@ int opt_sync_fd = -1;
 int opt_block_fd = -1;
 int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
+int opt_exitc_fd = -1;
 int opt_seccomp_fd = -1;
 const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
@@ -225,6 +226,7 @@ usage (int ecode, FILE *out)
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
+           "    --exitc-fd FD                Write exit code of Child process to FD\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
@@ -324,12 +326,12 @@ dump_info (int fd, const char *output, bool exit_on_error)
 static void
 report_child_exit_status (int exitc)
 {
-  if (opt_info_fd == -1)
+  if (opt_exitc_fd == -1)
     return;
   cleanup_free char *output = xasprintf ("{\n    \"exit-code\": %i\n}\n", exitc);
-  dump_info (opt_info_fd, output, FALSE);
-  close (opt_info_fd);
-  opt_info_fd = -1;
+  dump_info (opt_exitc_fd, output, FALSE);
+  close (opt_exitc_fd);
+  opt_exitc_fd = -1;
 }
 
 /* This stays around for as long as the initial process in the app does
@@ -339,7 +341,7 @@ report_child_exit_status (int exitc)
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static int
-monitor_child (int event_fd, int info_fd, pid_t child_pid)
+monitor_child (int event_fd, pid_t child_pid)
 {
   int res;
   uint64_t val;
@@ -359,8 +361,8 @@ monitor_child (int event_fd, int info_fd, pid_t child_pid)
      Any passed in fds have been passed on to the child anyway. */
   if (event_fd != -1)
     dont_close[j++] = event_fd;
-  if (info_fd != -1)
-    dont_close[j++] = info_fd;
+  if (opt_exitc_fd != -1)
+    dont_close[j++] = opt_exitc_fd;
   dont_close[j++] = -1;
   fdwalk (proc_fd, close_extra_fds, dont_close);
 
@@ -1783,6 +1785,23 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--exitc-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--exitc-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_exitc_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--seccomp") == 0)
         {
           int the_fd;
@@ -2232,6 +2251,7 @@ main (int    argc,
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
           dump_info (opt_info_fd, output, TRUE);
+          close (opt_info_fd);
         }
 
       if (opt_userns_block_fd != -1)
@@ -2247,7 +2267,7 @@ main (int    argc,
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
-      return monitor_child (event_fd, opt_info_fd, pid);
+      return monitor_child (event_fd, pid);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
@@ -2266,6 +2286,9 @@ main (int    argc,
 
   if (opt_info_fd != -1)
     close (opt_info_fd);
+
+  if (opt_exitc_fd != -1)
+    close (opt_exitc_fd);
 
   /* Wait for the parent to init uid/gid maps and drop caps */
   res = read (child_wait_fd, &val, 8);
