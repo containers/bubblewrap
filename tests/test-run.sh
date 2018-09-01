@@ -187,7 +187,7 @@ if sys.argv[2] == 'wait':
   locktype = fcntl.F_SETLKW
 else:
   locktype = fcntl.F_SETLK
-lockdata = struct.pack("hhllhh", fcntl.F_WRLCK, 0, 0, 0, 0, 0)
+lockdata = struct.pack("hhqqhh", fcntl.F_WRLCK, 0, 0, 0, 0, 0)
 fd=open(sys.argv[1], 'a')
 try:
   fcntl.fcntl(fd.fileno(), locktype, lockdata)
