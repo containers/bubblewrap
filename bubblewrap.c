@@ -916,7 +916,8 @@ privileged_op (int         privileged_op_socket,
 
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
-        cleanup_free char *opt = label_mount ("mode=0755", opt_file_label);
+        cleanup_free char *perms = xasprintf ("uid=%d,gid=%d,mode=0755", real_uid, real_gid);
+        cleanup_free char *opt = label_mount (perms, opt_file_label);
         if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
           die_with_error ("Can't mount tmpfs on %s", arg1);
         break;
