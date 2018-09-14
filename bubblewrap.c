@@ -2297,8 +2297,10 @@ main (int    argc,
 
   /* Mark everything as slave, so that we still
    * receive mounts from the real root, but don't
-   * propagate mounts to the real root. */
-  if (mount (NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
+   * propagate mounts to the real root.
+   * Note: WSL doesn't support this, so if EINVAL, just ignore the failure. */
+  if ((mount (NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0) &&
+      errno != EINVAL)
     die_with_error ("Failed to make / slave");
 
   /* Create a tmpfs which we will use as / in the namespace */
