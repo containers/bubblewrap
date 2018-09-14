@@ -1066,6 +1066,12 @@ setup_newroot (bool unshare_pid,
             {
               cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
               cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
+              struct stat buf;
+
+              /* WSL for instance lacks /dev/full, so lets silently ignore that */
+              if (stat (node_dest, &buf) !=  0)
+                continue;
+
               if (create_file (node_dest, 0666, NULL) != 0)
                 die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
               privileged_op (privileged_op_socket,
