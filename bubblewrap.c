@@ -2146,6 +2146,9 @@ main (int    argc,
   /* We block sigchild here so that we can use signalfd in the monitor. */
   block_sigchild ();
 
+  /* WSL: Network namespaces are not supported */
+  opt_unshare_net = FALSE;
+
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
     clone_flags |= CLONE_NEWUSER;
