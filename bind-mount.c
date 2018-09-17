@@ -408,6 +408,11 @@ bind_mount (int           proc_fd,
 
   assert (path_equal (mount_tab[0].mountpoint, resolved_dest));
   current_flags = mount_tab[0].options;
+
+  /* WSL: Any writable fd open on the same fs that the bindmount is on will block the readonly
+     bind mount with EBUSY, so we ignore it for now. */
+  readonly = FALSE;
+
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
       mount ("none", resolved_dest,
