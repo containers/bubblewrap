@@ -73,6 +73,7 @@ int opt_sync_fd = -1;
 int opt_block_fd = -1;
 int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
+int opt_json_status_fd = -1;
 int opt_seccomp_fd = -1;
 const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
@@ -229,6 +230,7 @@ usage (int ecode, FILE *out)
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
+           "    --json-status-fd FD          Write container status to FD as multiple JSON documents\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
@@ -314,6 +316,17 @@ propagate_exit_status (int status)
   return 255;
 }
 
+static void
+dump_info (int fd, const char *output, bool exit_on_error)
+{
+  size_t len = strlen (output);
+  if (write_to_fd (fd, output, len))
+    {
+      if (exit_on_error)
+        die_with_error ("Write to info_fd");
+    }
+}
+
 /* This stays around for as long as the initial process in the app does
  * and when that exits it exits, propagating the exit status. We do this
  * by having pid 1 in the sandbox detect this exit and tell the monitor
@@ -331,12 +344,18 @@ monitor_child (int event_fd, pid_t child_pid)
   struct pollfd fds[2];
   int num_fds;
   struct signalfd_siginfo fdsi;
-  int dont_close[] = { event_fd, -1 };
+  int dont_close[] = {-1, -1, -1};
+  int j = 0;
   pid_t died_pid;
   int died_status;
 
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
+  if (event_fd != -1)
+    dont_close[j++] = event_fd;
+  if (opt_json_status_fd != -1)
+    dont_close[j++] = opt_json_status_fd;
+  assert (j < sizeof(dont_close)/sizeof(*dont_close));
   fdwalk (proc_fd, close_extra_fds, dont_close);
 
   sigemptyset (&mask);
@@ -1768,6 +1787,23 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--json-status-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--json-status-fd takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_json_status_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--seccomp") == 0)
         {
           int the_fd;
@@ -2216,10 +2252,13 @@ main (int    argc,
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
-          size_t len = strlen (output);
-          if (write (opt_info_fd, output, len) != len)
-            die_with_error ("Write to info_fd");
+          dump_info (opt_info_fd, output, TRUE);
           close (opt_info_fd);
+        }
+      if (opt_json_status_fd != -1)
+        {
+          cleanup_free char *output = xasprintf ("{ \"child-pid\": %i }\n", pid);
+          dump_info (opt_json_status_fd, output, TRUE);
         }
 
       if (opt_userns_block_fd != -1)
@@ -2254,6 +2293,9 @@ main (int    argc,
 
   if (opt_info_fd != -1)
     close (opt_info_fd);
+
+  if (opt_json_status_fd != -1)
+    close (opt_json_status_fd);
 
   /* Wait for the parent to init uid/gid maps and drop caps */
   res = read (child_wait_fd, &val, 8);
