@@ -50,15 +50,28 @@ if ${is_uidzero} || test -x `dirname $UNREADABLE`; then
 fi
 
 # https://github.com/projectatomic/bubblewrap/issues/217
-BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
-          --ro-bind /etc /etc
-          --dir /var/tmp
-          --symlink usr/lib /lib
-          --symlink usr/lib64 /lib64
-          --symlink usr/bin /bin
-          --symlink usr/sbin /sbin
-          --proc /proc
-          --dev /dev"
+# are we on a merged-/usr system?
+if [ /lib -ef /usr/lib ]; then
+    BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
+              --ro-bind /etc /etc
+              --dir /var/tmp
+              --symlink usr/lib /lib
+              --symlink usr/lib64 /lib64
+              --symlink usr/bin /bin
+              --symlink usr/sbin /sbin
+              --proc /proc
+              --dev /dev"
+else
+    BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
+              --ro-bind /etc /etc
+              --ro-bind /bin /bin
+              --ro-bind /lib /lib
+              --ro-bind-try /lib64 /lib64
+              --ro-bind /sbin /sbin
+              --dir /var/tmp
+              --proc /proc
+              --dev /dev"
+fi
 
 # Default arg, bind whole host fs to /, tmpfs on /tmp
 RUN="${BWRAP} --bind / / --tmpfs /tmp"
