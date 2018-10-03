@@ -80,7 +80,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..39"
+echo "1..41"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -146,7 +146,21 @@ if $RUN --unshare-all --info-fd 42 --json-status-fd 43 -- bash -c 'exit 42' 42>i
 fi
 assert_file_has_content info.json '"child-pid": [0-9]'
 assert_file_has_content json-status.json '"child-pid": [0-9]'
+assert_file_has_content_literal json-status.json '"exit-code": 42'
 echo "ok info and json-status fd"
+
+if ! which strace 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault; then
+    echo "ok - # SKIP no strace fault injection"
+else
+    ! strace -o /dev/null -f -e trace=prctl -e fault=prctl:when=39 $RUN --die-with-parent --json-status-fd 42 true 42>json-status.json
+    assert_not_file_has_content json-status.json '"exit-code": [0-9]'
+    echo "ok pre-exec failure doesn't include exit-code in json-status"
+fi
+
+notanexecutable=/
+$RUN --json-status-fd 42 $notanexecutable 42>json-status.json || true
+assert_not_file_has_content json-status.json '"exit-code": [0-9]'
+echo "ok exec failure doesn't include exit-code in json-status"
 
 # These tests require --unshare-user
 if test -n "${bwrap_is_suid:-}"; then
