@@ -327,6 +327,28 @@ dump_info (int fd, const char *output, bool exit_on_error)
     }
 }
 
+static void
+report_child_exit_status (int exitc, int setup_finished_fd)
+{
+  ssize_t s;
+  char data[2];
+  cleanup_free char *output = NULL;
+  if (opt_json_status_fd == -1 || setup_finished_fd == -1)
+    return;
+
+  s = TEMP_FAILURE_RETRY (read (setup_finished_fd, data, sizeof data));
+  if (s == -1 && errno != EAGAIN)
+    die_with_error ("read eventfd");
+  if (s != 1) // Is 0 if pipe closed before exec, is 2 if closed after exec.
+    return;
+
+  output = xasprintf ("{ \"exit-code\": %i }\n", exitc);
+  dump_info (opt_json_status_fd, output, FALSE);
+  close (opt_json_status_fd);
+  opt_json_status_fd = -1;
+  close (setup_finished_fd);
+}
+
 /* This stays around for as long as the initial process in the app does
  * and when that exits it exits, propagating the exit status. We do this
  * by having pid 1 in the sandbox detect this exit and tell the monitor
@@ -334,7 +356,7 @@ dump_info (int fd, const char *output, bool exit_on_error)
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static int
-monitor_child (int event_fd, pid_t child_pid)
+monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
 {
   int res;
   uint64_t val;
@@ -344,8 +366,9 @@ monitor_child (int event_fd, pid_t child_pid)
   struct pollfd fds[2];
   int num_fds;
   struct signalfd_siginfo fdsi;
-  int dont_close[] = {-1, -1, -1};
+  int dont_close[] = {-1, -1, -1, -1};
   int j = 0;
+  int exitc;
   pid_t died_pid;
   int died_status;
 
@@ -355,6 +378,8 @@ monitor_child (int event_fd, pid_t child_pid)
     dont_close[j++] = event_fd;
   if (opt_json_status_fd != -1)
     dont_close[j++] = opt_json_status_fd;
+  if (setup_finished_fd != -1)
+    dont_close[j++] = setup_finished_fd;
   assert (j < sizeof(dont_close)/sizeof(*dont_close));
   fdwalk (proc_fd, close_extra_fds, dont_close);
 
@@ -391,7 +416,11 @@ monitor_child (int event_fd, pid_t child_pid)
           if (s == -1 && errno != EINTR && errno != EAGAIN)
             die_with_error ("read eventfd");
           else if (s == 8)
-            return ((int) val - 1);
+            {
+              exitc = (int) val - 1;
+              report_child_exit_status (exitc, setup_finished_fd);
+              return exitc;
+            }
         }
 
       /* We need to read the signal_fd, or it will keep polling as read,
@@ -408,7 +437,11 @@ monitor_child (int event_fd, pid_t child_pid)
           /* We may be getting sigchild from other children too. For instance if
              someone created a child process, and then exec:ed bubblewrap. Ignore them */
           if (died_pid == child_pid)
-            return propagate_exit_status (died_status);
+            {
+              exitc = propagate_exit_status (died_status);
+              report_child_exit_status (exitc, setup_finished_fd);
+              return exitc;
+            }
         }
     }
 
@@ -2019,6 +2052,7 @@ main (int    argc,
   pid_t pid;
   int event_fd = -1;
   int child_wait_fd = -1;
+  int setup_finished_pipe[] = {-1, -1};
   const char *new_cwd;
   uid_t ns_uid;
   gid_t ns_gid;
@@ -2205,6 +2239,15 @@ main (int    argc,
   if (child_wait_fd == -1)
     die_with_error ("eventfd()");
 
+  /* Track whether pre-exec setup finished if we're reporting process exit */
+  if (opt_json_status_fd != -1)
+    {
+      int ret;
+      ret = pipe2 (setup_finished_pipe, O_CLOEXEC);
+      if (ret == -1)
+        die_with_error ("pipe2()");
+    }
+
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
@@ -2274,7 +2317,7 @@ main (int    argc,
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
-      return monitor_child (event_fd, pid);
+      return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
@@ -2603,8 +2646,27 @@ main (int    argc,
       prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
     die_with_error ("prctl(PR_SET_SECCOMP)");
 
+  if (setup_finished_pipe[1] != -1)
+    {
+      char data = 0;
+      res = write_to_fd (setup_finished_pipe[1], &data, 1);
+      /* Ignore res, if e.g. the parent died and closed setup_finished_pipe[0]
+         we don't want to error out here */
+    }
+
   if (execvp (argv[0], argv) == -1)
-    die_with_error ("execvp %s", argv[0]);
+    {
+      if (setup_finished_pipe[1] != -1)
+        {
+          int saved_errno = errno;
+          char data = 0;
+          res = write_to_fd (setup_finished_pipe[1], &data, 1);
+          errno = saved_errno;
+          /* Ignore res, if e.g. the parent died and closed setup_finished_pipe[0]
+             we don't want to error out here */
+        }
+      die_with_error ("execvp %s", argv[0]);
+    }
 
   return 0;
 }
