@@ -139,7 +139,7 @@ such.
 Related project comparison: Sandstorm.io
 ----------------------------------------
 
-[Sandstorm.io](https://sandstorm.io/) requries unprivileged user
+[Sandstorm.io](https://sandstorm.io/) requires unprivileged user
 namespaces to set up its sandbox, though it could easily be adapted
 to operate in a setuid mode as well. @cgwalters believes their code is
 fairly good, but it could still make sense to unify on bubblewrap.
@@ -168,7 +168,7 @@ complete OCI runtime).
 [binctr](https://github.com/jfrazelle/binctr) is just a wrapper for
 runC, so inherits all of its design tradeoffs.
 
-Whats with the name ?!
+What's with the name?!
 ----------------------
 
 The name bubblewrap was chosen to convey that this
