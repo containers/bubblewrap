@@ -75,7 +75,7 @@ die_unless_label_valid (const char *label)
 void
 die_oom (void)
 {
-  puts ("Out of memory");
+  fputs ("Out of memory\n", stderr);
   exit (1);
 }
 
