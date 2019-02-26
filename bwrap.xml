@@ -185,7 +185,7 @@
     </varlistentry>
     <varlistentry>
       <term><option>--bind-try <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Equal to <option>--bind</option> but ignores non-existant <arg choice="plain">SRC</arg></para></listitem>
+      <listitem><para>Equal to <option>--bind</option> but ignores non-existent <arg choice="plain">SRC</arg></para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--dev-bind <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
@@ -193,7 +193,7 @@
     </varlistentry>
     <varlistentry>
       <term><option>--dev-bind-try <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Equal to <option>--dev-bind</option> but ignores non-existant <arg choice="plain">SRC</arg></para></listitem>
+      <listitem><para>Equal to <option>--dev-bind</option> but ignores non-existent <arg choice="plain">SRC</arg></para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--ro-bind <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
@@ -201,7 +201,7 @@
     </varlistentry>
     <varlistentry>
       <term><option>--ro-bind-try <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Equal to <option>--ro-bind</option> but ignores non-existant <arg choice="plain">SRC</arg></para></listitem>
+      <listitem><para>Equal to <option>--ro-bind</option> but ignores non-existent <arg choice="plain">SRC</arg></para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--remount-ro <arg choice="plain">DEST</arg></option></term>

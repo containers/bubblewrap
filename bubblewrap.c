@@ -209,11 +209,11 @@ usage (int ecode, FILE *out)
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
            "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
-           "    --bind-try SRC DEST          Equal to --bind but ignores non-existant SRC\n"
+           "    --bind-try SRC DEST          Equal to --bind but ignores non-existent SRC\n"
            "    --dev-bind SRC DEST          Bind mount the host path SRC on DEST, allowing device access\n"
-           "    --dev-bind-try SRC DEST      Equal to --dev-bind but ignores non-existant SRC\n"
+           "    --dev-bind-try SRC DEST      Equal to --dev-bind but ignores non-existent SRC\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
-           "    --ro-bind-try SRC DEST       Equal to --ro-bind but ignores non-existant SRC\n"
+           "    --ro-bind-try SRC DEST       Equal to --ro-bind but ignores non-existent SRC\n"
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
            "    --exec-label LABEL           Exec label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
@@ -425,7 +425,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
 
       /* We need to read the signal_fd, or it will keep polling as read,
        * however we ignore the details as we get them from waitpid
-       * below anway */
+       * below anyway */
       s = read (signal_fd, &fdsi, sizeof (struct signalfd_siginfo));
       if (s == -1 && errno != EINTR && errno != EAGAIN)
         die_with_error ("read signalfd");
@@ -690,7 +690,7 @@ set_ambient_capabilities (void)
  * "is_privileged = FALSE".
  *
  * If bwrap is setuid, then we do things in phases.
- * The first part is run as euid 0, but with with fsuid as the real user.
+ * The first part is run as euid 0, but with fsuid as the real user.
  * The second part, inside the child, is run as the real user but with
  * capabilities.
  * And finally we drop all capabilities.
