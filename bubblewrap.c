@@ -2046,7 +2046,7 @@ main (int    argc,
       char **argv)
 {
   mode_t old_umask;
-  cleanup_free char *base_path = NULL;
+  const char *base_path = NULL;
   int clone_flags;
   char *old_cwd = NULL;
   pid_t pid;
@@ -2187,15 +2187,12 @@ main (int    argc,
     die_with_error ("Can't open /proc");
 
   /* We need *some* mountpoint where we can mount the root tmpfs.
-     We first try in /run, and if that fails, try in /tmp. */
-  base_path = xasprintf ("/run/user/%d/.bubblewrap", real_uid);
-  if (ensure_dir (base_path, 0755))
-    {
-      free (base_path);
-      base_path = xasprintf ("/tmp/.bubblewrap-%d", real_uid);
-      if (ensure_dir (base_path, 0755))
-        die_with_error ("Creating root mountpoint failed");
-    }
+   * Because we use pivot_root, it won't appear to be mounted from
+   * the perspective of the sandboxed process, so we can use anywhere
+   * that is sure to exist, that is sure to not be a symlink controlled
+   * by someone malicious, and that we won't immediately need to
+   * access ourselves. */
+  base_path = "/tmp";
 
   __debug__ (("creating new namespace\n"));
 
@@ -2400,7 +2397,8 @@ main (int    argc,
   /* We create a subdir "$base_path/newroot" for the new root, that
    * way we can pivot_root to base_path, and put the old root at
    * "$base_path/oldroot". This avoids problems accessing the oldroot
-   * dir if the user requested to bind mount something over / */
+   * dir if the user requested to bind mount something over / (or
+   * over /tmp, now that we use that for base_path). */
 
   if (mkdir ("newroot", 0755))
     die_with_error ("Creating newroot failed");
