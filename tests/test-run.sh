@@ -80,7 +80,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..41"
+echo "1..46"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -277,5 +277,56 @@ if $RUN -- --dev-bind /dev /dev sh -c 'echo should not have run'; then
     assert_not_reached "'--dev-bind' should have been interpreted as a (silly) executable name"
 fi
 echo "ok - options like --dev-bind are defanged by --"
+
+if command -v mktemp > /dev/null; then
+    tempfile="$(mktemp /tmp/bwrap-test-XXXXXXXX)"
+    echo "hello" > "$tempfile"
+    $BWRAP --bind / / cat "$tempfile" > stdout
+    assert_file_has_content stdout hello
+    echo "ok - bind-mount of / exposes real /tmp"
+    $BWRAP --bind / / --bind /tmp /tmp cat "$tempfile" > stdout
+    assert_file_has_content stdout hello
+    echo "ok - bind-mount of /tmp exposes real /tmp"
+    if [ -d /mnt ]; then
+        $BWRAP --bind / / --bind /tmp /mnt cat "/mnt/${tempfile#/tmp/}" > stdout
+        assert_file_has_content stdout hello
+        echo "ok - bind-mount of /tmp onto /mnt exposes real /tmp"
+    else
+        echo "ok - # SKIP /mnt does not exist"
+    fi
+else
+    echo "ok - # SKIP mktemp not found"
+    echo "ok - # SKIP mktemp not found"
+    echo "ok - # SKIP mktemp not found"
+fi
+
+if $RUN test -d /tmp/oldroot; then
+    assert_not_reached "/tmp/oldroot should not be visible"
+fi
+if $RUN test -d /tmp/newroot; then
+    assert_not_reached "/tmp/newroot should not be visible"
+fi
+
+echo "hello" > input.$$
+$BWRAP --bind / / --bind "$(pwd)" /tmp cat /tmp/input.$$ > stdout
+assert_file_has_content stdout hello
+if $BWRAP --bind / / --bind "$(pwd)" /tmp test -d /tmp/oldroot; then
+    assert_not_reached "/tmp/oldroot should not be visible"
+fi
+if $BWRAP --bind / / --bind "$(pwd)" /tmp test -d /tmp/newroot; then
+    assert_not_reached "/tmp/newroot should not be visible"
+fi
+echo "ok - we can mount another directory onto /tmp"
+
+echo "hello" > input.$$
+$RUN --bind "$(pwd)" /tmp/here cat /tmp/here/input.$$ > stdout
+assert_file_has_content stdout hello
+if $RUN --bind "$(pwd)" /tmp/here test -d /tmp/oldroot; then
+    assert_not_reached "/tmp/oldroot should not be visible"
+fi
+if $RUN --bind "$(pwd)" /tmp/here test -d /tmp/newroot; then
+    assert_not_reached "/tmp/newroot should not be visible"
+fi
+echo "ok - we can mount another directory inside /tmp"
 
 echo "ok - End of test"
