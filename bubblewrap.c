@@ -206,6 +206,7 @@ usage (int ecode, FILE *out)
            "    --chdir DIR                  Change directory to DIR\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
            "    --unsetenv VAR               Unset an environment variable\n"
+           "    --clearenv                   Clear all environment variables\n"
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
            "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
@@ -1873,6 +1874,10 @@ parse_args_recurse (int          *argcp,
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--clearenv") == 0)
+        {
+          xclearenv ();
         }
       else if (strcmp (arg, "--uid") == 0)
         {

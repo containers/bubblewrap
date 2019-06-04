@@ -230,6 +230,14 @@ xunsetenv (const char *name)
     die ("unsetenv failed");
 }
 
+extern char **environ;
+
+void
+xclearenv (void)
+{
+  environ = NULL;
+}
+
 char *
 strconcat (const char *s1,
            const char *s2)

@@ -64,6 +64,7 @@ void  xsetenv (const char *name,
                const char *value,
                int         overwrite);
 void  xunsetenv (const char *name);
+void  xclearenv (void);
 char *strconcat (const char *s1,
                  const char *s2);
 char *strconcat3 (const char *s1,
