@@ -81,6 +81,27 @@ char *opt_args_data = NULL;  /* owned */
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
 
+typedef struct _NsInfo NsInfo;
+
+struct _NsInfo {
+  const char *name;
+  bool       *do_unshare;
+  ino_t       id;
+};
+
+static NsInfo ns_infos[] = {
+  {"cgroup", &opt_unshare_cgroup, 0},
+  {"ipc",    &opt_unshare_ipc,    0},
+  {"mnt",    NULL,                0},
+  {"net",    &opt_unshare_net,    0},
+  {"pid",    &opt_unshare_pid,    0},
+  /* user namespace info omitted because it
+   * is not (yet) valid when we obtain the
+   * namespace info (get un-shared later) */
+  {"uts",    &opt_unshare_uts,    0},
+  {NULL,     NULL,                0}
+};
+
 typedef enum {
   SETUP_BIND_MOUNT,
   SETUP_RO_BIND_MOUNT,
@@ -539,7 +560,8 @@ static bool opt_cap_add_or_drop_used;
 static uint32_t requested_caps[2] = {0, 0};
 
 /* low 32bit caps needed */
-#define REQUIRED_CAPS_0 (CAP_TO_MASK_0 (CAP_SYS_ADMIN) | CAP_TO_MASK_0 (CAP_SYS_CHROOT) | CAP_TO_MASK_0 (CAP_NET_ADMIN) | CAP_TO_MASK_0 (CAP_SETUID) | CAP_TO_MASK_0 (CAP_SETGID))
+/* CAP_SYS_PTRACE is needed to dereference the symlinks in /proc/<pid>/ns/, see namespaces(7) */
+#define REQUIRED_CAPS_0 (CAP_TO_MASK_0 (CAP_SYS_ADMIN) | CAP_TO_MASK_0 (CAP_SYS_CHROOT) | CAP_TO_MASK_0 (CAP_NET_ADMIN) | CAP_TO_MASK_0 (CAP_SETUID) | CAP_TO_MASK_0 (CAP_SETGID) | CAP_TO_MASK_0 (CAP_SYS_PTRACE))
 /* high 32bit caps needed */
 #define REQUIRED_CAPS_1 0
 
@@ -2041,6 +2063,65 @@ read_overflowids (void)
     die ("Can't parse /proc/sys/kernel/overflowgid");
 }
 
+static void
+namespace_ids_read (pid_t  pid)
+{
+  cleanup_free char *dir = NULL;
+  cleanup_fd int ns_fd = -1;
+  NsInfo *info;
+
+  dir = xasprintf ("%d/ns", pid);
+  ns_fd = openat (proc_fd, dir, O_PATH);
+
+  if (ns_fd < 0)
+    die_with_error ("open /proc/%s/ns failed", dir);
+
+  for (info = ns_infos; info->name; info++)
+    {
+      bool *do_unshare = info->do_unshare;
+      struct stat st;
+      int r;
+
+      /* if we don't unshare this ns, ignore it */
+      if (do_unshare && *do_unshare == FALSE)
+        continue;
+
+      r = fstatat (ns_fd, info->name, &st, 0);
+
+      /* if we can't get the information, ignore it */
+      if (r != 0)
+        continue;
+
+      info->id = st.st_ino;
+    }
+}
+
+static void
+namespace_ids_write (int    fd,
+                     bool   in_json)
+{
+  NsInfo *info;
+
+  for (info = ns_infos; info->name; info++)
+    {
+      cleanup_free char *output = NULL;
+      const char *indent;
+      uintmax_t nsid;
+
+      nsid = (uintmax_t) info->id;
+
+      /* if we don't have the information, we don't write it */
+      if (nsid == 0)
+        continue;
+
+      indent = in_json ? " " : "\n    ";
+      output = xasprintf (",%s\"%s-namespace\": %ju",
+                          indent, info->name, nsid);
+
+      dump_info (fd, output, TRUE);
+    }
+}
+
 int
 main (int    argc,
       char **argv)
@@ -2269,6 +2350,9 @@ main (int    argc,
     {
       /* Parent, outside sandbox, privileged (initially) */
 
+      /* Discover namespace ids before we drop privileges */
+      namespace_ids_read (pid);
+
       if (is_privileged && opt_unshare_user && opt_userns_block_fd == -1)
         {
           /* We're running as euid 0, but the uid we want to map is
@@ -2294,14 +2378,18 @@ main (int    argc,
 
       if (opt_info_fd != -1)
         {
-          cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i\n}\n", pid);
+          cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i", pid);
           dump_info (opt_info_fd, output, TRUE);
+          namespace_ids_write (opt_info_fd, FALSE);
+          dump_info (opt_info_fd, "\n}\n", TRUE);
           close (opt_info_fd);
         }
       if (opt_json_status_fd != -1)
         {
-          cleanup_free char *output = xasprintf ("{ \"child-pid\": %i }\n", pid);
+          cleanup_free char *output = xasprintf ("{ \"child-pid\": %i", pid);
           dump_info (opt_json_status_fd, output, TRUE);
+          namespace_ids_write (opt_json_status_fd, TRUE);
+          dump_info (opt_json_status_fd, " }\n", TRUE);
         }
 
       if (opt_userns_block_fd != -1)
