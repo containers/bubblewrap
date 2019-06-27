@@ -2229,8 +2229,11 @@ main (int    argc,
       clone_flags |= CLONE_NEWCGROUP;
     }
   if (opt_unshare_cgroup_try)
-    if (!stat ("/proc/self/ns/cgroup", &sbuf))
-      clone_flags |= CLONE_NEWCGROUP;
+    {
+      opt_unshare_cgroup = !stat ("/proc/self/ns/cgroup", &sbuf);
+      if (opt_unshare_cgroup)
+        clone_flags |= CLONE_NEWCGROUP;
+    }
 
   child_wait_fd = eventfd (0, EFD_CLOEXEC);
   if (child_wait_fd == -1)
