@@ -532,17 +532,20 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
       int status;
 
       child = wait (&status);
-      if (child == initial_pid && event_fd != -1)
+      if (child == initial_pid)
         {
-          uint64_t val;
-          int res UNUSED;
-
           initial_exit_status = propagate_exit_status (status);
 
-          val = initial_exit_status + 1;
-          res = write (event_fd, &val, 8);
-          /* Ignore res, if e.g. the parent died and closed event_fd
-             we don't want to error out here */
+          if(event_fd != -1)
+            {
+              uint64_t val;
+              int res UNUSED;
+
+              val = initial_exit_status + 1;
+              res = write (event_fd, &val, 8);
+              /* Ignore res, if e.g. the parent died and closed event_fd
+                 we don't want to error out here */
+            }
         }
 
       if (child == -1 && errno != EINTR)
