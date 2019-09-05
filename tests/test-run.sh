@@ -149,6 +149,17 @@ assert_file_has_content json-status.json '"child-pid": [0-9]'
 assert_file_has_content_literal json-status.json '"exit-code": 42'
 echo "ok info and json-status fd"
 
+DATA=$($RUN --proc /proc --unshare-all --info-fd 42 --json-status-fd 43 -- bash -c 'stat -L --format "%n %i" /proc/self/ns/*' 42>info.json 43>json-status.json 2>err.txt)
+
+for NS in "ipc" "mnt" "net" "pid" "uts"; do
+
+    want=$(echo "$DATA" | grep "/proc/self/ns/$NS" | awk '{print $2}')
+    assert_file_has_content info.json "$want"
+    assert_file_has_content json-status.json "$want"
+done
+
+echo "ok namespace id info in info and json-status fd"
+
 if ! which strace 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault; then
     echo "ok - # SKIP no strace fault injection"
 else
