@@ -2227,6 +2227,15 @@ main (int    argc,
           if (max_user_ns != NULL && strcmp(max_user_ns, "0\n") == 0)
             disabled = TRUE;
         }
+    
+      /* Check if /proc is mounted with hidepid=1 or hidepid=2 */
+      if (stat ("/proc/mounts", &sbuf) == 0)
+        {
+          cleanup_free char *hidepid = NULL;
+          hidepid = load_file_at (AT_FDCWD, "/proc/mounts");
+          if (strstr(hidepid, "hidepid=") != NULL)
+            disabled = TRUE;
+        }
 
       /* Debian lets you disable *unprivileged* user namespaces. However this is not
          a problem if we're privileged, and if we're not opt_unshare_user is TRUE
