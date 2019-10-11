@@ -1169,9 +1169,10 @@ setup_newroot (bool unshare_pid,
           {
             cleanup_free char *pts = strconcat (dest, "/pts");
             cleanup_free char *ptmx = strconcat (dest, "/ptmx");
-            cleanup_free char *shm = strconcat (dest, "/shm");
+            cleanup_free char *shm = strconcat (dest, "
+                                                ");
 
-            if (mkdir (shm, 0755) == -1)
+            if (mkdir (shm, 01777) == -1)
               die_with_error ("Can't create %s/shm", op->dest);
 
             if (mkdir (pts, 0755) == -1)
