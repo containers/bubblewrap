@@ -80,7 +80,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..46"
+echo "1..47"
 
 # Test help
 ${BWRAP} --help > help.txt
