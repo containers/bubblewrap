@@ -135,8 +135,18 @@ assert_file_empty() {
     fi
 }
 
+assert_files_equal() {
+    if ! cmp "$1" "$2"; then
+        _fatal_print_file "$1" "File '$1' and '$2' is not equal"
+    fi
+}
+
 # Use to skip all of these tests
 skip() {
     echo "1..0 # SKIP" "$@"
     exit 0
+}
+
+extract_child_pid() {
+    grep child-pid "$1" | sed "s/^.*: \([0-9]*\).*/\1/"
 }
