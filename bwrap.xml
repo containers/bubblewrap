@@ -141,6 +141,11 @@
       <para>This is useful because sometimes bubblewrap itself creates nested user namespaces (to work around some kernel issues) and --userns2 can be used to enter these.</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--pidns <arg choice="plain">FD</arg></option></term>
+      <listitem><para>Use an existing pid namespace instead of creating one. This is often used with --userns, because the pid namespace must be owned by the same user namespace that bwrap uses. </para>
+      <para>Note that this can be combined with --unshare-pid, and in that case it means that the sandbox will be in its own pid namespace, which is a child of the passed in one.</para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--uid <arg choice="plain">UID</arg></option></term>
       <listitem><para>Use a custom user id in the sandbox (requires <option>--unshare-user</option>)</para></listitem>
     </varlistentry>

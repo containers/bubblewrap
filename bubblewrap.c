@@ -88,6 +88,7 @@ const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
 int opt_userns_fd = -1;
 int opt_userns2_fd = -1;
+int opt_pidns_fd = -1;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -234,6 +235,7 @@ usage (int ecode, FILE *out)
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
            "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
            "    --userns2 FD                 After setup switch to this user namspace, only useful with --userns\n"
+           "    --pidns FD                   Use this user namespace (as parent namespace if using --unshare-pid)\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
@@ -1105,7 +1107,7 @@ setup_newroot (bool unshare_pid,
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
-          if (unshare_pid)
+          if (unshare_pid || opt_pidns_fd != -1)
             {
               /* Our own procfs */
               privileged_op (privileged_op_socket,
@@ -1927,6 +1929,23 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--pidns") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--pidns takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_pidns_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--setenv") == 0)
         {
           if (argc < 3)
@@ -2195,6 +2214,7 @@ main (int    argc,
   size_t seccomp_len;
   struct sock_fprog seccomp_prog;
   cleanup_free char *args_data = NULL;
+  int intermediate_pids_sockets[2] = {-1, -1};
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2362,7 +2382,7 @@ main (int    argc,
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
     clone_flags |= CLONE_NEWUSER;
-  if (opt_unshare_pid)
+  if (opt_unshare_pid && opt_pidns_fd == -1)
     clone_flags |= CLONE_NEWPID;
   if (opt_unshare_net)
     clone_flags |= CLONE_NEWNET;
@@ -2409,6 +2429,14 @@ main (int    argc,
       die_with_error ("Joining specified user namespace failed");
     }
 
+  /* Sometimes we have uninteresting intermidate pids during the setup, set up code to pass the real pid down */
+  if (opt_pidns_fd != -1)
+    {
+      /* Mark us as a subreaper, this way we can get exit status from grandchildren */
+      prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
+      create_pid_socketpair (intermediate_pids_sockets);
+    }
+
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
@@ -2429,6 +2457,13 @@ main (int    argc,
   if (pid != 0)
     {
       /* Parent, outside sandbox, privileged (initially) */
+
+      if (intermediate_pids_sockets[0] != -1)
+        {
+          close (intermediate_pids_sockets[1]);
+          pid = read_pid_from_socket (intermediate_pids_sockets[0]);
+          close (intermediate_pids_sockets[0]);
+        }
 
       /* Discover namespace ids before we drop privileges */
       namespace_ids_read (pid);
@@ -2489,6 +2524,31 @@ main (int    argc,
       close (child_wait_fd);
 
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
+    }
+
+  if (opt_pidns_fd > 0)
+    {
+      if (setns (opt_pidns_fd, CLONE_NEWPID) != 0)
+        die_with_error ("Setting pidns failed");
+
+      /* fork to get the passed in pid ns */
+      fork_intermediate_child ();
+
+      /* We might both have specified an --pidns *and* --unshare-pid, so set up a new child pid namespace under the specified one */
+      if (opt_unshare_pid)
+        {
+          if (unshare (CLONE_NEWPID))
+            die_with_error ("unshare pid ns");
+
+          /* fork to get the new pid ns */
+          fork_intermediate_child ();
+        }
+
+      /* We're back, either in a child or grandchild, so message the actual pid to the monitor */
+
+      close (intermediate_pids_sockets[0]);
+      send_pid_on_socket (intermediate_pids_sockets[1]);
+      close (intermediate_pids_sockets[1]);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
