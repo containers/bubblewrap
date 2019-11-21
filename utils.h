@@ -54,6 +54,8 @@ void  die (const char *format,
 void  die_oom (void) __attribute__((__noreturn__));
 void  die_unless_label_valid (const char *label);
 
+void  fork_intermediate_child (void);
+
 void *xmalloc (size_t size);
 void *xcalloc (size_t size);
 void *xrealloc (void  *ptr,

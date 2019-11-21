@@ -80,6 +80,19 @@ die_oom (void)
   exit (1);
 }
 
+/* Fork, return in child, exiting the previous parent */
+void
+fork_intermediate_child (void)
+{
+  int pid = fork ();
+  if (pid == -1)
+    die_with_error ("Can't fork for --pidns");
+
+  /* Parent is an process not needed */
+  if (pid != 0)
+    exit (0);
+}
+
 void *
 xmalloc (size_t size)
 {
