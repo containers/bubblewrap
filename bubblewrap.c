@@ -826,6 +826,10 @@ drop_privs (bool keep_requested_caps)
     die_with_error ("unable to drop root uid");
 
   drop_all_caps (keep_requested_caps);
+
+  /* We don't have any privs now, so mark us dumpable which makes /proc/self be owned by the user instead of root */
+  if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) != 0)
+    die_with_error ("can't set dumpable");
 }
 
 static char *
