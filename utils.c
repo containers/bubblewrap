@@ -19,6 +19,7 @@
 
 #include "utils.h"
 #include <sys/syscall.h>
+#include <sys/socket.h>
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
 #endif
@@ -668,6 +669,86 @@ mkdir_with_parents (const char *pathname,
   while (p);
 
   return 0;
+}
+
+/* Send an ucred with current pid/uid/gid over a socket, it can be
+   read back with read_pid_from_socket(), and then the kernel has
+   translated it between namespaces as needed. */
+void
+send_pid_on_socket (int socket)
+{
+  char buf[1] = { 0 };
+  struct msghdr msg = {};
+  struct iovec iov = { buf, sizeof (buf) };
+  const ssize_t control_len_snd = CMSG_SPACE(sizeof(struct ucred));
+  char control_buf_snd[control_len_snd];
+  struct cmsghdr *cmsg;
+  struct ucred *cred;
+
+  msg.msg_iov = &iov;
+  msg.msg_iovlen = 1;
+  msg.msg_control = control_buf_snd;
+  msg.msg_controllen = control_len_snd;
+
+  cmsg = CMSG_FIRSTHDR(&msg);
+  cmsg->cmsg_level = SOL_SOCKET;
+  cmsg->cmsg_type = SCM_CREDENTIALS;
+  cmsg->cmsg_len = CMSG_LEN(sizeof(struct ucred));
+  cred = (struct ucred *)CMSG_DATA(cmsg);
+
+  cred->pid = getpid ();
+  cred->uid = geteuid ();
+  cred->gid = getegid ();
+
+  if (sendmsg (socket, &msg, 0) < 0)
+    die_with_error ("Can't send pid");
+}
+
+void
+create_pid_socketpair (int sockets[2])
+{
+  int enable = 1;
+
+  if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sockets) != 0)
+    die_with_error ("Can't create intermediate pids socket");
+
+  if (setsockopt (sockets[0], SOL_SOCKET, SO_PASSCRED, &enable, sizeof (enable)) < 0)
+    die_with_error ("Can't set SO_PASSCRED");
+}
+
+int
+read_pid_from_socket (int socket)
+{
+  char recv_buf[1] = { 0 };
+  struct msghdr msg = {};
+  struct iovec iov = { recv_buf, sizeof (recv_buf) };
+  const ssize_t control_len_rcv = CMSG_SPACE(sizeof(struct ucred));
+  char control_buf_rcv[control_len_rcv];
+  struct cmsghdr* cmsg;
+
+  msg.msg_iov = &iov;
+  msg.msg_iovlen = 1;
+  msg.msg_control = control_buf_rcv;
+  msg.msg_controllen = control_len_rcv;
+
+  if (recvmsg (socket, &msg, 0) < 0)
+    die_with_error ("Cant read pid from socket");
+
+  if (msg.msg_controllen <= 0)
+    die ("Unexpected short read from pid socket");
+
+  for (cmsg = CMSG_FIRSTHDR(&msg); cmsg; cmsg = CMSG_NXTHDR(&msg, cmsg))
+    {
+      const unsigned payload_len = cmsg->cmsg_len - CMSG_LEN(0);
+      if (cmsg->cmsg_level == SOL_SOCKET &&
+          cmsg->cmsg_type == SCM_CREDENTIALS &&
+          payload_len == sizeof(struct ucred))
+        {
+          struct ucred *cred = (struct ucred *)CMSG_DATA(cmsg);
+          return cred->pid;
+        }
+    }
+  die ("No pid returned on socket");
 }
 
 int
