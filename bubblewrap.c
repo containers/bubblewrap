@@ -86,6 +86,8 @@ int opt_json_status_fd = -1;
 int opt_seccomp_fd = -1;
 const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
+int opt_userns_fd = -1;
+int opt_userns2_fd = -1;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -230,6 +232,8 @@ usage (int ecode, FILE *out)
            "    --unshare-uts                Create new uts namespace\n"
            "    --unshare-cgroup             Create new cgroup namespace\n"
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
+           "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
+           "    --userns2 FD                 After setup switch to this user namspace, only useful with --userns\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
@@ -1889,6 +1893,40 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--userns") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--userns takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_userns_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--userns2") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--userns2 takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_userns2_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--setenv") == 0)
         {
           if (argc < 3)
@@ -2207,14 +2245,35 @@ main (int    argc,
   if (opt_userns_block_fd != -1 && opt_info_fd == -1)
     die ("--userns-block-fd requires --info-fd");
 
+  if (opt_userns_fd != -1 && opt_unshare_user)
+    die ("--userns not compatible --unshare-user");
+
+  if (opt_userns_fd != -1 && opt_unshare_user_try)
+    die ("--userns not compatible --unshare-user-try");
+
+  /* Technically using setns() is probably safe even in the privileged
+   * case, because we got passed in a file descriptor to the
+   * namespace, and that can only be gotten if you have ptrace
+   * permissions against the target, and then you could do whatever to
+   * the namespace anyway.
+   *
+   * However, for practical reasons this isn't possible to use,
+   * because (as described in acquire_privs()) setuid bwrap causes
+   * root to own the namespaces that it creates, so you will not be
+   * able to access these namespaces anyway. So, best just not support
+   * it anway.
+   */
+  if (opt_userns_fd != -1 && is_privileged)
+    die ("--userns doesn't work in setuid mode");
+
   /* We have to do this if we weren't installed setuid (and we're not
    * root), so let's just DWIM */
-  if (!is_privileged && getuid () != 0)
+  if (!is_privileged && getuid () != 0 && opt_userns_fd == -1)
     opt_unshare_user = TRUE;
 
 #ifdef ENABLE_REQUIRE_USERNS
   /* In this build option, we require userns. */
-  if (is_privileged && getuid () != 0)
+  if (is_privileged && getuid () != 0 && opt_userns_fd == -1)
     opt_unshare_user = TRUE;
 #endif
 
@@ -2342,6 +2401,14 @@ main (int    argc,
         die_with_error ("pipe2()");
     }
 
+  /* Switch to the custom user ns before the clone, gets us privs in that ns (assuming its a child of the current and thus allowed) */
+  if (opt_userns_fd > 0 && setns (opt_userns_fd, CLONE_NEWUSER) != 0)
+    {
+      if (errno == EINVAL)
+        die ("Joining the specified user namespace failed, it might not be a descendant of the current user namespace.");
+      die_with_error ("Joining specified user namespace failed");
+    }
+
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
@@ -2381,7 +2448,10 @@ main (int    argc,
                              pid, TRUE, opt_needs_devpts);
         }
 
-      /* Initial launched process, wait for exec:ed command to exit */
+      /* Initial launched process, wait for pid 1 or exec:ed command to exit */
+
+      if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
+        die_with_error ("Setting userns2 failed");
 
       /* We don't need any privileges in the launcher, drop them immediately. */
       drop_privs (FALSE);
@@ -2608,6 +2678,9 @@ main (int    argc,
     if (chdir ("/") != 0)
       die_with_error ("chdir /");
   }
+
+  if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
+    die_with_error ("Setting userns2 failed");
 
   if (opt_unshare_user &&
       (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid) &&
