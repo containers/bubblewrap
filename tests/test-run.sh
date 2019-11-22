@@ -80,7 +80,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..48"
+echo "1..49"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -343,6 +343,7 @@ echo "ok - we can mount another directory inside /tmp"
 # These tests need user namespaces
 if test -n "${bwrap_is_suid:-}"; then
     echo "ok - # SKIP no setuid support for --unshare-user"
+    echo "ok - # SKIP no setuid support for --unshare-user"
 else
     mkfifo donepipe
 
@@ -358,6 +359,21 @@ else
     rm donepipe info.json sandbox-userns
 
     echo "ok - Test --userns"
+
+    mkfifo donepipe
+    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'ls -l /proc/self/ns/pid > sandbox-pidns; cat < donepipe' 42>info.json &
+    while ! test -f sandbox-pidns; do sleep 1; done
+    SANDBOX1PID=$(extract_child_pid info.json)
+
+    $RUN --userns 11 --pidns 12 ls -l /proc/self/ns/pid > sandbox2-pidns 11< /proc/$SANDBOX1PID/ns/user 12< /proc/$SANDBOX1PID/ns/pid
+    echo foo > donepipe
+
+    assert_files_equal sandbox-pidns sandbox2-pidns
+
+    rm donepipe info.json sandbox-pidns
+
+    echo "ok - Test --pidns"
 fi
+
 
 echo "ok - End of test"
