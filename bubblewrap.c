@@ -2429,7 +2429,7 @@ main (int    argc,
       die_with_error ("Joining specified user namespace failed");
     }
 
-  /* Sometimes we have uninteresting intermidate pids during the setup, set up code to pass the real pid down */
+  /* Sometimes we have uninteresting intermediate pids during the setup, set up code to pass the real pid down */
   if (opt_pidns_fd != -1)
     {
       /* Mark us as a subreaper, this way we can get exit status from grandchildren */
