@@ -347,11 +347,11 @@ if test -n "${bwrap_is_suid:-}"; then
 else
     mkfifo donepipe
 
-    $RUN --info-fd 42 --unshare-user sh -c 'ls -l /proc/self/ns/user > sandbox-userns; cat < donepipe' 42>info.json &
+    $RUN --info-fd 42 --unshare-user sh -c 'readlink /proc/self/ns/user > sandbox-userns; cat < donepipe' 42>info.json &
     while ! test -f sandbox-userns; do sleep 1; done
     SANDBOX1PID=$(extract_child_pid info.json)
 
-    $RUN  --userns 11 ls -l /proc/self/ns/user > sandbox2-userns 11< /proc/$SANDBOX1PID/ns/user
+    $RUN  --userns 11 readlink /proc/self/ns/user > sandbox2-userns 11< /proc/$SANDBOX1PID/ns/user
     echo foo > donepipe
 
     assert_files_equal sandbox-userns sandbox2-userns
@@ -361,11 +361,11 @@ else
     echo "ok - Test --userns"
 
     mkfifo donepipe
-    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'ls -l /proc/self/ns/pid > sandbox-pidns; cat < donepipe' 42>info.json &
+    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'readlink /proc/self/ns/pid > sandbox-pidns; cat < donepipe' 42>info.json &
     while ! test -f sandbox-pidns; do sleep 1; done
     SANDBOX1PID=$(extract_child_pid info.json)
 
-    $RUN --userns 11 --pidns 12 ls -l /proc/self/ns/pid > sandbox2-pidns 11< /proc/$SANDBOX1PID/ns/user 12< /proc/$SANDBOX1PID/ns/pid
+    $RUN --userns 11 --pidns 12 readlink /proc/self/ns/pid > sandbox2-pidns 11< /proc/$SANDBOX1PID/ns/user 12< /proc/$SANDBOX1PID/ns/pid
     echo foo > donepipe
 
     assert_files_equal sandbox-pidns sandbox2-pidns
