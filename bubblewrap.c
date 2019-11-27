@@ -236,8 +236,8 @@ usage (int ecode, FILE *out)
            "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
            "    --userns2 FD                 After setup switch to this user namspace, only useful with --userns\n"
            "    --pidns FD                   Use this user namespace (as parent namespace if using --unshare-pid)\n"
-           "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
-           "    --gid GID                    Custom gid in the sandbox (requires --unshare-user)\n"
+           "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
+           "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
            "    --chdir DIR                  Change directory to DIR\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
@@ -807,6 +807,16 @@ switch_to_user_with_privs (void)
   /* If we're in a new user namespace, we got back the bounding set, clear it again */
   if (opt_unshare_user || opt_userns_fd != -1)
     drop_cap_bounding_set (FALSE);
+
+  /* If we switched to a new user namespace it may allow other uids/gids, so switch to the target one */
+  if (opt_userns_fd != -1)
+    {
+      if (setuid (opt_sandbox_uid) < 0)
+        die_with_error ("unable to switch to uid %d", opt_sandbox_uid);
+
+      if (setgid (opt_sandbox_gid) < 0)
+        die_with_error ("unable to switch to gid %d", opt_sandbox_gid);
+    }
 
   if (!is_privileged)
     return;
@@ -2338,11 +2348,11 @@ main (int    argc,
   if (opt_sandbox_gid == -1)
     opt_sandbox_gid = real_gid;
 
-  if (!opt_unshare_user && opt_sandbox_uid != real_uid)
-    die ("Specifying --uid requires --unshare-user");
+  if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_uid != real_uid)
+    die ("Specifying --uid requires --unshare-user or --userns");
 
-  if (!opt_unshare_user && opt_sandbox_gid != real_gid)
-    die ("Specifying --gid requires --unshare-user");
+  if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_gid != real_gid)
+    die ("Specifying --gid requires --unshare-user or --userns");
 
   if (!opt_unshare_uts && opt_sandbox_hostname != NULL)
     die ("Specifying --hostname requires --unshare-uts");
