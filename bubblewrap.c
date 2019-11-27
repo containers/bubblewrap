@@ -805,7 +805,7 @@ static void
 switch_to_user_with_privs (void)
 {
   /* If we're in a new user namespace, we got back the bounding set, clear it again */
-  if (opt_unshare_user)
+  if (opt_unshare_user || opt_userns_fd != -1)
     drop_cap_bounding_set (FALSE);
 
   if (!is_privileged)
