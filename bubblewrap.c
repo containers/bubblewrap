@@ -811,10 +811,10 @@ switch_to_user_with_privs (void)
   /* If we switched to a new user namespace it may allow other uids/gids, so switch to the target one */
   if (opt_userns_fd != -1)
     {
-      if (setuid (opt_sandbox_uid) < 0)
+      if (opt_sandbox_uid != real_uid && setuid (opt_sandbox_uid) < 0)
         die_with_error ("unable to switch to uid %d", opt_sandbox_uid);
 
-      if (setgid (opt_sandbox_gid) < 0)
+      if (opt_sandbox_gid != real_gid && setgid (opt_sandbox_gid) < 0)
         die_with_error ("unable to switch to gid %d", opt_sandbox_gid);
     }
 
