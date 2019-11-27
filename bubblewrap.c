@@ -86,6 +86,9 @@ int opt_json_status_fd = -1;
 int opt_seccomp_fd = -1;
 const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
+int opt_userns_fd = -1;
+int opt_userns2_fd = -1;
+int opt_pidns_fd = -1;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -230,8 +233,11 @@ usage (int ecode, FILE *out)
            "    --unshare-uts                Create new uts namespace\n"
            "    --unshare-cgroup             Create new cgroup namespace\n"
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
-           "    --uid UID                    Custom uid in the sandbox (requires --unshare-user)\n"
-           "    --gid GID                    Custom gid in the sandbox (requires --unshare-user)\n"
+           "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
+           "    --userns2 FD                 After setup switch to this user namspace, only useful with --userns\n"
+           "    --pidns FD                   Use this user namespace (as parent namespace if using --unshare-pid)\n"
+           "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
+           "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
            "    --chdir DIR                  Change directory to DIR\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
@@ -799,8 +805,18 @@ static void
 switch_to_user_with_privs (void)
 {
   /* If we're in a new user namespace, we got back the bounding set, clear it again */
-  if (opt_unshare_user)
+  if (opt_unshare_user || opt_userns_fd != -1)
     drop_cap_bounding_set (FALSE);
+
+  /* If we switched to a new user namespace it may allow other uids/gids, so switch to the target one */
+  if (opt_userns_fd != -1)
+    {
+      if (opt_sandbox_uid != real_uid && setuid (opt_sandbox_uid) < 0)
+        die_with_error ("unable to switch to uid %d", opt_sandbox_uid);
+
+      if (opt_sandbox_gid != real_gid && setgid (opt_sandbox_gid) < 0)
+        die_with_error ("unable to switch to gid %d", opt_sandbox_gid);
+    }
 
   if (!is_privileged)
     return;
@@ -822,10 +838,14 @@ drop_privs (bool keep_requested_caps)
 {
   assert (!keep_requested_caps || !is_privileged);
   /* Drop root uid */
-  if (getuid () == 0 && setuid (opt_sandbox_uid) < 0)
+  if (geteuid () == 0 && setuid (opt_sandbox_uid) < 0)
     die_with_error ("unable to drop root uid");
 
   drop_all_caps (keep_requested_caps);
+
+  /* We don't have any privs now, so mark us dumpable which makes /proc/self be owned by the user instead of root */
+  if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) != 0)
+    die_with_error ("can't set dumpable");
 }
 
 static char *
@@ -1097,7 +1117,7 @@ setup_newroot (bool unshare_pid,
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
-          if (unshare_pid)
+          if (unshare_pid || opt_pidns_fd != -1)
             {
               /* Our own procfs */
               privileged_op (privileged_op_socket,
@@ -1885,6 +1905,57 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--userns") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--userns takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_userns_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--userns2") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--userns2 takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_userns2_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--pidns") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--pidns takes an argument");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          opt_pidns_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--setenv") == 0)
         {
           if (argc < 3)
@@ -2153,6 +2224,7 @@ main (int    argc,
   size_t seccomp_len;
   struct sock_fprog seccomp_prog;
   cleanup_free char *args_data = NULL;
+  int intermediate_pids_sockets[2] = {-1, -1};
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2203,14 +2275,35 @@ main (int    argc,
   if (opt_userns_block_fd != -1 && opt_info_fd == -1)
     die ("--userns-block-fd requires --info-fd");
 
+  if (opt_userns_fd != -1 && opt_unshare_user)
+    die ("--userns not compatible --unshare-user");
+
+  if (opt_userns_fd != -1 && opt_unshare_user_try)
+    die ("--userns not compatible --unshare-user-try");
+
+  /* Technically using setns() is probably safe even in the privileged
+   * case, because we got passed in a file descriptor to the
+   * namespace, and that can only be gotten if you have ptrace
+   * permissions against the target, and then you could do whatever to
+   * the namespace anyway.
+   *
+   * However, for practical reasons this isn't possible to use,
+   * because (as described in acquire_privs()) setuid bwrap causes
+   * root to own the namespaces that it creates, so you will not be
+   * able to access these namespaces anyway. So, best just not support
+   * it anway.
+   */
+  if (opt_userns_fd != -1 && is_privileged)
+    die ("--userns doesn't work in setuid mode");
+
   /* We have to do this if we weren't installed setuid (and we're not
    * root), so let's just DWIM */
-  if (!is_privileged && getuid () != 0)
+  if (!is_privileged && getuid () != 0 && opt_userns_fd == -1)
     opt_unshare_user = TRUE;
 
 #ifdef ENABLE_REQUIRE_USERNS
   /* In this build option, we require userns. */
-  if (is_privileged && getuid () != 0)
+  if (is_privileged && getuid () != 0 && opt_userns_fd == -1)
     opt_unshare_user = TRUE;
 #endif
 
@@ -2255,11 +2348,11 @@ main (int    argc,
   if (opt_sandbox_gid == -1)
     opt_sandbox_gid = real_gid;
 
-  if (!opt_unshare_user && opt_sandbox_uid != real_uid)
-    die ("Specifying --uid requires --unshare-user");
+  if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_uid != real_uid)
+    die ("Specifying --uid requires --unshare-user or --userns");
 
-  if (!opt_unshare_user && opt_sandbox_gid != real_gid)
-    die ("Specifying --gid requires --unshare-user");
+  if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_gid != real_gid)
+    die ("Specifying --gid requires --unshare-user or --userns");
 
   if (!opt_unshare_uts && opt_sandbox_hostname != NULL)
     die ("Specifying --hostname requires --unshare-uts");
@@ -2299,7 +2392,7 @@ main (int    argc,
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
     clone_flags |= CLONE_NEWUSER;
-  if (opt_unshare_pid)
+  if (opt_unshare_pid && opt_pidns_fd == -1)
     clone_flags |= CLONE_NEWPID;
   if (opt_unshare_net)
     clone_flags |= CLONE_NEWNET;
@@ -2338,6 +2431,22 @@ main (int    argc,
         die_with_error ("pipe2()");
     }
 
+  /* Switch to the custom user ns before the clone, gets us privs in that ns (assuming its a child of the current and thus allowed) */
+  if (opt_userns_fd > 0 && setns (opt_userns_fd, CLONE_NEWUSER) != 0)
+    {
+      if (errno == EINVAL)
+        die ("Joining the specified user namespace failed, it might not be a descendant of the current user namespace.");
+      die_with_error ("Joining specified user namespace failed");
+    }
+
+  /* Sometimes we have uninteresting intermediate pids during the setup, set up code to pass the real pid down */
+  if (opt_pidns_fd != -1)
+    {
+      /* Mark us as a subreaper, this way we can get exit status from grandchildren */
+      prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);
+      create_pid_socketpair (intermediate_pids_sockets);
+    }
+
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
@@ -2359,6 +2468,13 @@ main (int    argc,
     {
       /* Parent, outside sandbox, privileged (initially) */
 
+      if (intermediate_pids_sockets[0] != -1)
+        {
+          close (intermediate_pids_sockets[1]);
+          pid = read_pid_from_socket (intermediate_pids_sockets[0]);
+          close (intermediate_pids_sockets[0]);
+        }
+
       /* Discover namespace ids before we drop privileges */
       namespace_ids_read (pid);
 
@@ -2377,7 +2493,10 @@ main (int    argc,
                              pid, TRUE, opt_needs_devpts);
         }
 
-      /* Initial launched process, wait for exec:ed command to exit */
+      /* Initial launched process, wait for pid 1 or exec:ed command to exit */
+
+      if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
+        die_with_error ("Setting userns2 failed");
 
       /* We don't need any privileges in the launcher, drop them immediately. */
       drop_privs (FALSE);
@@ -2415,6 +2534,31 @@ main (int    argc,
       close (child_wait_fd);
 
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
+    }
+
+  if (opt_pidns_fd > 0)
+    {
+      if (setns (opt_pidns_fd, CLONE_NEWPID) != 0)
+        die_with_error ("Setting pidns failed");
+
+      /* fork to get the passed in pid ns */
+      fork_intermediate_child ();
+
+      /* We might both have specified an --pidns *and* --unshare-pid, so set up a new child pid namespace under the specified one */
+      if (opt_unshare_pid)
+        {
+          if (unshare (CLONE_NEWPID))
+            die_with_error ("unshare pid ns");
+
+          /* fork to get the new pid ns */
+          fork_intermediate_child ();
+        }
+
+      /* We're back, either in a child or grandchild, so message the actual pid to the monitor */
+
+      close (intermediate_pids_sockets[0]);
+      send_pid_on_socket (intermediate_pids_sockets[1]);
+      close (intermediate_pids_sockets[1]);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
@@ -2604,6 +2748,9 @@ main (int    argc,
     if (chdir ("/") != 0)
       die_with_error ("chdir /");
   }
+
+  if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
+    die_with_error ("Setting userns2 failed");
 
   if (opt_unshare_user &&
       (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid) &&

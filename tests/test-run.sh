@@ -80,7 +80,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..46"
+echo "1..49"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -339,5 +339,41 @@ if $RUN --bind "$(pwd)" /tmp/here test -d /tmp/newroot; then
     assert_not_reached "/tmp/newroot should not be visible"
 fi
 echo "ok - we can mount another directory inside /tmp"
+
+# These tests need user namespaces
+if test -n "${bwrap_is_suid:-}"; then
+    echo "ok - # SKIP no setuid support for --unshare-user"
+    echo "ok - # SKIP no setuid support for --unshare-user"
+else
+    mkfifo donepipe
+
+    $RUN --info-fd 42 --unshare-user sh -c 'readlink /proc/self/ns/user > sandbox-userns; cat < donepipe' 42>info.json &
+    while ! test -f sandbox-userns; do sleep 1; done
+    SANDBOX1PID=$(extract_child_pid info.json)
+
+    $RUN  --userns 11 readlink /proc/self/ns/user > sandbox2-userns 11< /proc/$SANDBOX1PID/ns/user
+    echo foo > donepipe
+
+    assert_files_equal sandbox-userns sandbox2-userns
+
+    rm donepipe info.json sandbox-userns
+
+    echo "ok - Test --userns"
+
+    mkfifo donepipe
+    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'readlink /proc/self/ns/pid > sandbox-pidns; cat < donepipe' 42>info.json &
+    while ! test -f sandbox-pidns; do sleep 1; done
+    SANDBOX1PID=$(extract_child_pid info.json)
+
+    $RUN --userns 11 --pidns 12 readlink /proc/self/ns/pid > sandbox2-pidns 11< /proc/$SANDBOX1PID/ns/user 12< /proc/$SANDBOX1PID/ns/pid
+    echo foo > donepipe
+
+    assert_files_equal sandbox-pidns sandbox2-pidns
+
+    rm donepipe info.json sandbox-pidns
+
+    echo "ok - Test --pidns"
+fi
+
 
 echo "ok - End of test"

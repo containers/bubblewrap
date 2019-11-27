@@ -54,6 +54,8 @@ void  die (const char *format,
 void  die_oom (void) __attribute__((__noreturn__));
 void  die_unless_label_valid (const char *label);
 
+void  fork_intermediate_child (void);
+
 void *xmalloc (size_t size);
 void *xcalloc (size_t size);
 void *xrealloc (void  *ptr,
@@ -107,6 +109,9 @@ int   get_file_mode (const char *pathname);
 int   mkdir_with_parents (const char *pathname,
                           int         mode,
                           bool        create_last);
+void create_pid_socketpair (int sockets[2]);
+void send_pid_on_socket (int socket);
+int  read_pid_from_socket (int socket);
 
 /* syscall wrappers */
 int   raw_clone (unsigned long flags,
