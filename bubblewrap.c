@@ -1023,7 +1023,7 @@ privileged_op (int         privileged_op_socket,
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
         cleanup_free char *opt = label_mount ("mode=0755", opt_file_label);
-        if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
+        if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NOEXEC | MS_NODEV, opt) != 0)
           die_with_error ("Can't mount tmpfs on %s", arg1);
         break;
       }
