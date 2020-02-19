@@ -215,11 +215,18 @@ else
     $RUN $OPT --cap-drop ALL --unshare-pid capsh --print >caps.test
     assert_file_has_content caps.test 'Current: =$'
     # Check for dropping kill/fowner (we assume all uid 0 callers have this)
-    $RUN $OPT --cap-drop CAP_KILL --cap-drop CAP_FOWNER --unshare-pid capsh --print >caps.test
-    assert_not_file_has_content caps.test '^Current: =.*cap_kill'
-    assert_not_file_has_content caps.test '^Current: =.*cap_fowner'
     # But we should still have net_bind_service for example
-    assert_file_has_content caps.test '^Current: =.*cap_net_bind_service'
+    $RUN $OPT --cap-drop CAP_KILL --cap-drop CAP_FOWNER --unshare-pid capsh --print >caps.test
+	# capsh's output format changed from v2.29 -> drops are now indicated with -eip
+	if grep 'Current: =.*+eip$' caps.test; then
+        assert_not_file_has_content caps.test '^Current: =.*cap_kill.*+eip$'
+        assert_not_file_has_content caps.test '^Current: =.*cap_fowner.*+eip$'
+        assert_file_has_content caps.test '^Current: =.*cap_net_bind_service.*+eip$'
+	else
+        assert_file_has_content caps.test '^Current: =eip.*cap_kill.*-eip$'
+        assert_file_has_content caps.test '^Current: =eip.*cap_fowner.*-eip$'
+        assert_not_file_has_content caps.test '^Current: =.*cap_net_bind_service.*-eip$'
+    fi
     echo "ok - we have the expected caps as uid 0"
 fi
 
