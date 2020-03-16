@@ -2766,6 +2766,9 @@ main (int    argc,
       if (unshare (CLONE_NEWUSER))
         die_with_error ("unshare user ns");
 
+      /* We're in a new user namespace, we got back the bounding set, clear it again */
+      drop_cap_bounding_set (FALSE);
+
       write_uid_gid_map (opt_sandbox_uid, ns_uid,
                          opt_sandbox_gid, ns_gid,
                          -1, FALSE, FALSE);
