@@ -2301,6 +2301,9 @@ main (int    argc,
   if (opt_userns_fd != -1 && is_privileged)
     die ("--userns doesn't work in setuid mode");
 
+  if (opt_userns2_fd != -1 && is_privileged)
+    die ("--userns2 doesn't work in setuid mode");
+
   /* We have to do this if we weren't installed setuid (and we're not
    * root), so let's just DWIM */
   if (!is_privileged && getuid () != 0 && opt_userns_fd == -1)
