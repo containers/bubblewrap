@@ -838,11 +838,11 @@ switch_to_user_with_privs (void)
 /* Call setuid() and use capset() to adjust capabilities */
 static void
 drop_privs (bool keep_requested_caps,
-            bool changed_uid)
+            bool already_changed_uid)
 {
   assert (!keep_requested_caps || !is_privileged);
   /* Drop root uid */
-  if (is_privileged && !changed_uid &&
+  if (is_privileged && !already_changed_uid &&
       setuid (opt_sandbox_uid) < 0)
     die_with_error ("unable to drop root uid");
 
