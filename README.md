@@ -138,6 +138,24 @@ UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox wi
 
 Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
 
+Pitfalls
+--------
+
+- Everything mounted into the sandbox can be used to escalate privileges.
+For example, if you bind a D-Bus socket into the sandbox, it can be used to
+execute commands via systemd. You can use
+[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) to filter
+D-Bus communication.
+
+- Some applications deploy their own sandboxing mechanisms and these can be
+restrained in doing so.
+For example, imagine a web-browser which configures its child proccesses via
+seccomp to not have access to the filesystem. If you limit the syscalls and
+don't allow the seccomp syscall, a browser cannot apply these restrictions.
+Also if these rules were compiled into a file, which you don't bind to the
+sandbox, the browser cannot load these rules from this file and cannot
+apply these restrictions.
+
 Related project comparison: Firejail
 ------------------------------------
 
