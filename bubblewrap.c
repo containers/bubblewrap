@@ -2632,7 +2632,7 @@ main (int    argc,
   /* Mark everything as slave, so that we still
    * receive mounts from the real root, but don't
    * propagate mounts to the real root. */
-  if (mount (NULL, "/", NULL, MS_SLAVE | MS_REC, NULL) < 0)
+  if (mount (NULL, "/", NULL, MS_SILENT | MS_SLAVE | MS_REC, NULL) < 0)
     die_with_error ("Failed to make / slave");
 
   /* Create a tmpfs which we will use as / in the namespace */
@@ -2655,7 +2655,7 @@ main (int    argc,
   if (mkdir ("newroot", 0755))
     die_with_error ("Creating newroot failed");
 
-  if (mount ("newroot", "newroot", NULL, MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+  if (mount ("newroot", "newroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
     die_with_error ("setting up newroot bind");
 
   if (mkdir ("oldroot", 0755))
@@ -2720,7 +2720,7 @@ main (int    argc,
   close_ops_fd ();
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
-  if (mount ("oldroot", "oldroot", NULL, MS_REC | MS_PRIVATE, NULL) != 0)
+  if (mount ("oldroot", "oldroot", NULL, MS_SILENT | MS_REC | MS_PRIVATE, NULL) != 0)
     die_with_error ("Failed to make old root rprivate");
 
   if (umount2 ("oldroot", MNT_DETACH))
