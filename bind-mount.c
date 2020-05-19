@@ -389,7 +389,7 @@ bind_mount (int           proc_fd,
 
   if (src)
     {
-      if (mount (src, dest, NULL, MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
+      if (mount (src, dest, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
         return 1;
     }
 
@@ -411,7 +411,7 @@ bind_mount (int           proc_fd,
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
       mount ("none", resolved_dest,
-             NULL, MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
+             NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
     return 3;
 
   /* We need to work around the fact that a bind mount does not apply the flags, so we need to manually
@@ -426,7 +426,7 @@ bind_mount (int           proc_fd,
           new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
           if (new_flags != current_flags &&
               mount ("none", mount_tab[i].mountpoint,
-                     NULL, MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
+                     NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
             {
               /* If we can't read the mountpoint we can't remount it, but that should
                  be safe to ignore because its not something the user can access. */
