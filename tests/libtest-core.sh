@@ -125,6 +125,16 @@ assert_file_has_content () {
     done
 }
 
+assert_file_has_content_once () {
+    fpath=$1
+    shift
+    for re in "$@"; do
+        if ! test $(grep -e "$re" "$fpath" | wc -l) = "1"; then
+            _fatal_print_file "$fpath" "File '$fpath' doesn't match regexp '$re' exactly once"
+        fi
+    done
+}
+
 assert_file_has_content_literal () {
     fpath=$1; shift
     for s in "$@"; do
