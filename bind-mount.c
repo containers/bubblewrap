@@ -137,6 +137,8 @@ mount_tab_free (MountTab tab)
 {
   int i;
 
+  /* An allocated MountTab always ends with a zeroed MountInfo, so we can tell
+     when to stop freeing memory. */
   for (i = 0; tab[i].mountpoint != NULL; i++)
     free (tab[i].mountpoint);
   free (tab);
@@ -155,14 +157,16 @@ cleanup_mount_tabp (void *p)
 
 typedef struct MountInfoLine MountInfoLine;
 struct MountInfoLine {
-  const char *mountpoint;
-  const char *options;
+  char *mountpoint;
+  unsigned long options;
   bool covered;
   int id;
   int parent_id;
   MountInfoLine *first_child;
   MountInfoLine *next_sibling;
 };
+
+typedef MountInfoLine *MountInfoLines;
 
 static unsigned int
 count_lines (const char *data)
@@ -211,7 +215,7 @@ collect_mounts (MountInfo *info, MountInfoLine *line)
   if (!line->covered)
     {
       info->mountpoint = xstrdup (line->mountpoint);
-      info->options = decode_mountoptions (line->options);
+      info->options = line->options;
       info ++;
     }
 
@@ -225,21 +229,15 @@ collect_mounts (MountInfo *info, MountInfoLine *line)
   return info;
 }
 
-static MountTab
-parse_mountinfo (int  proc_fd,
-                 const char *root_mount)
+static MountInfoLines
+read_mountinfo (int           proc_fd,
+                unsigned int *mount_count)
 {
   cleanup_free char *mountinfo = NULL;
-  cleanup_free MountInfoLine *lines = NULL;
-  cleanup_free MountInfoLine **by_id = NULL;
-  cleanup_mount_tab MountTab mount_tab = NULL;
-  MountInfo *end_tab;
-  int n_mounts;
+  unsigned int n_lines;
+  MountInfoLine *lines;
   char *line;
   int i;
-  int max_id;
-  unsigned int n_lines;
-  int root;
 
   mountinfo = load_file_at (proc_fd, "self/mountinfo");
   if (mountinfo == NULL)
@@ -248,10 +246,8 @@ parse_mountinfo (int  proc_fd,
   n_lines = count_lines (mountinfo);
   lines = xcalloc (n_lines * sizeof (MountInfoLine));
 
-  max_id = 0;
   line = mountinfo;
   i = 0;
-  root = -1;
   while (*line != 0)
     {
       int rc, consumed = 0;
@@ -289,30 +285,68 @@ parse_mountinfo (int  proc_fd,
       options_end = rest;
 
       *mountpoint_end = 0;
-      lines[i].mountpoint = unescape_inline (mountpoint);
+      lines[i].mountpoint = xstrdup (unescape_inline (mountpoint));
 
       *options_end = 0;
-      lines[i].options = options;
-
-      if (lines[i].id > max_id)
-        max_id = lines[i].id;
-      if (lines[i].parent_id > max_id)
-        max_id = lines[i].parent_id;
-
-      if (path_equal (lines[i].mountpoint, root_mount))
-        root = i;
+      lines[i].options = decode_mountoptions (options);
 
       i++;
       line = next_line;
     }
   assert (i == n_lines);
 
+  *mount_count = n_lines;
+  return lines;
+}
+
+static int
+max_mount_id (const MountInfoLines lines,
+              unsigned int         n_lines)
+{
+  int i;
+  int max_id;
+
+  max_id = 0;
+  for (i = 0; i < n_lines; i++)
+    {
+      if (lines[i].id > max_id)
+        max_id = lines[i].id;
+      if (lines[i].parent_id > max_id)
+        max_id = lines[i].parent_id;
+    }
+  return max_id;
+}
+
+static MountTab
+parse_mountinfo (const MountInfoLines  lines,
+                 unsigned int          n_lines,
+                 const char           *root_mount)
+{
+  int root;
+  int i;
+  int max_id;
+  cleanup_mount_tab MountTab mount_tab = NULL;
+  cleanup_free MountInfoLine **by_id = NULL;
+  int n_mounts;
+  MountInfo *end_tab;
+
+  root = -1;
+  for (i = 0; i < n_lines; i++)
+    {
+      if (path_equal (lines[i].mountpoint, root_mount))
+        root = i;
+    }
   if (root == -1)
     {
-      mount_tab = xcalloc (sizeof (MountInfo) * (1));
+      /* Allocate one more than required, so cleanup_mount_tabp knows when to
+         stop freeing memory. */
+      mount_tab = xcalloc (sizeof (MountInfo));
       return steal_pointer (&mount_tab);
     }
 
+  /* Allocate one more than required, so we can use IDs as indexes into
+     by_id. */
+  max_id = max_mount_id (lines, n_lines);
   by_id = xcalloc ((max_id + 1) * sizeof (MountInfoLine*));
   for (i = 0; i < n_lines; i++)
     by_id[lines[i].id] = &lines[i];
@@ -338,18 +372,18 @@ parse_mountinfo (int  proc_fd,
       sibling = parent->first_child;
       while (sibling != NULL)
         {
-          /* If this mountpoint is a path prefix of the sibling,
-           * say this->mp=/foo/bar and sibling->mp=/foo, then it is
-           * covered by the sibling, and we drop it. */
+          /* If this mountpoint is a path prefix of the sibling, say
+           * this->mountpoint == "/foo/bar" and sibling->mountpoiunt == "/foo",
+           * then it is covered by the sibling, and we drop it. */
           if (has_path_prefix (this->mountpoint, sibling->mountpoint))
             {
               covered = TRUE;
               break;
             }
 
-          /* If the sibling is a path prefix of this mount point,
-           * say this->mp=/foo and sibling->mp=/foo/bar, then the sibling
-           * is covered, and we drop it.
+          /* If the sibling is a path prefix of this mount point, say
+           * this->mountpoint == "/foo" and sibling->mountpoint == "/foo/bar",
+           * then the sibling is covered, and we drop it.
             */
           if (has_path_prefix (sibling->mountpoint, this->mountpoint))
             *to_sibling = sibling->next_sibling;
@@ -365,12 +399,94 @@ parse_mountinfo (int  proc_fd,
     }
 
   n_mounts = count_mounts (&lines[root]);
-  mount_tab = xcalloc (sizeof (MountInfo) * (n_mounts + 1));
+  /* Allocate one more than required, so cleanup_mount_tabp knows when to stop
+     freeing memory. */
+  mount_tab = xcalloc ((n_mounts + 1) * sizeof (MountInfo));
 
   end_tab = collect_mounts (&mount_tab[0], &lines[root]);
   assert (end_tab == &mount_tab[n_mounts]);
 
   return steal_pointer (&mount_tab);
+}
+
+static int
+find_parent (MountInfoLines  lines,
+             unsigned int    line_count,
+             const char     *mountpoint)
+{
+  cleanup_free char *prefix = NULL;
+  int parent;
+  const char *start;
+  bool mount_found;
+  int i;
+
+  prefix = xcalloc (strlen (mountpoint) + 1);
+  prefix[0] = '/';
+
+  parent = -1;
+  start = mountpoint;
+  do
+    {
+      start = index (start, '/');
+      if (start != NULL)
+        {
+          memcpy (prefix, mountpoint, start - mountpoint);
+          start ++;
+        }
+      else
+          strcpy (prefix, mountpoint);
+
+      do
+        {
+          mount_found = FALSE;
+          for (i = 0; i < line_count; i++)
+            {
+              if (strcmp (lines[i].mountpoint, prefix) == 0
+                  && (parent == -1 || lines[i].parent_id == lines[parent].id))
+                {
+                  parent = i;
+                  mount_found = 1;
+                  break;
+                }
+            }
+        }
+      while (mount_found);
+    }
+  while (start != NULL);
+
+  return parent;
+}
+
+static MountInfoLines
+add_mountinfo (MountInfoLines  old_lines,
+               unsigned int    line_count,
+               const char     *src,
+               char           *dest)
+{
+  MountInfoLines new_lines;
+  int src_parent;
+  int dest_parent;
+  int i;
+
+  src_parent = find_parent (old_lines, line_count, src);
+  dest_parent = find_parent (old_lines, line_count, dest);
+
+  new_lines = xcalloc ((line_count + 1)  * sizeof (MountInfoLine));
+  for (i = 0; i < line_count; i++)
+    {
+      new_lines[i].mountpoint = old_lines[i].mountpoint;
+      new_lines[i].options = old_lines[i].options;
+      new_lines[i].id = old_lines[i].id;
+      new_lines[i].parent_id = old_lines[i].parent_id;
+    }
+  new_lines[line_count].mountpoint = xstrdup (dest);
+  new_lines[line_count].options = old_lines[src_parent].options;
+  new_lines[line_count].id = max_mount_id (old_lines, line_count) + 1;
+  new_lines[line_count].parent_id = old_lines[dest_parent].id;
+
+  free (old_lines);
+
+  return new_lines;
 }
 
 int
@@ -379,34 +495,44 @@ bind_mount (int           proc_fd,
             const char   *dest,
             bind_option_t options)
 {
+  static MountInfoLines mountinfo = NULL;
+  static unsigned int mount_count = 0;
+
   bool readonly = (options & BIND_READONLY) != 0;
   bool devices = (options & BIND_DEVICES) != 0;
   bool recursive = (options & BIND_RECURSIVE) != 0;
   unsigned long current_flags, new_flags;
   cleanup_mount_tab MountTab mount_tab = NULL;
+  cleanup_free char *resolved_src = NULL;
   cleanup_free char *resolved_dest = NULL;
   int i;
+
+  if (mountinfo == NULL)
+    mountinfo = read_mountinfo (proc_fd, &mount_count);
+
+  /* The mount operation will resolve any symlinks in the destination path, so
+     we need to do that too. */
+  resolved_dest = realpath (dest, NULL);
+  if (resolved_dest == NULL)
+    return 2;
 
   if (src)
     {
       if (mount (src, dest, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
         return 1;
+
+      /* The mount operation will resolve any symlinks in the source path, so
+         we need to do that too. */
+      resolved_src = realpath (src, NULL);
+      if (resolved_src == NULL)
+        return 4;
+      mountinfo = add_mountinfo (mountinfo, mount_count, resolved_src, resolved_dest);
+      mount_count ++;
     }
 
-  /* The mount operation will resolve any symlinks in the destination
-     path, so to find it in the mount table we need to do that too. */
-  resolved_dest = realpath (dest, NULL);
-  if (resolved_dest == NULL)
-    return 2;
-
-  mount_tab = parse_mountinfo (proc_fd, resolved_dest);
-  if (mount_tab[0].mountpoint == NULL)
-    {
-      errno = EINVAL;
-      return 2; /* No mountpoint at dest */
-    }
-
+  mount_tab = parse_mountinfo (mountinfo, mount_count, resolved_dest);
   assert (path_equal (mount_tab[0].mountpoint, resolved_dest));
+
   current_flags = mount_tab[0].options;
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
@@ -414,9 +540,12 @@ bind_mount (int           proc_fd,
              NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
     return 3;
 
-  /* We need to work around the fact that a bind mount does not apply the flags, so we need to manually
-   * apply the flags to all submounts in the recursive case.
-   * Note: This does not apply the flags to mounts which are later propagated into this namespace.
+  /* We need to work around the fact that a bind mount does not apply the
+   * flags, so we need to manually apply the flags to all submounts in the
+   * recursive case.
+   *
+   * Note: This does not apply the flags to mounts that are later propagated
+   * into this namespace.
    */
   if (recursive)
     {
