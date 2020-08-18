@@ -1148,7 +1148,7 @@ setup_newroot (bool unshare_pid,
               if (access (subdir, W_OK) < 0)
                 {
                   /* The file is already read-only or doesn't exist.  */
-                  if (errno == EACCES || errno == ENOENT)
+                  if (errno == EACCES || errno == ENOENT || errno == EROFS)
                     continue;
 
                   die_with_error ("Can't access %s", subdir);
