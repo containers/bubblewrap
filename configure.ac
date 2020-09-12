@@ -70,6 +70,7 @@ dnl Keep this in sync with ostree, except remove -Werror=declaration-after-state
 CC_CHECK_FLAGS_APPEND([WARN_CFLAGS], [CFLAGS], [\
         -pipe \
         -Wall \
+        -Werror=shadow \
 	-Werror=empty-body \
 	-Werror=strict-prototypes \
 	-Werror=missing-prototypes \
