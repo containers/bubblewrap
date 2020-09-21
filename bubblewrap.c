@@ -1458,7 +1458,7 @@ parse_args_recurse (int          *argcp,
    */
   static const uint32_t MAX_ARGS = 9000;
 
-  if (*total_parsed_argc_p > MAX_ARGS)
+  if (*total_parsed_argc_p > MAX_ARGS && is_privileged)
     die ("Exceeded maximum number of arguments %u", MAX_ARGS);
 
   while (argc > 0)
@@ -1510,7 +1510,7 @@ parse_args_recurse (int          *argcp,
             {
               data_argc++;
               (*total_parsed_argc_p)++;
-              if (*total_parsed_argc_p > MAX_ARGS)
+              if (*total_parsed_argc_p > MAX_ARGS && is_privileged)
                 die ("Exceeded maximum number of arguments %u", MAX_ARGS);
               p = memchr (p, 0, data_end - p);
               if (p != NULL)
