@@ -231,6 +231,13 @@ has_prefix (const char *str,
 }
 
 void
+xclearenv (void)
+{
+  if (clearenv () != 0)
+    die_with_error ("clearenv failed");
+}
+
+void
 xsetenv (const char *name, const char *value, int overwrite)
 {
   if (setenv (name, value, overwrite))

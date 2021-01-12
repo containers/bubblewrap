@@ -538,6 +538,9 @@ assert_file_has_content stdout barbaz
 FOO=wrong BAR=baz $RUN --unsetenv FOO sh -c 'printf "%s%s" "$FOO" "$BAR"' > stdout
 printf baz > reference
 assert_files_equal stdout reference
+FOO=wrong BAR=wrong $RUN --clearenv /usr/bin/env > stdout
+echo "PWD=$(pwd -P)" > reference
+assert_files_equal stdout reference
 echo "ok - environment manipulation"
 
 echo "ok - End of test"
