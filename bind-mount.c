@@ -385,6 +385,10 @@ bind_mount (int           proc_fd,
   unsigned long current_flags, new_flags;
   cleanup_mount_tab MountTab mount_tab = NULL;
   cleanup_free char *resolved_dest = NULL;
+  cleanup_free char *dest_proc = NULL;
+  cleanup_free char *oldroot_dest_proc = NULL;
+  cleanup_free char *kernel_case_combination = NULL;
+  cleanup_fd int dest_fd = -1;
   int i;
 
   if (src)
@@ -399,14 +403,34 @@ bind_mount (int           proc_fd,
   if (resolved_dest == NULL)
     return 2;
 
-  mount_tab = parse_mountinfo (proc_fd, resolved_dest);
+  dest_fd = open (resolved_dest, O_PATH | O_CLOEXEC);
+  if (dest_fd < 0)
+    return 2;
+
+  /* If we are in a case-insensitive filesystem, mountinfo might contain a
+   * different case combination of the path we requested to mount.
+   * This is due to the fact that the kernel, as of the beginning of 2021,
+   * populates mountinfo with whatever case combination first appeared in the
+   * dcache; kernel developers plan to change this in future so that it
+   * reflects the on-disk encoding instead.
+   * To avoid throwing an error when this happens, we use readlink() result
+   * instead of the provided @root_mount, so that we can compare the mountinfo
+   * entries with the same case combination that the kernel is expected to
+   * use. */
+  dest_proc = xasprintf ("/proc/self/fd/%d", dest_fd);
+  oldroot_dest_proc = get_oldroot_path (dest_proc);
+  kernel_case_combination = readlink_malloc (oldroot_dest_proc);
+  if (kernel_case_combination == NULL)
+    die_with_error ("Can't read the link in %s", oldroot_dest_proc);
+
+  mount_tab = parse_mountinfo (proc_fd, kernel_case_combination);
   if (mount_tab[0].mountpoint == NULL)
     {
       errno = EINVAL;
       return 2; /* No mountpoint at dest */
     }
 
-  assert (path_equal (mount_tab[0].mountpoint, resolved_dest));
+  assert (path_equal (mount_tab[0].mountpoint, kernel_case_combination));
   current_flags = mount_tab[0].options;
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&

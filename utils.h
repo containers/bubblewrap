@@ -112,6 +112,8 @@ int   mkdir_with_parents (const char *pathname,
 void create_pid_socketpair (int sockets[2]);
 void send_pid_on_socket (int socket);
 int  read_pid_from_socket (int socket);
+char *get_oldroot_path (const char *path);
+char *readlink_malloc (const char *pathname);
 
 /* syscall wrappers */
 int   raw_clone (unsigned long flags,
