@@ -80,7 +80,7 @@ if [ -z "${BWRAP_MUST_WORK-}" ] && ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..50"
+echo "1..51"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -397,5 +397,12 @@ assert_file_has_content new-dir-permissions 755
 command stat -c '%a' new-file-mountpoint > new-file-permissions
 assert_file_has_content new-file-permissions 444
 echo "ok - Files and directories created as mount points have expected permissions"
+
+if [ -S /dev/log ]; then
+    $RUN --bind / / --bind "$(realpath /dev/log)" "$(realpath /dev/log)" true
+    echo "ok - Can bind-mount a socket (/dev/log) onto a socket"
+else
+    echo "ok # SKIP - /dev/log is not a socket, cannot test bubblewrap#409"
+fi
 
 echo "ok - End of test"
