@@ -1103,7 +1103,7 @@ setup_newroot (bool unshare_pid,
               if (ensure_dir (dest, 0755) != 0)
                 die_with_error ("Can't mkdir %s", op->dest);
             }
-          else if (ensure_file (dest, 0666) != 0)
+          else if (ensure_file (dest, 0444) != 0)
             die_with_error ("Can't create file at %s", op->dest);
 
           privileged_op (privileged_op_socket,
@@ -1174,7 +1174,7 @@ setup_newroot (bool unshare_pid,
             {
               cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
               cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
-              if (create_file (node_dest, 0666, NULL) != 0)
+              if (create_file (node_dest, 0444, NULL) != 0)
                 die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
               privileged_op (privileged_op_socket,
                              PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
@@ -1227,7 +1227,7 @@ setup_newroot (bool unshare_pid,
               cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
               cleanup_free char *dest_console = strconcat (dest, "/console");
 
-              if (create_file (dest_console, 0666, NULL) != 0)
+              if (create_file (dest_console, 0444, NULL) != 0)
                 die_with_error ("creating %s/console", op->dest);
 
               privileged_op (privileged_op_socket,
@@ -1295,7 +1295,7 @@ setup_newroot (bool unshare_pid,
 
             assert (dest != NULL);
 
-            if (ensure_file (dest, 0666) != 0)
+            if (ensure_file (dest, 0444) != 0)
               die_with_error ("Can't create file at %s", op->dest);
 
             privileged_op (privileged_op_socket,

@@ -80,7 +80,7 @@ if ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..49"
+echo "1..50"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -384,5 +384,18 @@ else
     echo "ok - Test --pidns"
 fi
 
+touch some-file
+mkdir -p some-dir
+rm -fr new-dir-mountpoint
+rm -fr new-file-mountpoint
+$RUN \
+    --bind "$(pwd -P)/some-dir" "$(pwd -P)/new-dir-mountpoint" \
+    --bind "$(pwd -P)/some-file" "$(pwd -P)/new-file-mountpoint" \
+    true
+command stat -c '%a' new-dir-mountpoint > new-dir-permissions
+assert_file_has_content new-dir-permissions 755
+command stat -c '%a' new-file-mountpoint > new-file-permissions
+assert_file_has_content new-file-permissions 444
+echo "ok - Files and directories created as mount points have expected permissions"
 
 echo "ok - End of test"
