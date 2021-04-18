@@ -32,6 +32,7 @@ check_PROGRAMS = test-bwrap
 test-bwrap: bwrap
 	rm -rf test-bwrap
 	cp bwrap test-bwrap
+	chmod 0755 test-bwrap
 if PRIV_MODE_SETUID
 	$(SUDO_BIN) chown root test-bwrap
 	$(SUDO_BIN) chmod u+s test-bwrap
