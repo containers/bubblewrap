@@ -76,7 +76,7 @@ fi
 # Default arg, bind whole host fs to /, tmpfs on /tmp
 RUN="${BWRAP} --bind / / --tmpfs /tmp"
 
-if ! $RUN true; then
+if [ -z "${BWRAP_MUST_WORK-}" ] && ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
