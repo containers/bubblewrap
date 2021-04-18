@@ -162,3 +162,11 @@ skip() {
 extract_child_pid() {
     grep child-pid "$1" | sed "s/^.*: \([0-9]*\).*/\1/"
 }
+
+report_err () {
+  local exit_status="$?"
+  { { local BASH_XTRACEFD=3; } 2> /dev/null
+  echo "Unexpected nonzero exit status $exit_status while running: $BASH_COMMAND" >&2
+  } 3> /dev/null
+}
+trap report_err ERR
