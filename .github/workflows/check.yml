@@ -61,6 +61,13 @@ jobs:
       with:
         name: test logs
         path: test-logs
+    - name: install
+      run: |
+        make -C _build install DESTDIR="$(pwd)/DESTDIR"
+        ( cd DESTDIR && find -ls )
+    - name: distcheck
+      run: |
+        make -C _build -j $(getconf _NPROCESSORS_ONLN) distcheck VERBOSE=1 BWRAP_MUST_WORK=1
 
   clang:
     name: Build with clang and analyze
