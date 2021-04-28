@@ -1437,6 +1437,19 @@ print_version_and_exit (void)
   exit (0);
 }
 
+static int
+parse_fd_arg (const char *arg)
+{
+  char *endptr;
+  int the_fd;
+
+  the_fd = strtol (arg, &endptr, 10);
+  if (arg[0] == 0 || endptr[0] != 0 || the_fd < 0)
+    die ("Invalid fd: %s", arg);
+
+  return the_fd;
+}
+
 static void
 parse_args_recurse (int          *argcp,
                     const char ***argvp,
@@ -1476,7 +1489,6 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--args") == 0)
         {
           int the_fd;
-          char *endptr;
           const char *p, *data_end;
           size_t data_len;
           cleanup_free const char **data_argv = NULL;
@@ -1490,9 +1502,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--args takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           /* opt_args_data is essentially a recursive argv array, which we must
            * keep allocated until exit time, since its argv entries get used
@@ -1732,14 +1742,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--file") == 0)
         {
           int file_fd;
-          char *endptr;
 
           if (argc < 3)
             die ("--file takes two arguments");
 
-          file_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          file_fd = parse_fd_arg (argv[1]);
 
           op = setup_op_new (SETUP_MAKE_FILE);
           op->fd = file_fd;
@@ -1751,14 +1758,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--bind-data") == 0)
         {
           int file_fd;
-          char *endptr;
 
           if (argc < 3)
             die ("--bind-data takes two arguments");
 
-          file_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          file_fd = parse_fd_arg (argv[1]);
 
           op = setup_op_new (SETUP_MAKE_BIND_FILE);
           op->fd = file_fd;
@@ -1770,14 +1774,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--ro-bind-data") == 0)
         {
           int file_fd;
-          char *endptr;
 
           if (argc < 3)
             die ("--ro-bind-data takes two arguments");
 
-          file_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || file_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          file_fd = parse_fd_arg (argv[1]);
 
           op = setup_op_new (SETUP_MAKE_RO_BIND_FILE);
           op->fd = file_fd;
@@ -1811,14 +1812,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--sync-fd") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--sync-fd takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_sync_fd = the_fd;
 
@@ -1828,14 +1826,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--block-fd") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--block-fd takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_block_fd = the_fd;
 
@@ -1845,14 +1840,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--userns-block-fd") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--userns-block-fd takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_userns_block_fd = the_fd;
 
@@ -1862,14 +1854,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--info-fd") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--info-fd takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_info_fd = the_fd;
 
@@ -1879,14 +1868,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--json-status-fd") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--json-status-fd takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_json_status_fd = the_fd;
 
@@ -1896,14 +1882,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--seccomp") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--seccomp takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_seccomp_fd = the_fd;
 
@@ -1913,14 +1896,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--userns") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--userns takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_userns_fd = the_fd;
 
@@ -1930,14 +1910,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--userns2") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--userns2 takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_userns2_fd = the_fd;
 
@@ -1947,14 +1924,11 @@ parse_args_recurse (int          *argcp,
       else if (strcmp (arg, "--pidns") == 0)
         {
           int the_fd;
-          char *endptr;
 
           if (argc < 2)
             die ("--pidns takes an argument");
 
-          the_fd = strtol (argv[1], &endptr, 10);
-          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
-            die ("Invalid fd: %s", argv[1]);
+          the_fd = parse_fd_arg (argv[1]);
 
           opt_pidns_fd = the_fd;
 
