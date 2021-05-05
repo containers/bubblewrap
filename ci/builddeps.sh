@@ -64,6 +64,7 @@ if dpkg-vendor --derives-from Debian; then
         libcap-dev \
         libselinux1-dev \
         libtool \
+        meson \
         pkg-config \
         python3 \
         xsltproc \
@@ -92,6 +93,7 @@ if command -v yum; then
         libubsan \
         libxslt \
         make \
+        meson \
         redhat-rpm-config \
         rsync \
         ${NULL+}

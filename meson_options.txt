@@ -1,0 +1,47 @@
+option(
+  'bash_completion',
+  type : 'feature',
+  description : 'install bash completion script',
+  value : 'enabled',
+)
+option(
+  'bash_completion_dir',
+  type : 'string',
+  description : 'install bash completion script in this directory',
+  value : '',
+)
+option(
+  'man',
+  type : 'feature',
+  description : 'generate man pages',
+  value : 'auto',
+)
+option(
+  'program_prefix',
+  type : 'string',
+  description : 'Prepend string to bwrap executable name, for use with subprojects',
+)
+option(
+  'require_userns',
+  type : 'boolean',
+  description : 'require user namespaces by default when installed setuid',
+  value : 'false',
+)
+option(
+  'selinux',
+  type : 'feature',
+  description : 'enable optional SELINUX support',
+  value : 'auto',
+)
+option(
+  'zsh_completion',
+  type : 'feature',
+  description : 'install zsh completion script',
+  value : 'enabled',
+)
+option(
+  'zsh_completion_dir',
+  type : 'string',
+  description : 'install zsh completion script in this directory',
+  value : '',
+)
