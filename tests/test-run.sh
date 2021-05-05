@@ -31,7 +31,7 @@ fi
 FUSE_DIR=
 for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
     if test -d $mp; then
-        echo Using $mp as test fuse mount
+        echo "# Using $mp as test fuse mount"
         FUSE_DIR=$mp
         break
     fi
@@ -160,7 +160,7 @@ done
 
 echo "ok namespace id info in info and json-status fd"
 
-if ! which strace 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault; then
+if ! which strace >/dev/null 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault >/dev/null; then
     echo "ok - # SKIP no strace fault injection"
 else
     ! strace -o /dev/null -f -e trace=prctl -e fault=prctl:when=39 $RUN --die-with-parent --json-status-fd 42 true 42>json-status.json
@@ -201,7 +201,7 @@ if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
     for OPT in "" "--unshare-user-try --as-pid-1" "--unshare-user-try" "--as-pid-1"; do
         e=0
-        $RUN $OPT --unshare-pid getpcaps 1 2> caps.test || e=$?
+        $RUN $OPT --unshare-pid getpcaps 1 >&2 2> caps.test || e=$?
         sed -e 's/^/# /' < caps.test >&2
         test "$e" = 0
         assert_not_file_has_content caps.test ': =.*cap'
@@ -358,7 +358,7 @@ if test -n "${bwrap_is_suid:-}"; then
 else
     mkfifo donepipe
 
-    $RUN --info-fd 42 --unshare-user sh -c 'readlink /proc/self/ns/user > sandbox-userns; cat < donepipe' 42>info.json &
+    $RUN --info-fd 42 --unshare-user sh -c 'readlink /proc/self/ns/user > sandbox-userns; cat < donepipe' >/dev/null 42>info.json &
     while ! test -f sandbox-userns; do sleep 1; done
     SANDBOX1PID=$(extract_child_pid info.json)
 
@@ -372,7 +372,7 @@ else
     echo "ok - Test --userns"
 
     mkfifo donepipe
-    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'readlink /proc/self/ns/pid > sandbox-pidns; cat < donepipe' 42>info.json &
+    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'readlink /proc/self/ns/pid > sandbox-pidns; cat < donepipe' >/dev/null 42>info.json &
     while ! test -f sandbox-pidns; do sleep 1; done
     SANDBOX1PID=$(extract_child_pid info.json)
 
@@ -494,7 +494,7 @@ echo "ok - Directories created as parents have expected permissions"
 
 $RUN \
     --perms 01777 --tmpfs "$(pwd -P)" \
-    cat /proc/self/mountinfo
+    cat /proc/self/mountinfo >&2
 $RUN \
     --perms 01777 --tmpfs "$(pwd -P)" \
     stat -c '%a' "$(pwd -P)" > dir-permissions
