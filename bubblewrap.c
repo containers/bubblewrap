@@ -62,6 +62,7 @@ static const char *host_tty_dev;
 static int proc_fd = -1;
 static const char *opt_exec_label = NULL;
 static const char *opt_file_label = NULL;
+static const char *opt_apparmor_profile = NULL;
 static bool opt_as_pid_1;
 
 const char *opt_chdir_path = NULL;
@@ -253,6 +254,7 @@ usage (int ecode, FILE *out)
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
            "    --exec-label LABEL           Exec label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
+           "    --apparmor-profile PROFILE   AppArmor profile for the sandbox\n"
            "    --proc DEST                  Mount new procfs on DEST\n"
            "    --dev DEST                   Mount new dev on DEST\n"
            "    --tmpfs DEST                 Mount new tmpfs on DEST\n"
@@ -1684,6 +1686,15 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--apparmor-profile") == 0)
+        {
+          if (argc < 2)
+            die ("--apparmor-profile takes an argument");
+          opt_apparmor_profile = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--dev") == 0)
         {
           if (argc < 2)
@@ -2244,10 +2255,6 @@ main (int    argc,
 
   /* Get the (optional) privileges we need */
   acquire_privs ();
-
-  /* Never gain any more privs during exec */
-  if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
-    die_with_error ("prctl(PR_SET_NO_NEW_PRIVS) failed");
 
   /* The initial code is run with high permissions
      (i.e. CAP_SYS_ADMIN), so take lots of care. */
@@ -2835,6 +2842,13 @@ main (int    argc,
 
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
+
+  if (apparmor_change_profile (opt_apparmor_profile) == -1)
+    die_with_error ("apparmor_change_profile %s", opt_apparmor_profile);
+
+  /* Never gain any more privs during exec */
+  if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
+    die_with_error ("prctl(PR_SET_NO_NEW_PRIVS) failed");
 
   __debug__ (("forking for child\n"));
 

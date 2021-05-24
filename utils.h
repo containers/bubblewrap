@@ -122,6 +122,7 @@ char *label_mount (const char *opt,
                    const char *mount_label);
 int   label_exec (const char *exec_label);
 int   label_create_file (const char *file_label);
+int   apparmor_change_profile (const char *profile);
 
 static inline void
 cleanup_freep (void *p)
