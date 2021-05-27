@@ -1494,6 +1494,12 @@ parse_args_recurse (int          *argcp,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
+          /* Specifying --args multiple times doesn't work; this just pacifies
+           * a static analyzer which pointed out the memory leak
+           */
+          if (opt_args_data != NULL)
+            free (opt_args_data);
+
           /* opt_args_data is essentially a recursive argv array, which we must
            * keep allocated until exit time, since its argv entries get used
            * by the other cases in parse_args_recurse() when we recurse. */
