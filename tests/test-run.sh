@@ -280,7 +280,9 @@ for die_with_parent_argv in "--die-with-parent" "--die-with-parent --unshare-pid
 done
 
 printf '%s--dir\0/tmp/hello/world\0' '' > test.args
-$RUN --args 3 test -d /tmp/hello/world 3<test.args
+printf '%s--dir\0/tmp/hello/world2\0' '' > test.args2
+printf '%s--dir\0/tmp/hello/world3\0' '' > test.args3
+$RUN --args 3 --args 4 --args 5 /bin/sh -c 'test -d /tmp/hello/world && test -d /tmp/hello/world2 && test -d /tmp/hello/world3' 3<test.args 4<test.args2 5<test.args3
 echo "ok - we can parse arguments from a fd"
 
 mkdir bin
