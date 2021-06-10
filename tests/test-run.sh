@@ -235,7 +235,7 @@ fi
 # Test --die-with-parent
 
 cat >lockf-n.py <<EOF
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import struct,fcntl,sys
 path = sys.argv[1]
 if sys.argv[2] == 'wait':
