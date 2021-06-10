@@ -55,6 +55,11 @@ bashcompletiondir = $(BASH_COMPLETION_DIR)
 dist_bashcompletion_DATA = completions/bash/bwrap
 endif
 
+if ENABLE_ZSH_COMPLETION
+zshcompletiondir = $(ZSH_COMPLETION_DIR)
+dist_zshcompletion_DATA = completions/zsh/_bwrap
+endif
+
 -include $(top_srcdir)/git.mk
 
 AM_DISTCHECK_CONFIGURE_FLAGS =		\

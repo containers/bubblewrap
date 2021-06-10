@@ -52,6 +52,23 @@ fi
 
 AC_SUBST([BASH_COMPLETION_DIR])
 AM_CONDITIONAL([ENABLE_BASH_COMPLETION],[test "x$with_bash_completion_dir" != "xno"])
+
+AC_ARG_WITH([zsh-completion-dir],
+    AS_HELP_STRING([--with-zsh-completion-dir[=PATH]],
+        [Install the zsh auto-completion script in this directory. @<:@default=yes@:>@]),
+    [],
+    [with_zsh_completion_dir=yes])
+
+if test "x$with_zsh_completion_dir" = "xyes"; then
+        [ZSH_COMPLETION_DIR="$datadir/zsh/site-functions"]
+else
+    ZSH_COMPLETION_DIR="$with_bash_completion_dir"
+fi
+
+
+AC_SUBST([ZSH_COMPLETION_DIR])                                                   
+AM_CONDITIONAL([ENABLE_ZSH_COMPLETION], [test "x$with_zsh_completion_dir" != "xno"])
+
 # ------------------------------------------------------------------------------
 have_selinux=no
 AC_ARG_ENABLE(selinux, AS_HELP_STRING([--disable-selinux], [Disable optional SELINUX support]))

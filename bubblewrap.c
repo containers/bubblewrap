@@ -234,7 +234,7 @@ usage (int ecode, FILE *out)
            "    --unshare-cgroup             Create new cgroup namespace\n"
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
            "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
-           "    --userns2 FD                 After setup switch to this user namspace, only useful with --userns\n"
+           "    --userns2 FD                 After setup switch to this user namespace, only useful with --userns\n"
            "    --pidns FD                   Use this user namespace (as parent namespace if using --unshare-pid)\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"

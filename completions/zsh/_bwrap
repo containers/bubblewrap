@@ -1,0 +1,77 @@
+#compdef bwrap
+
+_bwrap_args=(
+    '*::arguments:_normal'
+    '--help[Print help and exit]'
+    '--version[Print version]'
+    '--args[Parse NUL-separated args from FD]: :'
+    '--unshare-all[Unshare every namespace we support by default]'
+    '(--userns --userns2)--unshare-user[Create new user namespace (may be automatically implied if not setuid)]'
+    '--unshare-user-try[Create new user namespace if possible else continue by skipping it]'
+    '--unshare-ipc[Create new ipc namespace]'
+    '--unshare-pid[Create new pid namespace]'
+    '--unshare-net[Create new network namespace]'
+    '--unshare-uts[Create new uts namespace]'
+    '--unshare-cgroup[Create new cgroup namespace]'
+    '--unshare-cgroup-try[Create new cgroup namespace if possible else continue by skipping it]'
+    '(--unshare-user)--userns[Use this user namespace (cannot combine with --unshare-user)]: :'
+    '(--unshare-user)--userns2[After setup switch to this user namspace, only useful with --userns]: :'
+    '--pidns[Use this user namespace (as parent namespace if using --unshare-pid)]: :'
+    '--uid[Custom uid in the sandbox (requires --unshare-user or --userns)]: :'
+    '--gid[Custom gid in the sandbox (requires --unshare-user or --userns)]: :'
+    '--hostname[Custom hostname in the sandbox (requires --unshare-uts)]: :'
+    '--chdir DIR[Change directory to DIR]: : _files -/'
+    '--setenv[Set an environment variable]: :'
+    '--unsetenv[Unset an environment variable]: :'
+    '--lock-file[Take a lock on DEST while sandbox is running]: :'
+    '--sync-fd[Keep this fd open while sandbox is running]: :'
+    '--bind[Bind mount the host path SRC on DEST]: : _files -/ :'
+    '--bind-try[Equal to --bind but ignores non-existent SRC]: : _files -/ :'
+    '--dev-bind[Bind mount the host path SRC on DEST, allowing device access]: : _files -/ :'
+    '--dev-bind-try[Equal to --dev-bind but ignores non-existent SRC]: : _files -/ :'
+    '--ro-bind[Bind mount the host path SRC readonly on DEST]: : _files -/ :'
+    '--ro-bind-try[Equal to --ro-bind but ignores non-existent SRC]: : _files -/ :'
+    '--remount-ro[Remount DEST as readonly; does not recursively remount]: :'
+    '--exec-label[Exec label for the sandbox]: :'
+    '--file-label[File label for temporary sandbox content]: :'
+    '--proc[Mount new procfs on DEST]: :'
+    '--dev[Mount new dev on DEST]: :'
+    '--tmpfs[Mount new tmpfs on DEST]: :'
+    '--mqueue[Mount new mqueue on DEST]: :'
+    '--dir[Create dir at DEST]: :'
+    '--file[Copy from FD to destination DEST]: : :'
+    '--bind-data[Copy from FD to file which is bind-mounted on DEST]: : :'
+    '--ro-bind-data[Copy from FD to file which is readonly bind-mounted on DEST]: : :'
+    '--symlink[Create symlink at DEST with target SRC]: : :'
+    '--seccomp[Load and use seccomp rules from FD]: :'
+    '--block-fd[Block on FD until some data to read is available]: :'
+    '--userns-block-fd[Block on FD until the user namespace is ready]: :'
+    '--info-fd[Write information about the running container to FD]: :'
+    '--json-status-fd[Write container status to FD as multiple JSON documents]: :'
+    '--new-session[Create a new terminal session]'
+    "--die-with-parent[Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.]"
+    '--as-pid-1[Do not install a reaper process with PID=1]'
+    '--cap-add[Add cap CAP when running as privileged user]: :->caps'
+    '--cap-drop[Drop cap CAP when running as privileged user]: :->caps'
+)
+
+
+_bwrap() {
+    _arguments -S $_bwrap_args
+    case "$state" in
+        caps)
+            # $ grep -E '#define\sCAP_\w+\s+[0-9]+' /usr/include/linux/capability.h | awk '{print $2}' | xargs echo
+            local all_caps=(
+                CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER CAP_FSETID \
+                CAP_KILL CAP_SETGID CAP_SETUID CAP_SETPCAP CAP_LINUX_IMMUTABLE \
+                CAP_NET_BIND_SERVICE CAP_NET_BROADCAST CAP_NET_ADMIN CAP_NET_RAW \
+                CAP_IPC_LOCK CAP_IPC_OWNER CAP_SYS_MODULE CAP_SYS_RAWIO CAP_SYS_CHROOT \
+                CAP_SYS_PTRACE CAP_SYS_PACCT CAP_SYS_ADMIN CAP_SYS_BOOT CAP_SYS_NICE \
+                CAP_SYS_RESOURCE CAP_SYS_TIME CAP_SYS_TTY_CONFIG CAP_MKNOD CAP_LEASE \
+                CAP_AUDIT_WRITE CAP_AUDIT_CONTROL CAP_SETFCAP CAP_MAC_OVERRIDE \
+                CAP_MAC_ADMIN CAP_SYSLOG CAP_WAKE_ALARM CAP_BLOCK_SUSPEND CAP_AUDIT_READ
+            )
+            _values 'caps' $all_caps
+            ;;
+    esac
+}
