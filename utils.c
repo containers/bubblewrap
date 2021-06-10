@@ -448,9 +448,14 @@ ensure_file (const char *path,
 
   /* We check this ahead of time, otherwise
      the create file will fail in the read-only
-     case with EROFS instead of EEXIST */
+     case with EROFS instead of EEXIST.
+
+     We're trying to set up a mount point for a non-directory, so any
+     non-directory, non-symlink is acceptable - it doesn't necessarily
+     have to be a regular file. */
   if (stat (path, &buf) ==  0 &&
-      S_ISREG (buf.st_mode))
+      !S_ISDIR (buf.st_mode) &&
+      !S_ISLNK (buf.st_mode))
     return 0;
 
   if (create_file (path, mode, NULL) != 0 &&  errno != EEXIST)
