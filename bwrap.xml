@@ -190,10 +190,25 @@
   <para>
     Filesystem related options. These are all operations that modify the filesystem directly, or
     mounts stuff in the filesystem. These are applied in the order they are given as arguments.
+  </para>
+  <para>
     Any missing parent directories that are required to create a specified destination are
-    automatically created as needed.
+    automatically created as needed. Their permissions are normally set to 0755
+    (rwxr-xr-x). However, if a <option>--perms</option> option is in effect, and
+    it sets the permissions for group or other to zero, then newly-created
+    parent directories will also have their corresponding permission set to zero.
   </para>
   <variablelist>
+    <varlistentry>
+      <term><option>--perms <arg choice="plain">OCTAL</arg></option></term>
+      <listitem><para>This option does nothing on its own, and must be followed
+        by one of the options that it affects. It sets the permissions
+        for the next operation to <arg choice="plain">OCTAL</arg>.
+        Subsequent operations are not affected: for example,
+        <literal>--perms 0700 --tmpfs /a --tmpfs /b</literal> will mount
+        <filename>/a</filename> with permissions 0700, then return to
+        the default permissions for <filename>/b</filename>.</para></listitem>
+    </varlistentry>
     <varlistentry>
       <term><option>--bind <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Bind mount the host path <arg choice="plain">SRC</arg> on <arg choice="plain">DEST</arg></para></listitem>
@@ -232,7 +247,11 @@
     </varlistentry>
     <varlistentry>
       <term><option>--tmpfs <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Mount new tmpfs on <arg choice="plain">DEST</arg></para></listitem>
+      <listitem>
+        <para>Mount new tmpfs on <arg choice="plain">DEST</arg>.
+          If the previous option was <option>--perms</option>, it sets the
+          mode of the tmpfs. Otherwise, the tmpfs has mode 0755.</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--mqueue <arg choice="plain">DEST</arg></option></term>
@@ -240,23 +259,59 @@
     </varlistentry>
     <varlistentry>
       <term><option>--dir <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Create a directory at <arg choice="plain">DEST</arg></para></listitem>
+      <listitem>
+        <para>Create a directory at <arg choice="plain">DEST</arg>.
+          If the directory already exists, its permissions are unmodified,
+          ignoring <option>--perms</option> (use <option>--chmod</option>
+          if the permissions of an existing directory need to be changed).
+          If the directory is newly created and the previous option was
+          <option>--perms</option>, it sets the mode of the directory.
+          Otherwise, newly-created directories have mode 0755.</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--file <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Copy from the file descriptor <arg choice="plain">FD</arg> to <arg choice="plain">DEST</arg></para></listitem>
+      <listitem>
+        <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
+          <arg choice="plain">DEST</arg>.
+          If the previous option was <option>--perms</option>, it sets the
+          mode of the new file. Otherwise, the file has mode 0666
+          (note that this is not the same as <option>--bind-data</option>).</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--bind-data <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Copy from the file descriptor <arg choice="plain">FD</arg> to a file which is bind-mounted on <arg choice="plain">DEST</arg></para></listitem>
+      <listitem>
+        <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
+          a file which is bind-mounted on <arg choice="plain">DEST</arg>.
+          If the previous option was <option>--perms</option>, it sets the
+          mode of the new file. Otherwise, the file has mode 0600
+          (note that this is not the same as <option>--file</option>).</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--ro-bind-data <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Copy from the file descriptor <arg choice="plain">FD</arg> to a file which is bind-mounted readonly on <arg choice="plain">DEST</arg></para></listitem>
+      <listitem>
+        <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
+          a file which is bind-mounted read-only on
+          <arg choice="plain">DEST</arg>.
+          If the previous option was <option>--perms</option>, it sets the
+          mode of the new file. Otherwise, the file has mode 0600
+          (note that this is not the same as <option>--file</option>).</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--symlink <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Create a symlink at <arg choice="plain">DEST</arg> with target <arg choice="plain">SRC</arg></para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--chmod <arg choice="plain">OCTAL</arg> <arg choice="plain">PATH</arg></option></term>
+      <listitem>
+        <para>
+          Set the permissions of <arg choice="plain">PATH</arg>, which
+          must already exist, to <arg choice="plain">OCTAL</arg>.
+        </para>
+      </listitem>
     </varlistentry>
   </variablelist>
   <para>Lockdown options:</para>

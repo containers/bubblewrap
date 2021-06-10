@@ -89,6 +89,7 @@ char *opt_args_data = NULL;  /* owned */
 int opt_userns_fd = -1;
 int opt_userns2_fd = -1;
 int opt_pidns_fd = -1;
+int next_perms = -1;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -129,6 +130,7 @@ typedef enum {
   SETUP_MAKE_SYMLINK,
   SETUP_REMOUNT_RO_NO_RECURSIVE,
   SETUP_SET_HOSTNAME,
+  SETUP_CHMOD,
 } SetupOpType;
 
 typedef enum {
@@ -145,6 +147,7 @@ struct _SetupOp
   const char *dest;
   int         fd;
   SetupOpFlag flags;
+  int         perms;
   SetupOp    *next;
 };
 
@@ -177,6 +180,7 @@ typedef struct
 {
   uint32_t op;
   uint32_t flags;
+  uint32_t perms;
   uint32_t arg1_offset;
   uint32_t arg2_offset;
 } PrivSepOp;
@@ -272,6 +276,7 @@ usage (int ecode, FILE *out)
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
            "    --cap-add CAP                Add cap CAP when running as privileged user\n"
            "    --cap-drop CAP               Drop cap CAP when running as privileged user\n"
+           "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
           );
   exit (ecode);
 }
@@ -940,6 +945,7 @@ static void
 privileged_op (int         privileged_op_socket,
                uint32_t    op,
                uint32_t    flags,
+               uint32_t    perms,
                const char *arg1,
                const char *arg2)
 {
@@ -968,6 +974,7 @@ privileged_op (int         privileged_op_socket,
 
       op_buffer->op = op;
       op_buffer->flags = flags;
+      op_buffer->perms = perms;
       op_buffer->arg1_offset = arg1_offset;
       op_buffer->arg2_offset = arg2_offset;
       if (arg1 != NULL)
@@ -1024,7 +1031,8 @@ privileged_op (int         privileged_op_socket,
 
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
-        cleanup_free char *opt = label_mount ("mode=0755", opt_file_label);
+        cleanup_free char *mode = xasprintf ("mode=%#o", perms);
+        cleanup_free char *opt = label_mount (mode, opt_file_label);
         if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
           die_with_error ("Can't mount tmpfs on %s", arg1);
         break;
@@ -1088,8 +1096,22 @@ setup_newroot (bool unshare_pid,
       if (op->dest &&
           (op->flags & NO_CREATE_DEST) == 0)
         {
+          unsigned parent_mode = 0755;
+
+          /* If we're creating a file that is inaccessible by the owning group,
+           * try to achieve least-astonishment by creating parents also
+           * inaccessible by that group. */
+          if (op->perms >= 0 &&
+              (op->perms & 0070) == 0)
+            parent_mode &= ~0050;
+
+          /* The same, but for users other than the owner and group. */
+          if (op->perms >= 0 &&
+              (op->perms & 0007) == 0)
+            parent_mode &= ~0005;
+
           dest = get_newroot_path (op->dest);
-          if (mkdir_with_parents (dest, 0755, FALSE) != 0)
+          if (mkdir_with_parents (dest, parent_mode, FALSE) != 0)
             die_with_error ("Can't mkdir parents for %s", op->dest);
         }
 
@@ -1110,12 +1132,12 @@ setup_newroot (bool unshare_pid,
                          PRIV_SEP_OP_BIND_MOUNT,
                          (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
                          (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
-                         source, dest);
+                         0, source, dest);
           break;
 
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, 0, NULL, dest);
+                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, 0, 0, NULL, dest);
           break;
 
         case SETUP_MOUNT_PROC:
@@ -1126,14 +1148,14 @@ setup_newroot (bool unshare_pid,
             {
               /* Our own procfs */
               privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_PROC_MOUNT, 0,
+                             PRIV_SEP_OP_PROC_MOUNT, 0, 0,
                              dest, NULL);
             }
           else
             {
               /* Use system procfs, as we share pid namespace anyway */
               privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, 0,
+                             PRIV_SEP_OP_BIND_MOUNT, 0, 0,
                              "oldroot/proc", dest);
             }
 
@@ -1155,7 +1177,7 @@ setup_newroot (bool unshare_pid,
                 }
 
               privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY, 0,
                              subdir, subdir);
             }
 
@@ -1166,7 +1188,7 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_TMPFS_MOUNT, 0,
+                         PRIV_SEP_OP_TMPFS_MOUNT, 0, 0755,
                          dest, NULL);
 
           static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
@@ -1177,7 +1199,7 @@ setup_newroot (bool unshare_pid,
               if (create_file (node_dest, 0444, NULL) != 0)
                 die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
               privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES, 0,
                              node_src, node_dest);
             }
 
@@ -1211,7 +1233,7 @@ setup_newroot (bool unshare_pid,
             if (mkdir (pts, 0755) == -1)
               die_with_error ("Can't create %s/devpts", op->dest);
             privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_DEVPTS_MOUNT, 0, pts, NULL);
+                           PRIV_SEP_OP_DEVPTS_MOUNT, 0, 0, pts, NULL);
 
             if (symlink ("pts/ptmx", ptmx) != 0)
               die_with_error ("Can't make symlink at %s/ptmx", op->dest);
@@ -1231,18 +1253,22 @@ setup_newroot (bool unshare_pid,
                 die_with_error ("creating %s/console", op->dest);
 
               privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES,
+                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES, 0,
                              src_tty_dev, dest_console);
             }
 
           break;
 
         case SETUP_MOUNT_TMPFS:
+          assert (dest != NULL);
+          assert (op->perms >= 0);
+          assert (op->perms <= 07777);
+
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_TMPFS_MOUNT, 0,
+                         PRIV_SEP_OP_TMPFS_MOUNT, 0, op->perms,
                          dest, NULL);
           break;
 
@@ -1251,13 +1277,32 @@ setup_newroot (bool unshare_pid,
             die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_MQUEUE_MOUNT, 0,
+                         PRIV_SEP_OP_MQUEUE_MOUNT, 0, 0,
                          dest, NULL);
           break;
 
         case SETUP_MAKE_DIR:
-          if (ensure_dir (dest, 0755) != 0)
+          assert (dest != NULL);
+          assert (op->perms >= 0);
+          assert (op->perms <= 07777);
+
+          if (ensure_dir (dest, op->perms) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
+
+          break;
+
+        case SETUP_CHMOD:
+          assert (op->dest != NULL);
+          /* We used NO_CREATE_DEST so we have to use get_newroot_path()
+           * explicitly */
+          assert (dest == NULL);
+          dest = get_newroot_path (op->dest);
+          assert (dest != NULL);
+          assert (op->perms >= 0);
+          assert (op->perms <= 07777);
+
+          if (chmod (dest, op->perms) != 0)
+            die_with_error ("Can't chmod %#o %s", op->perms, op->dest);
 
           break;
 
@@ -1265,7 +1310,11 @@ setup_newroot (bool unshare_pid,
           {
             cleanup_fd int dest_fd = -1;
 
-            dest_fd = creat (dest, 0666);
+            assert (dest != NULL);
+            assert (op->perms >= 0);
+            assert (op->perms <= 07777);
+
+            dest_fd = creat (dest, op->perms);
             if (dest_fd == -1)
               die_with_error ("Can't create file %s", op->dest);
 
@@ -1283,9 +1332,17 @@ setup_newroot (bool unshare_pid,
             cleanup_fd int dest_fd = -1;
             char tempfile[] = "/bindfileXXXXXX";
 
+            assert (dest != NULL);
+            assert (op->perms >= 0);
+            assert (op->perms <= 07777);
+
             dest_fd = mkstemp (tempfile);
             if (dest_fd == -1)
               die_with_error ("Can't create tmpfile for %s", op->dest);
+
+            if (fchmod (dest_fd, op->perms) != 0)
+              die_with_error ("Can't set mode %#o on file to be used for %s",
+                              op->perms, op->dest);
 
             if (copy_file_data (op->fd, dest_fd) != 0)
               die_with_error ("Can't write data to file %s", op->dest);
@@ -1301,7 +1358,7 @@ setup_newroot (bool unshare_pid,
             privileged_op (privileged_op_socket,
                            PRIV_SEP_OP_BIND_MOUNT,
                            (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
-                           tempfile, dest);
+                           0, tempfile, dest);
 
             /* Remove the file so we're sure the app can't get to it in any other way.
                Its outside the container chroot, so it shouldn't be possible, but lets
@@ -1319,7 +1376,7 @@ setup_newroot (bool unshare_pid,
         case SETUP_SET_HOSTNAME:
           assert (op->dest != NULL);  /* guaranteed by the constructor */
           privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_SET_HOSTNAME, 0,
+                         PRIV_SEP_OP_SET_HOSTNAME, 0, 0,
                          op->dest, NULL);
           break;
 
@@ -1328,7 +1385,7 @@ setup_newroot (bool unshare_pid,
         }
     }
   privileged_op (privileged_op_socket,
-                 PRIV_SEP_OP_DONE, 0, NULL, NULL);
+                 PRIV_SEP_OP_DONE, 0, 0, NULL, NULL);
 }
 
 /* Do not leak file descriptors already used by setup_newroot () */
@@ -1401,6 +1458,7 @@ read_priv_sec_op (int          read_socket,
                   void        *buffer,
                   size_t       buffer_size,
                   uint32_t    *flags,
+                  uint32_t    *perms,
                   const char **arg1,
                   const char **arg2)
 {
@@ -1424,6 +1482,7 @@ read_priv_sec_op (int          read_socket,
   ((char *) buffer)[rec_len] = 0;
 
   *flags = op->flags;
+  *perms = op->perms;
   *arg1 = resolve_string_offset (buffer, rec_len, op->arg1_offset);
   *arg2 = resolve_string_offset (buffer, rec_len, op->arg2_offset);
 
@@ -1435,6 +1494,28 @@ print_version_and_exit (void)
 {
   printf ("%s\n", PACKAGE_STRING);
   exit (0);
+}
+
+static int
+takes_perms (const char *next_option)
+{
+  static const char *const options_that_take_perms[] =
+  {
+    "--bind-data",
+    "--dir",
+    "--file",
+    "--ro-bind-data",
+    "--tmpfs",
+  };
+  size_t i;
+
+  for (i = 0; i < N_ELEMENTS (options_that_take_perms); i++)
+    {
+      if (strcmp (options_that_take_perms[i], next_option) == 0)
+        return 1;
+    }
+
+  return 0;
 }
 
 static void
@@ -1464,6 +1545,9 @@ parse_args_recurse (int          *argcp,
   while (argc > 0)
     {
       const char *arg = argv[0];
+
+      if (next_perms >= 0 && !takes_perms (arg))
+        die ("--perms must be followed by an option that creates a file");
 
       if (strcmp (arg, "--help") == 0)
         {
@@ -1704,6 +1788,13 @@ parse_args_recurse (int          *argcp,
           op = setup_op_new (SETUP_MOUNT_TMPFS);
           op->dest = argv[1];
 
+          /* We historically hard-coded the mode of a tmpfs as 0755. */
+          if (next_perms >= 0)
+            op->perms = next_perms;
+          else
+            op->perms = 0755;
+
+          next_perms = -1;
           argv += 1;
           argc -= 1;
         }
@@ -1726,6 +1817,13 @@ parse_args_recurse (int          *argcp,
           op = setup_op_new (SETUP_MAKE_DIR);
           op->dest = argv[1];
 
+          /* We historically hard-coded the mode of a --dir as 0755. */
+          if (next_perms >= 0)
+            op->perms = next_perms;
+          else
+            op->perms = 0755;
+
+          next_perms = -1;
           argv += 1;
           argc -= 1;
         }
@@ -1745,6 +1843,13 @@ parse_args_recurse (int          *argcp,
           op->fd = file_fd;
           op->dest = argv[2];
 
+          /* We historically hard-coded the mode of a --file as 0666. */
+          if (next_perms >= 0)
+            op->perms = next_perms;
+          else
+            op->perms = 0666;
+
+          next_perms = -1;
           argv += 2;
           argc -= 2;
         }
@@ -1764,6 +1869,15 @@ parse_args_recurse (int          *argcp,
           op->fd = file_fd;
           op->dest = argv[2];
 
+          /* This is consistent with previous bubblewrap behaviour:
+           * before implementing --perms, we took the permissions
+           * given to us by mkstemp(), which are documented to be 0600. */
+          if (next_perms >= 0)
+            op->perms = next_perms;
+          else
+            op->perms = 0600;
+
+          next_perms = -1;
           argv += 2;
           argc -= 2;
         }
@@ -1783,6 +1897,15 @@ parse_args_recurse (int          *argcp,
           op->fd = file_fd;
           op->dest = argv[2];
 
+          /* This is consistent with previous bubblewrap behaviour:
+           * before implementing --perms, we took the permissions
+           * given to us by mkstemp(), which are documented to be 0600. */
+          if (next_perms >= 0)
+            op->perms = next_perms;
+          else
+            op->perms = 0600;
+
+          next_perms = -1;
           argv += 2;
           argc -= 2;
         }
@@ -2092,6 +2215,51 @@ parse_args_recurse (int          *argcp,
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--perms") == 0)
+        {
+          unsigned long perms;
+          char *endptr = NULL;
+
+          if (argc < 2)
+            die ("--perms takes an argument");
+
+          perms = strtoul (argv[1], &endptr, 8);
+
+          if (argv[1][0] == '\0'
+              || endptr == NULL
+              || *endptr != '\0'
+              || perms > 07777)
+            die ("--perms takes an octal argument <= 07777");
+
+          next_perms = (int) perms;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--chmod") == 0)
+        {
+          unsigned long perms;
+          char *endptr = NULL;
+
+          if (argc < 3)
+            die ("--chmod takes two arguments");
+
+          perms = strtoul (argv[1], &endptr, 8);
+
+          if (argv[1][0] == '\0'
+              || endptr == NULL
+              || *endptr != '\0'
+              || perms > 07777)
+            die ("--chmod takes an octal argument <= 07777");
+
+          op = setup_op_new (SETUP_CHMOD);
+          op->flags = NO_CREATE_DEST;
+          op->perms = (int) perms;
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
         }
       else if (strcmp (arg, "--") == 0)
         {
@@ -2691,7 +2859,7 @@ main (int    argc,
         {
           int status;
           uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
-          uint32_t op, flags;
+          uint32_t op, flags, perms;
           const char *arg1, *arg2;
           cleanup_fd int unpriv_socket = -1;
 
@@ -2701,8 +2869,8 @@ main (int    argc,
           do
             {
               op = read_priv_sec_op (unpriv_socket, buffer, sizeof (buffer),
-                                     &flags, &arg1, &arg2);
-              privileged_op (-1, op, flags, arg1, arg2);
+                                     &flags, &perms, &arg1, &arg2);
+              privileged_op (-1, op, flags, perms, arg1, arg2);
               if (write (unpriv_socket, buffer, 1) != 1)
                 die ("Can't write to op_socket");
             }

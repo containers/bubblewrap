@@ -80,7 +80,7 @@ if [ -z "${BWRAP_MUST_WORK-}" ] && ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..51"
+echo "1..55"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -400,11 +400,135 @@ command stat -c '%a' new-file-mountpoint > new-file-permissions
 assert_file_has_content new-file-permissions 444
 echo "ok - Files and directories created as mount points have expected permissions"
 
+
 if [ -S /dev/log ]; then
     $RUN --bind / / --bind "$(realpath /dev/log)" "$(realpath /dev/log)" true
     echo "ok - Can bind-mount a socket (/dev/log) onto a socket"
 else
     echo "ok # SKIP - /dev/log is not a socket, cannot test bubblewrap#409"
 fi
+
+mkdir -p dir-already-existed
+chmod 0710 dir-already-existed
+mkdir -p dir-already-existed2
+chmod 0754 dir-already-existed2
+rm -fr new-dir-default-perms
+rm -fr new-dir-set-perms
+$RUN \
+    --perms 1741 --dir "$(pwd -P)/new-dir-set-perms" \
+    --dir "$(pwd -P)/dir-already-existed" \
+    --perms 0741 --dir "$(pwd -P)/dir-already-existed2" \
+    --dir "$(pwd -P)/dir-chmod" \
+    --chmod 1755 "$(pwd -P)/dir-chmod" \
+    --dir "$(pwd -P)/new-dir-default-perms" \
+    true
+command stat -c '%a' new-dir-default-perms > new-dir-permissions
+assert_file_has_content new-dir-permissions '^755$'
+command stat -c '%a' new-dir-set-perms > new-dir-permissions
+assert_file_has_content new-dir-permissions '^1741$'
+command stat -c '%a' dir-already-existed > dir-permissions
+assert_file_has_content dir-permissions '^710$'
+command stat -c '%a' dir-already-existed2 > dir-permissions
+assert_file_has_content dir-permissions '^754$'
+command stat -c '%a' dir-chmod > dir-permissions
+assert_file_has_content dir-permissions '^1755$'
+echo "ok - Directories created explicitly have expected permissions"
+
+rm -fr parent
+rm -fr parent-of-1777
+rm -fr parent-of-0755
+rm -fr parent-of-0644
+rm -fr parent-of-0750
+rm -fr parent-of-0710
+rm -fr parent-of-0720
+rm -fr parent-of-0640
+rm -fr parent-of-0700
+rm -fr parent-of-0600
+rm -fr parent-of-0705
+rm -fr parent-of-0604
+rm -fr parent-of-0000
+$RUN \
+    --dir "$(pwd -P)"/parent/dir \
+    --perms 1777 --dir "$(pwd -P)"/parent-of-1777/dir \
+    --perms 0755 --dir "$(pwd -P)"/parent-of-0755/dir \
+    --perms 0644 --dir "$(pwd -P)"/parent-of-0644/dir \
+    --perms 0750 --dir "$(pwd -P)"/parent-of-0750/dir \
+    --perms 0710 --dir "$(pwd -P)"/parent-of-0710/dir \
+    --perms 0720 --dir "$(pwd -P)"/parent-of-0720/dir \
+    --perms 0640 --dir "$(pwd -P)"/parent-of-0640/dir \
+    --perms 0700 --dir "$(pwd -P)"/parent-of-0700/dir \
+    --perms 0600 --dir "$(pwd -P)"/parent-of-0600/dir \
+    --perms 0705 --dir "$(pwd -P)"/parent-of-0705/dir \
+    --perms 0604 --dir "$(pwd -P)"/parent-of-0604/dir \
+    --perms 0000 --dir "$(pwd -P)"/parent-of-0000/dir \
+    true
+command stat -c '%a' parent > dir-permissions
+assert_file_has_content dir-permissions '^755$'
+command stat -c '%a' parent-of-1777 > dir-permissions
+assert_file_has_content dir-permissions '^755$'
+command stat -c '%a' parent-of-0755 > dir-permissions
+assert_file_has_content dir-permissions '^755$'
+command stat -c '%a' parent-of-0644 > dir-permissions
+assert_file_has_content dir-permissions '^755$'
+command stat -c '%a' parent-of-0750 > dir-permissions
+assert_file_has_content dir-permissions '^750$'
+command stat -c '%a' parent-of-0710 > dir-permissions
+assert_file_has_content dir-permissions '^750$'
+command stat -c '%a' parent-of-0720 > dir-permissions
+assert_file_has_content dir-permissions '^750$'
+command stat -c '%a' parent-of-0640 > dir-permissions
+assert_file_has_content dir-permissions '^750$'
+command stat -c '%a' parent-of-0700 > dir-permissions
+assert_file_has_content dir-permissions '^700$'
+command stat -c '%a' parent-of-0600 > dir-permissions
+assert_file_has_content dir-permissions '^700$'
+command stat -c '%a' parent-of-0705 > dir-permissions
+assert_file_has_content dir-permissions '^705$'
+command stat -c '%a' parent-of-0604 > dir-permissions
+assert_file_has_content dir-permissions '^705$'
+command stat -c '%a' parent-of-0000 > dir-permissions
+assert_file_has_content dir-permissions '^700$'
+chmod -R 0700 parent*
+rm -fr parent*
+echo "ok - Directories created as parents have expected permissions"
+
+$RUN \
+    --perms 01777 --tmpfs "$(pwd -P)" \
+    cat /proc/self/mountinfo
+$RUN \
+    --perms 01777 --tmpfs "$(pwd -P)" \
+    stat -c '%a' "$(pwd -P)" > dir-permissions
+assert_file_has_content dir-permissions '^1777$'
+$RUN \
+    --tmpfs "$(pwd -P)" \
+    stat -c '%a' "$(pwd -P)" > dir-permissions
+assert_file_has_content dir-permissions '^755$'
+echo "ok - tmpfs has expected permissions"
+
+$RUN \
+    --file 0 /tmp/file \
+    stat -c '%a' /tmp/file < /dev/null > file-permissions
+assert_file_has_content file-permissions '^666$'
+$RUN \
+    --perms 0640 --file 0 /tmp/file \
+    stat -c '%a' /tmp/file < /dev/null > file-permissions
+assert_file_has_content file-permissions '^640$'
+$RUN \
+    --bind-data 0 /tmp/file \
+    stat -c '%a' /tmp/file < /dev/null > file-permissions
+assert_file_has_content file-permissions '^600$'
+$RUN \
+    --perms 0640 --bind-data 0 /tmp/file \
+    stat -c '%a' /tmp/file < /dev/null > file-permissions
+assert_file_has_content file-permissions '^640$'
+$RUN \
+    --ro-bind-data 0 /tmp/file \
+    stat -c '%a' /tmp/file < /dev/null > file-permissions
+assert_file_has_content file-permissions '^600$'
+$RUN \
+    --perms 0640 --ro-bind-data 0 /tmp/file \
+    stat -c '%a' /tmp/file < /dev/null > file-permissions
+assert_file_has_content file-permissions '^640$'
+echo "ok - files have expected permissions"
 
 echo "ok - End of test"
