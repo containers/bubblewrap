@@ -80,7 +80,7 @@ if [ -z "${BWRAP_MUST_WORK-}" ] && ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
 fi
 
-echo "1..55"
+echo "1..56"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -530,5 +530,14 @@ $RUN \
     stat -c '%a' /tmp/file < /dev/null > file-permissions
 assert_file_has_content file-permissions '^640$'
 echo "ok - files have expected permissions"
+
+FOO= BAR=baz $RUN --setenv FOO bar sh -c 'echo "$FOO$BAR"' > stdout
+assert_file_has_content stdout barbaz
+FOO=wrong BAR=baz $RUN --setenv FOO bar sh -c 'echo "$FOO$BAR"' > stdout
+assert_file_has_content stdout barbaz
+FOO=wrong BAR=baz $RUN --unsetenv FOO sh -c 'printf "%s%s" "$FOO" "$BAR"' > stdout
+printf baz > reference
+assert_files_equal stdout reference
+echo "ok - environment manipulation"
 
 echo "ok - End of test"
