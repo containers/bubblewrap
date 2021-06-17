@@ -132,12 +132,12 @@
     </varlistentry>
     <varlistentry>
       <term><option>--userns <arg choice="plain">FD</arg></option></term>
-      <listitem><para>Use an existing user namespace instead of creating a new one. The namespace must fulfil the permission requirements for setns(), which generally means that it must be a decendant of the currently active user namespace, owned by the same user. </para>
+      <listitem><para>Use an existing user namespace instead of creating a new one. The namespace must fulfil the permission requirements for setns(), which generally means that it must be a descendant of the currently active user namespace, owned by the same user. </para>
       <para>This is incompatible with --unshare-user, and doesn't work in the setuid version of bubblewrap.</para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--userns2 <arg choice="plain">FD</arg></option></term>
-      <listitem><para>After setting up the new namespace, switch into the specified namespace. For this to work the specified namespace must be a decendant of the user namespace used for the setup, so this is only useful in combination with --userns.</para>
+      <listitem><para>After setting up the new namespace, switch into the specified namespace. For this to work the specified namespace must be a descendant of the user namespace used for the setup, so this is only useful in combination with --userns.</para>
       <para>This is useful because sometimes bubblewrap itself creates nested user namespaces (to work around some kernel issues) and --userns2 can be used to enter these.</para></listitem>
     </varlistentry>
     <varlistentry>
