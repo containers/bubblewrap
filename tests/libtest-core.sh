@@ -178,10 +178,6 @@ skip() {
     exit 0
 }
 
-extract_child_pid() {
-    grep child-pid "$1" | sed "s/^.*: \([0-9]*\).*/\1/"
-}
-
 report_err () {
   local exit_status="$?"
   { { local BASH_XTRACEFD=3; } 2> /dev/null

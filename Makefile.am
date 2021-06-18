@@ -45,10 +45,15 @@ include Makefile-docs.am
 LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) $(top_srcdir)/build-aux/tap-driver.sh
 LOG_COMPILER =
 TESTS = tests/test-run.sh
-TESTS_ENVIRONMENT = BWRAP=$(abs_top_builddir)/test-bwrap
+TESTS_ENVIRONMENT = \
+	BWRAP=$(abs_top_builddir)/test-bwrap \
+	G_TEST_BUILDDIR=$(abs_top_builddir) \
+	G_TEST_SRCDIR=$(abs_top_srcdir) \
+	$(NULL)
 
 EXTRA_DIST += $(TESTS)
 EXTRA_DIST += tests/libtest-core.sh
+EXTRA_DIST += tests/libtest.sh
 
 if ENABLE_BASH_COMPLETION
 bashcompletiondir = $(BASH_COMPLETION_DIR)
