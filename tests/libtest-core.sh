@@ -5,7 +5,7 @@
 #
 # Known copies are in the following repos:
 #
-# - https://github.com/projectatomic/rpm-ostree
+# - https://github.com/coreos/rpm-ostree
 #
 # Copyright (C) 2017 Colin Walters <walters@verbum.org>
 #
