@@ -942,6 +942,8 @@ privileged_op (int         privileged_op_socket,
                const char *arg1,
                const char *arg2)
 {
+  bind_mount_result bind_result;
+
   if (privileged_op_socket != -1)
     {
       uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
@@ -1006,15 +1008,23 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
-      if (bind_mount (proc_fd, NULL, arg2, BIND_READONLY) != 0)
-        die_with_error ("Can't remount readonly on %s", arg2);
+      bind_result = bind_mount (proc_fd, NULL, arg2, BIND_READONLY);
+
+      if (bind_result != BIND_MOUNT_SUCCESS)
+        die_with_bind_result (bind_result, errno,
+                              "Can't remount readonly on %s", arg2);
+
       break;
 
     case PRIV_SEP_OP_BIND_MOUNT:
       /* We always bind directories recursively, otherwise this would let us
          access files that are otherwise covered on the host */
-      if (bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags) != 0)
-        die_with_error ("Can't bind mount %s on %s", arg1, arg2);
+      bind_result = bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags);
+
+      if (bind_result != BIND_MOUNT_SUCCESS)
+        die_with_bind_result (bind_result, errno,
+                              "Can't bind mount %s on %s", arg1, arg2);
+
       break;
 
     case PRIV_SEP_OP_PROC_MOUNT:

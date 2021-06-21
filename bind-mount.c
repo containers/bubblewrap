@@ -373,7 +373,7 @@ parse_mountinfo (int  proc_fd,
   return steal_pointer (&mount_tab);
 }
 
-int
+bind_mount_result
 bind_mount (int           proc_fd,
             const char   *src,
             const char   *dest,
@@ -394,18 +394,18 @@ bind_mount (int           proc_fd,
   if (src)
     {
       if (mount (src, dest, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
-        return 1;
+        return BIND_MOUNT_ERROR_MOUNT;
     }
 
   /* The mount operation will resolve any symlinks in the destination
      path, so to find it in the mount table we need to do that too. */
   resolved_dest = realpath (dest, NULL);
   if (resolved_dest == NULL)
-    return 2;
+    return BIND_MOUNT_ERROR_REALPATH_DEST;
 
   dest_fd = open (resolved_dest, O_PATH | O_CLOEXEC);
   if (dest_fd < 0)
-    return 2;
+    return BIND_MOUNT_ERROR_REOPEN_DEST;
 
   /* If we are in a case-insensitive filesystem, mountinfo might contain a
    * different case combination of the path we requested to mount.
@@ -421,13 +421,13 @@ bind_mount (int           proc_fd,
   oldroot_dest_proc = get_oldroot_path (dest_proc);
   kernel_case_combination = readlink_malloc (oldroot_dest_proc);
   if (kernel_case_combination == NULL)
-    die_with_error ("Can't read the link in %s", oldroot_dest_proc);
+    return BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD;
 
   mount_tab = parse_mountinfo (proc_fd, kernel_case_combination);
   if (mount_tab[0].mountpoint == NULL)
     {
       errno = EINVAL;
-      return 2; /* No mountpoint at dest */
+      return BIND_MOUNT_ERROR_FIND_DEST_MOUNT;
     }
 
   assert (path_equal (mount_tab[0].mountpoint, kernel_case_combination));
@@ -436,7 +436,7 @@ bind_mount (int           proc_fd,
   if (new_flags != current_flags &&
       mount ("none", resolved_dest,
              NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
-    return 3;
+    return BIND_MOUNT_ERROR_REMOUNT_DEST;
 
   /* We need to work around the fact that a bind mount does not apply the flags, so we need to manually
    * apply the flags to all submounts in the recursive case.
@@ -455,10 +455,71 @@ bind_mount (int           proc_fd,
               /* If we can't read the mountpoint we can't remount it, but that should
                  be safe to ignore because its not something the user can access. */
               if (errno != EACCES)
-                return 5;
+                return BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT;
             }
         }
     }
 
-  return 0;
+  return BIND_MOUNT_SUCCESS;
+}
+
+void
+die_with_bind_result (bind_mount_result res,
+                      int               saved_errno,
+                      const char       *format,
+                      ...)
+{
+  va_list args;
+  bool want_errno = TRUE;
+
+  fprintf (stderr, "bwrap: ");
+
+  va_start (args, format);
+  vfprintf (stderr, format, args);
+  va_end (args);
+
+  fprintf (stderr, ": ");
+
+  switch (res)
+    {
+      case BIND_MOUNT_ERROR_MOUNT:
+        fprintf (stderr, "Unable to mount source on destination");
+        break;
+
+      case BIND_MOUNT_ERROR_REALPATH_DEST:
+        fprintf (stderr, "realpath(destination)");
+        break;
+
+      case BIND_MOUNT_ERROR_REOPEN_DEST:
+        fprintf (stderr, "open(destination, O_PATH)");
+        break;
+
+      case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
+        fprintf (stderr, "readlink(/proc/self/fd/<destination>)");
+        break;
+
+      case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
+        fprintf (stderr, "Unable to find destination in mount table");
+        want_errno = FALSE;
+        break;
+
+      case BIND_MOUNT_ERROR_REMOUNT_DEST:
+        fprintf (stderr, "Unable to remount destination with correct flags");
+        break;
+
+      case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
+        fprintf (stderr, "Unable to remount recursively with correct flags");
+        break;
+
+      case BIND_MOUNT_SUCCESS:
+      default:
+        fprintf (stderr, "(unknown error %d)", res);
+        break;
+    }
+
+  if (want_errno)
+    fprintf (stderr, ": %s", strerror (saved_errno));
+
+  fprintf (stderr, "\n");
+  exit (1);
 }
