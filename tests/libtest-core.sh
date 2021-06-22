@@ -5,9 +5,12 @@
 #
 # Known copies are in the following repos:
 #
-# - https://github.com/projectatomic/rpm-ostree
+# - https://github.com/containers/bubblewrap
+# - https://github.com/coreos/rpm-ostree
 #
 # Copyright (C) 2017 Colin Walters <walters@verbum.org>
+#
+# SPDX-License-Identifier: LGPL-2.0+
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -33,13 +36,19 @@ assert_not_reached () {
 }
 
 # Some tests look for specific English strings. Use a UTF-8 version
-# of the C (POSIX) locale if we have one, or fall back to POSIX
+# of the C (POSIX) locale if we have one, or fall back to en_US.UTF-8
 # (https://sourceware.org/glibc/wiki/Proposals/C.UTF-8)
-if locale -a | grep C.UTF-8 >/dev/null; then
-    export LC_ALL=C.UTF-8
+#
+# If we can't find the locale command assume we have support for C.UTF-8
+# (e.g. musl based systems)
+if type -p locale >/dev/null; then
+    export LC_ALL=$(locale -a | grep -iEe '^(C|en_US)\.(UTF-8|utf8)$' | head -n1 || true)
+    if [ -z "${LC_ALL}" ]; then fatal "Can't find suitable UTF-8 locale"; fi
 else
-    export LC_ALL=C
+    export LC_ALL=C.UTF-8
 fi
+# A GNU extension, used whenever LC_ALL is not C
+unset LANGUAGE
 
 # This should really be the default IMO
 export G_DEBUG=fatal-warnings
@@ -119,10 +128,23 @@ assert_file_has_content () {
     done
 }
 
+assert_file_has_content_once () {
+    fpath=$1
+    shift
+    for re in "$@"; do
+        if ! test $(grep -e "$re" "$fpath" | wc -l) = "1"; then
+            _fatal_print_file "$fpath" "File '$fpath' doesn't match regexp '$re' exactly once"
+        fi
+    done
+}
+
 assert_file_has_content_literal () {
-    if ! grep -q -F -e "$2" "$1"; then
-        _fatal_print_file "$1" "File '$1' doesn't match fixed string list '$2'"
-    fi
+    fpath=$1; shift
+    for s in "$@"; do
+        if ! grep -q -F -e "$s" "$fpath"; then
+            _fatal_print_file "$fpath" "File '$fpath' doesn't match fixed string list '$s'"
+        fi
+    done
 }
 
 assert_file_has_mode () {
@@ -157,10 +179,6 @@ assert_files_equal() {
 skip() {
     echo "1..0 # SKIP" "$@"
     exit 0
-}
-
-extract_child_pid() {
-    grep child-pid "$1" | sed "s/^.*: \([0-9]*\).*/\1/"
 }
 
 report_err () {

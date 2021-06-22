@@ -7,7 +7,7 @@ PATH="$PATH:/usr/sbin:/sbin"
 
 srcd=$(cd $(dirname $0) && pwd)
 
-. ${srcd}/libtest-core.sh
+. ${srcd}/libtest.sh
 
 bn=$(basename $0)
 tempdir=$(mktemp -d /var/tmp/tap-test.XXXXXX)
