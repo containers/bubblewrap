@@ -463,6 +463,64 @@ bind_mount (int           proc_fd,
   return BIND_MOUNT_SUCCESS;
 }
 
+/**
+ * Return a string representing bind_mount_result, like strerror().
+ * If want_errno_p is non-NULL, *want_errno_p is used to indicate whether
+ * it would make sense to print strerror(saved_errno).
+ */
+const char *
+bind_mount_result_to_string (bind_mount_result res,
+                             bool *want_errno_p)
+{
+  const char *string;
+  bool want_errno = TRUE;
+
+  switch (res)
+    {
+      case BIND_MOUNT_ERROR_MOUNT:
+        string = "Unable to mount source on destination";
+        break;
+
+      case BIND_MOUNT_ERROR_REALPATH_DEST:
+        string = "realpath(destination)";
+        break;
+
+      case BIND_MOUNT_ERROR_REOPEN_DEST:
+        string = "open(destination, O_PATH)";
+        break;
+
+      case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
+        string = "readlink(/proc/self/fd/<destination>)";
+        break;
+
+      case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
+        string = "Unable to find destination in mount table";
+        want_errno = FALSE;
+        break;
+
+      case BIND_MOUNT_ERROR_REMOUNT_DEST:
+        string = "Unable to remount destination with correct flags";
+        break;
+
+      case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
+        string = "Unable to remount recursively with correct flags";
+        break;
+
+      case BIND_MOUNT_SUCCESS:
+        string = "Success";
+        break;
+
+      default:
+        string = "(unknown/invalid bind_mount_result)";
+        break;
+    }
+
+  if (want_errno_p != NULL)
+    *want_errno_p = want_errno;
+
+  return string;
+}
+
 void
 die_with_bind_result (bind_mount_result res,
                       int               saved_errno,
@@ -478,44 +536,7 @@ die_with_bind_result (bind_mount_result res,
   vfprintf (stderr, format, args);
   va_end (args);
 
-  fprintf (stderr, ": ");
-
-  switch (res)
-    {
-      case BIND_MOUNT_ERROR_MOUNT:
-        fprintf (stderr, "Unable to mount source on destination");
-        break;
-
-      case BIND_MOUNT_ERROR_REALPATH_DEST:
-        fprintf (stderr, "realpath(destination)");
-        break;
-
-      case BIND_MOUNT_ERROR_REOPEN_DEST:
-        fprintf (stderr, "open(destination, O_PATH)");
-        break;
-
-      case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
-        fprintf (stderr, "readlink(/proc/self/fd/<destination>)");
-        break;
-
-      case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
-        fprintf (stderr, "Unable to find destination in mount table");
-        want_errno = FALSE;
-        break;
-
-      case BIND_MOUNT_ERROR_REMOUNT_DEST:
-        fprintf (stderr, "Unable to remount destination with correct flags");
-        break;
-
-      case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
-        fprintf (stderr, "Unable to remount recursively with correct flags");
-        break;
-
-      case BIND_MOUNT_SUCCESS:
-      default:
-        fprintf (stderr, "(unknown error %d)", res);
-        break;
-    }
+  fprintf (stderr, ": %s", bind_mount_result_to_string (res, &want_errno));
 
   if (want_errno)
     fprintf (stderr, ": %s", strerror (saved_errno));

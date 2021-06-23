@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "utils.h"
+
 typedef enum {
   BIND_READONLY = (1 << 0),
   BIND_DEVICES = (1 << 2),
@@ -40,6 +42,9 @@ bind_mount_result bind_mount (int           proc_fd,
                               const char   *src,
                               const char   *dest,
                               bind_option_t options);
+
+const char *bind_mount_result_to_string (bind_mount_result res,
+                                         bool *want_errno);
 
 void die_with_bind_result (bind_mount_result res,
                            int               saved_errno,
