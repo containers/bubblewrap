@@ -866,14 +866,6 @@ get_newroot_path (const char *path)
   return strconcat ("/newroot/", path);
 }
 
-static char *
-get_oldroot_path (const char *path)
-{
-  while (*path == '/')
-    path++;
-  return strconcat ("/oldroot/", path);
-}
-
 static void
 write_uid_gid_map (uid_t sandbox_uid,
                    uid_t parent_uid,

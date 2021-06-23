@@ -769,6 +769,37 @@ read_pid_from_socket (int socket)
   die ("No pid returned on socket");
 }
 
+/* Sets errno on error (== NULL),
+ * Always ensures terminating zero */
+char *
+readlink_malloc (const char *pathname)
+{
+  size_t size = 50;
+  ssize_t n;
+  cleanup_free char *value = NULL;
+
+  do
+    {
+      size *= 2;
+      value = xrealloc (value, size);
+      n = readlink (pathname, value, size - 1);
+      if (n < 0)
+        return NULL;
+    }
+  while (size - 2 < n);
+
+  value[n] = 0;
+  return steal_pointer (&value);
+}
+
+char *
+get_oldroot_path (const char *path)
+{
+  while (*path == '/')
+    path++;
+  return strconcat ("/oldroot/", path);
+}
+
 int
 raw_clone (unsigned long flags,
            void         *child_stack)
