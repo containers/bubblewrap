@@ -9,6 +9,7 @@ _bwrap() {
 
 	local boolean_options="
 		--as-pid-1
+		--clearenv
 		--help
 		--new-session
 		--unshare-cgroup
@@ -32,6 +33,7 @@ _bwrap() {
 		--cap-add
 		--cap-drop
 		--chdir
+		--chmod
 		--dev
 		--dev-bind
 		--die-with-parent
@@ -43,6 +45,7 @@ _bwrap() {
 		--hostname
 		--info-fd
 		--lock-file
+		--perms
 		--proc
 		--remount-ro
 		--ro-bind
