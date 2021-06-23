@@ -244,6 +244,7 @@ usage (int ecode, FILE *out)
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
            "    --chdir DIR                  Change directory to DIR\n"
+           "    --clearenv                   Unset all environment variables\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
            "    --unsetenv VAR               Unset an environment variable\n"
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
@@ -2075,6 +2076,10 @@ parse_args_recurse (int          *argcp,
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--clearenv") == 0)
+        {
+          xclearenv ();
         }
       else if (strcmp (arg, "--setenv") == 0)
         {
