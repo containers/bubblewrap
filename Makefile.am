@@ -27,7 +27,15 @@ if PRIV_MODE_SETUID
 	$(SUDO_BIN) chmod u+s $(DESTDIR)$(bindir)/bwrap
 endif
 
-check_PROGRAMS = test-bwrap
+test_programs = \
+	tests/test-utils \
+	$(NULL)
+test_scripts = \
+	tests/test-run.sh \
+	$(NULL)
+test_extra_programs = \
+	test-bwrap \
+	$(NULL)
 
 test-bwrap: bwrap
 	rm -rf test-bwrap
@@ -38,20 +46,28 @@ if PRIV_MODE_SETUID
 	$(SUDO_BIN) chmod u+s test-bwrap
 endif
 
+tests_test_utils_SOURCES = \
+	tests/test-utils.c \
+	utils.h \
+	utils.c \
+	$(NULL)
+tests_test_utils_LDADD = $(SELINUX_LIBS)
+
 test_bwrap_SOURCES=
 
 include Makefile-docs.am
 
 LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) $(top_srcdir)/build-aux/tap-driver.sh
 LOG_COMPILER =
-TESTS = tests/test-run.sh
 TESTS_ENVIRONMENT = \
 	BWRAP=$(abs_top_builddir)/test-bwrap \
 	G_TEST_BUILDDIR=$(abs_top_builddir) \
 	G_TEST_SRCDIR=$(abs_top_srcdir) \
 	$(NULL)
+check_PROGRAMS = $(test_programs) $(test_extra_programs)
+TESTS = $(test_programs) $(test_scripts)
 
-EXTRA_DIST += $(TESTS)
+EXTRA_DIST += $(test_scripts)
 EXTRA_DIST += tests/libtest-core.sh
 EXTRA_DIST += tests/libtest.sh
 
