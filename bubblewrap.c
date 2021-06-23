@@ -278,6 +278,7 @@ usage (int ecode, FILE *out)
            "    --cap-add CAP                Add cap CAP when running as privileged user\n"
            "    --cap-drop CAP               Drop cap CAP when running as privileged user\n"
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
+           "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
           );
   exit (ecode);
 }
