@@ -18,13 +18,37 @@
 
 #pragma once
 
+#include "utils.h"
+
 typedef enum {
   BIND_READONLY = (1 << 0),
   BIND_DEVICES = (1 << 2),
   BIND_RECURSIVE = (1 << 3),
 } bind_option_t;
 
-int bind_mount (int           proc_fd,
-                const char   *src,
-                const char   *dest,
-                bind_option_t options);
+typedef enum
+{
+  BIND_MOUNT_SUCCESS = 0,
+  BIND_MOUNT_ERROR_MOUNT,
+  BIND_MOUNT_ERROR_REALPATH_DEST,
+  BIND_MOUNT_ERROR_REOPEN_DEST,
+  BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
+  BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
+  BIND_MOUNT_ERROR_REMOUNT_DEST,
+  BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
+} bind_mount_result;
+
+bind_mount_result bind_mount (int           proc_fd,
+                              const char   *src,
+                              const char   *dest,
+                              bind_option_t options);
+
+const char *bind_mount_result_to_string (bind_mount_result res,
+                                         bool *want_errno);
+
+void die_with_bind_result (bind_mount_result res,
+                           int               saved_errno,
+                           const char       *format,
+                           ...)
+  __attribute__((__noreturn__))
+  __attribute__((format (printf, 3, 4)));
