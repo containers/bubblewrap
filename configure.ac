@@ -81,6 +81,9 @@ if test "x$enable_selinux" != "xno"; then
         if test "x$have_selinux" = xno -a "x$enable_selinux" = xyes; then
                 AC_MSG_ERROR([*** SELinux support requested but libraries not found])
         fi
+        PKG_CHECK_MODULES([SELINUX_2_3], [libselinux >= 2.3],
+                [AC_DEFINE(HAVE_SELINUX_2_3, 1, [Define if SELinux is version >= 2.3])],
+                [:])
 fi
 AM_CONDITIONAL(HAVE_SELINUX, [test "$have_selinux" = "yes"])
 

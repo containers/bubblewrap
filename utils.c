@@ -24,6 +24,13 @@
 #include <selinux/selinux.h>
 #endif
 
+#ifndef HAVE_SELINUX_2_3
+/* libselinux older than 2.3 weren't const-correct */
+#define setexeccon(x) setexeccon ((security_context_t) x)
+#define setfscreatecon(x) setfscreatecon ((security_context_t) x)
+#define security_check_context(x) security_check_context ((security_context_t) x)
+#endif
+
 void
 die_with_error (const char *format, ...)
 {
@@ -65,7 +72,7 @@ die_unless_label_valid (const char *label)
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () == 1)
     {
-      if (security_check_context ((security_context_t) label) < 0)
+      if (security_check_context (label) < 0)
         die_with_error ("invalid label %s", label);
       return;
     }
@@ -853,7 +860,7 @@ label_create_file (const char *file_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && file_label)
-    return setfscreatecon ((security_context_t) file_label);
+    return setfscreatecon (file_label);
 #endif
   return 0;
 }
@@ -863,7 +870,7 @@ label_exec (const char *exec_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && exec_label)
-    return setexeccon ((security_context_t) exec_label);
+    return setexeccon (exec_label);
 #endif
   return 0;
 }
