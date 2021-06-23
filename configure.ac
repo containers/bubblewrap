@@ -107,6 +107,7 @@ CC_CHECK_FLAGS_APPEND([WARN_CFLAGS], [CFLAGS], [\
         -Werror=misleading-indentation \
 	-Werror=missing-include-dirs -Werror=aggregate-return \
         -Werror=switch-default \
+        -Wswitch-enum \
 ])
 AC_SUBST(WARN_CFLAGS)
 
