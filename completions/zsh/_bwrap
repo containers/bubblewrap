@@ -30,6 +30,7 @@ _bwrap_args=(
     '--lock-file[Take a lock on DEST while sandbox is running]:lock file:_files'
     '--mqueue[Mount new mqueue on DEST]:mount point for mqueue:_files -/'
     '--new-session[Create a new terminal session]'
+    '--perms[Set permissions for next action argument]: :_guard "[0-7]#" "permissions in octal"'
     '--pidns[Use this user namespace (as parent namespace if using --unshare-pid)]: :'
     '--proc[Mount new procfs on DEST]:mount point for procfs:_files -/'
     '--remount-ro[Remount DEST as readonly; does not recursively remount]:mount point to remount read-only:_files'
