@@ -36,7 +36,7 @@ _bwrap_args=(
     '--ro-bind-try[Equal to --ro-bind but ignores non-existent SRC]:source:_files:destination:_files'
     '--ro-bind[Bind mount the host path SRC readonly on DEST]:source:_files:destination:_files'
     '--seccomp[Load and use seccomp rules from FD]: :_guard "[0-9]#" "file descriptor to read seccomp rules from"'
-    '--setenv[Set an environment variable]: :'
+    '--setenv[Set an environment variable]:variable to set:_parameters -g "*export*":value of variable: :'
     '--symlink[Create symlink at DEST with target SRC]: : :'
     '--sync-fd[Keep this fd open while sandbox is running]: :_guard "[0-9]#" "file descriptor to keep open"'
     '--tmpfs[Mount new tmpfs on DEST]:mount point for tmpfs:_files -/'
