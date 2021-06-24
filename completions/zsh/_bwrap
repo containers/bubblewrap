@@ -53,7 +53,7 @@ _bwrap_args=(
     '--unshare-uts[Create new uts namespace]'
     '(--unshare-user)--userns[Use this user namespace (cannot combine with --unshare-user)]: :'
     '--userns-block-fd[Block on FD until the user namespace is ready]: :_guard "[0-9]#" "file descriptor to block on"'
-    '(--unshare-user)--userns2[After setup switch to this user namspace, only useful with --userns]: :'
+    '(--unshare-user)--userns2[After setup switch to this user namespace, only useful with --userns]: :'
     '--version[Print version]'
 )
 
