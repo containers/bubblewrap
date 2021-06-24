@@ -7,22 +7,25 @@ _bwrap() {
     local cur prev words cword
     _init_completion || return
 
+	# Please keep sorted in LC_ALL=C order
 	local boolean_options="
 		--as-pid-1
+		--clearenv
 		--help
 		--new-session
+		--unshare-all
 		--unshare-cgroup
 		--unshare-cgroup-try
-		--unshare-user
-		--unshare-user-try
-		--unshare-all
 		--unshare-ipc
 		--unshare-net
 		--unshare-pid
+		--unshare-user
+		--unshare-user-try
 		--unshare-uts
 		--version
 	"
 
+	# Please keep sorted in LC_ALL=C order
 	local options_with_args="
 		$boolean_optons
 		--args
@@ -32,6 +35,7 @@ _bwrap() {
 		--cap-add
 		--cap-drop
 		--chdir
+		--chmod
 		--dev
 		--dev-bind
 		--die-with-parent
@@ -43,6 +47,7 @@ _bwrap() {
 		--hostname
 		--info-fd
 		--lock-file
+		--perms
 		--proc
 		--remount-ro
 		--ro-bind

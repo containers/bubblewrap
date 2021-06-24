@@ -172,6 +172,12 @@
       <term><option>--unsetenv <arg choice="plain">VAR</arg></option></term>
       <listitem><para>Unset an environment variable</para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--clearenv</option></term>
+      <listitem><para>Unset all environment variables, except for
+        <envar>PWD</envar> and any that are subsequently set by
+        <option>--setenv</option></para></listitem>
+    </varlistentry>
   </variablelist>
   <para>Options for monitoring the sandbox from the outside:</para>
   <variablelist>
