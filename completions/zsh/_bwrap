@@ -31,7 +31,7 @@ _bwrap_args=(
     '--new-session[Create a new terminal session]'
     '--pidns[Use this user namespace (as parent namespace if using --unshare-pid)]: :'
     '--proc[Mount new procfs on DEST]:mount point for procfs:_files -/'
-    '--remount-ro[Remount DEST as readonly; does not recursively remount]: :'
+    '--remount-ro[Remount DEST as readonly; does not recursively remount]:mount point to remount read-only:_files'
     '--ro-bind-data[Copy from FD to file which is readonly bind-mounted on DEST]: :_guard "[0-9]#" "file descriptor to read content from":destination:_files'
     '--ro-bind-try[Equal to --ro-bind but ignores non-existent SRC]:source:_files:destination:_files'
     '--ro-bind[Bind mount the host path SRC readonly on DEST]:source:_files:destination:_files'
