@@ -12,7 +12,7 @@ _bwrap_args=(
     '--block-fd[Block on FD until some data to read is available]: :_guard "[0-9]#" "file descriptor to block on"'
     '--cap-add[Add cap CAP when running as privileged user]:capability to add:->caps'
     '--cap-drop[Drop cap CAP when running as privileged user]:capability to add:->caps'
-    '--chdir DIR[Change directory to DIR]:working directory for sandbox: _files -/'
+    '--chdir[Change directory to DIR]:working directory for sandbox: _files -/'
     '--dev-bind-try[Equal to --dev-bind but ignores non-existent SRC]:source:_files:destination:_files'
     '--dev-bind[Bind mount the host path SRC on DEST, allowing device access]:source:_files:destination:_files'
     '--dev[Mount new dev on DEST]:mount point for /dev:_files -/'
