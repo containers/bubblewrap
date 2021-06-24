@@ -66,7 +66,7 @@ else
 fi
 
 
-AC_SUBST([ZSH_COMPLETION_DIR])                                                   
+AC_SUBST([ZSH_COMPLETION_DIR])
 AM_CONDITIONAL([ENABLE_ZSH_COMPLETION], [test "x$with_zsh_completion_dir" != "xno"])
 
 # ------------------------------------------------------------------------------
