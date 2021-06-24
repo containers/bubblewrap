@@ -18,8 +18,8 @@ _bwrap_args=(
     '--dev[Mount new dev on DEST]:mount point for /dev:_files -/'
     "--die-with-parent[Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.]"
     '--dir[Create dir at DEST]:directory to create:_files -/'
-    '--exec-label[Exec label for the sandbox]: :'
-    '--file-label[File label for temporary sandbox content]: :'
+    '--exec-label[Exec label for the sandbox]:SELinux label:_selinux_contexts'
+    '--file-label[File label for temporary sandbox content]:SELinux label:_selinux_contexts'
     '--file[Copy from FD to destination DEST]: :_guard "[0-9]#" "file descriptor to read content from":destination:_files'
     '--gid[Custom gid in the sandbox (requires --unshare-user or --userns)]: :'
     '--help[Print help and exit]'
