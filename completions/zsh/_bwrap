@@ -13,6 +13,7 @@ _bwrap_args=(
     '--cap-add[Add cap CAP when running as privileged user]:capability to add:->caps'
     '--cap-drop[Drop cap CAP when running as privileged user]:capability to add:->caps'
     '--chdir[Change directory to DIR]:working directory for sandbox: _files -/'
+    '--chmod[Set permissions]: :_guard "[0-7]#" "permissions in octal":path to set permissions:_files'
     '--dev-bind-try[Equal to --dev-bind but ignores non-existent SRC]:source:_files:destination:_files'
     '--dev-bind[Bind mount the host path SRC on DEST, allowing device access]:source:_files:destination:_files'
     '--dev[Mount new dev on DEST]:mount point for /dev:_files -/'
