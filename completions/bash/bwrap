@@ -1,5 +1,5 @@
-#!/bin/bash
-#
+# shellcheck shell=bash
+
 # bash completion file for bubblewrap commands
 #
 
@@ -67,3 +67,5 @@ _bwrap() {
 	return 0
 }
 complete -F _bwrap bwrap
+
+# vim:set ft=bash:
