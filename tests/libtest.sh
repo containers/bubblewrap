@@ -40,9 +40,8 @@ touch "${tempdir}/.testtmp"
 function cleanup () {
     if test -n "${TEST_SKIP_CLEANUP:-}"; then
         echo "Skipping cleanup of ${test_tmpdir}"
-    else if test -f "${tempdir}/.test"; then
+    elif test -f "${tempdir}/.test"; then
         rm "${tempdir}" -rf
-    fi
     fi
 }
 trap cleanup EXIT
