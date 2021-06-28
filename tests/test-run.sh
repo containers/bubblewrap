@@ -2,85 +2,13 @@
 
 set -xeuo pipefail
 
-# Make sure /sbin/getpcaps etc. are in our PATH even if non-root
-PATH="$PATH:/usr/sbin:/sbin"
-
-srcd=$(cd $(dirname $0) && pwd)
+srcd=$(cd $(dirname "$0") && pwd)
 
 . ${srcd}/libtest.sh
 
-bn=$(basename $0)
-tempdir=$(mktemp -d /var/tmp/tap-test.XXXXXX)
-touch ${tempdir}/.testtmp
-function cleanup () {
-    if test -n "${TEST_SKIP_CLEANUP:-}"; then
-        echo "Skipping cleanup of ${test_tmpdir}"
-    else if test -f ${tempdir}/.test; then
-        rm "${tempdir}" -rf
-    fi
-    fi
-}
-trap cleanup EXIT
-cd ${tempdir}
+bn=$(basename "$0")
 
-: "${BWRAP:=bwrap}"
-if test -u "$(type -p ${BWRAP})"; then
-    bwrap_is_suid=true
-fi
-
-FUSE_DIR=
-for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
-    if test -d $mp; then
-        echo Using $mp as test fuse mount
-        FUSE_DIR=$mp
-        break
-    fi
-done
-
-if test "$(id -u)" = "0"; then
-    is_uidzero=true
-else
-    is_uidzero=false
-fi
-
-# This is supposed to be an otherwise readable file in an unreadable (by the user) dir
-UNREADABLE=/root/.bashrc
-if ${is_uidzero} || test -x `dirname $UNREADABLE`; then
-    UNREADABLE=
-fi
-
-# https://github.com/projectatomic/bubblewrap/issues/217
-# are we on a merged-/usr system?
-if [ /lib -ef /usr/lib ]; then
-    BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
-              --ro-bind /etc /etc
-              --dir /var/tmp
-              --symlink usr/lib /lib
-              --symlink usr/lib64 /lib64
-              --symlink usr/bin /bin
-              --symlink usr/sbin /sbin
-              --proc /proc
-              --dev /dev"
-else
-    BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
-              --ro-bind /etc /etc
-              --ro-bind /bin /bin
-              --ro-bind /lib /lib
-              --ro-bind-try /lib64 /lib64
-              --ro-bind /sbin /sbin
-              --dir /var/tmp
-              --proc /proc
-              --dev /dev"
-fi
-
-# Default arg, bind whole host fs to /, tmpfs on /tmp
-RUN="${BWRAP} --bind / / --tmpfs /tmp"
-
-if [ -z "${BWRAP_MUST_WORK-}" ] && ! $RUN true; then
-    skip Seems like bwrap is not working at all. Maybe setuid is not working
-fi
-
-echo "1..56"
+echo "1..54"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -160,7 +88,7 @@ done
 
 echo "ok namespace id info in info and json-status fd"
 
-if ! which strace 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault; then
+if ! which strace >/dev/null 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault >/dev/null; then
     echo "ok - # SKIP no strace fault injection"
 else
     ! strace -o /dev/null -f -e trace=prctl -e fault=prctl:when=39 $RUN --die-with-parent --json-status-fd 42 true 42>json-status.json
@@ -201,7 +129,7 @@ if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
     for OPT in "" "--unshare-user-try --as-pid-1" "--unshare-user-try" "--as-pid-1"; do
         e=0
-        $RUN $OPT --unshare-pid getpcaps 1 2> caps.test || e=$?
+        $RUN $OPT --unshare-pid getpcaps 1 >&2 2> caps.test || e=$?
         sed -e 's/^/# /' < caps.test >&2
         test "$e" = 0
         assert_not_file_has_content caps.test ': =.*cap'
@@ -351,41 +279,6 @@ if $RUN --bind "$(pwd)" /tmp/here test -d /tmp/newroot; then
 fi
 echo "ok - we can mount another directory inside /tmp"
 
-# These tests need user namespaces
-if test -n "${bwrap_is_suid:-}"; then
-    echo "ok - # SKIP no setuid support for --unshare-user"
-    echo "ok - # SKIP no setuid support for --unshare-user"
-else
-    mkfifo donepipe
-
-    $RUN --info-fd 42 --unshare-user sh -c 'readlink /proc/self/ns/user > sandbox-userns; cat < donepipe' 42>info.json &
-    while ! test -f sandbox-userns; do sleep 1; done
-    SANDBOX1PID=$(extract_child_pid info.json)
-
-    $RUN  --userns 11 readlink /proc/self/ns/user > sandbox2-userns 11< /proc/$SANDBOX1PID/ns/user
-    echo foo > donepipe
-
-    assert_files_equal sandbox-userns sandbox2-userns
-
-    rm donepipe info.json sandbox-userns
-
-    echo "ok - Test --userns"
-
-    mkfifo donepipe
-    $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'readlink /proc/self/ns/pid > sandbox-pidns; cat < donepipe' 42>info.json &
-    while ! test -f sandbox-pidns; do sleep 1; done
-    SANDBOX1PID=$(extract_child_pid info.json)
-
-    $RUN --userns 11 --pidns 12 readlink /proc/self/ns/pid > sandbox2-pidns 11< /proc/$SANDBOX1PID/ns/user 12< /proc/$SANDBOX1PID/ns/pid
-    echo foo > donepipe
-
-    assert_files_equal sandbox-pidns sandbox2-pidns
-
-    rm donepipe info.json sandbox-pidns
-
-    echo "ok - Test --pidns"
-fi
-
 touch some-file
 mkdir -p some-dir
 rm -fr new-dir-mountpoint
@@ -494,7 +387,7 @@ echo "ok - Directories created as parents have expected permissions"
 
 $RUN \
     --perms 01777 --tmpfs "$(pwd -P)" \
-    cat /proc/self/mountinfo
+    cat /proc/self/mountinfo >&2
 $RUN \
     --perms 01777 --tmpfs "$(pwd -P)" \
     stat -c '%a' "$(pwd -P)" > dir-permissions
