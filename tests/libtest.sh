@@ -21,13 +21,13 @@
 if [ -n "${G_TEST_SRCDIR:-}" ]; then
   test_srcdir="${G_TEST_SRCDIR}/tests"
 else
-  test_srcdir=$(dirname $0)
+  test_srcdir=$(dirname "$0")
 fi
 
 if [ -n "${G_TEST_BUILDDIR:-}" ]; then
   test_builddir="${G_TEST_BUILDDIR}/tests"
 else
-  test_builddir=$(dirname $0)
+  test_builddir=$(dirname "$0")
 fi
 
 . "${test_srcdir}/libtest-core.sh"
@@ -36,17 +36,17 @@ fi
 PATH="$PATH:/usr/sbin:/sbin"
 
 tempdir=$(mktemp -d /var/tmp/tap-test.XXXXXX)
-touch ${tempdir}/.testtmp
+touch "${tempdir}/.testtmp"
 function cleanup () {
     if test -n "${TEST_SKIP_CLEANUP:-}"; then
         echo "Skipping cleanup of ${test_tmpdir}"
-    else if test -f ${tempdir}/.test; then
+    else if test -f "${tempdir}/.test"; then
         rm "${tempdir}" -rf
     fi
     fi
 }
 trap cleanup EXIT
-cd ${tempdir}
+cd "${tempdir}"
 
 : "${BWRAP:=bwrap}"
 if test -u "$(type -p ${BWRAP})"; then
@@ -54,10 +54,10 @@ if test -u "$(type -p ${BWRAP})"; then
 fi
 
 FUSE_DIR=
-for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep user_id=$(id -u) | awk '{print $2}'); do
-    if test -d $mp; then
+for mp in $(cat /proc/self/mounts | grep " fuse[. ]" | grep "user_id=$(id -u)" | awk '{print $2}'); do
+    if test -d "$mp"; then
         echo "# Using $mp as test fuse mount"
-        FUSE_DIR=$mp
+        FUSE_DIR="$mp"
         break
     fi
 done
@@ -70,7 +70,7 @@ fi
 
 # This is supposed to be an otherwise readable file in an unreadable (by the user) dir
 UNREADABLE=/root/.bashrc
-if ${is_uidzero} || test -x `dirname $UNREADABLE`; then
+if "${is_uidzero}" || test -x "`dirname "$UNREADABLE"`"; then
     UNREADABLE=
 fi
 

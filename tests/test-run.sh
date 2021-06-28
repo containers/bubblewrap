@@ -2,11 +2,11 @@
 
 set -xeuo pipefail
 
-srcd=$(cd $(dirname $0) && pwd)
+srcd=$(cd $(dirname "$0") && pwd)
 
 . ${srcd}/libtest.sh
 
-bn=$(basename $0)
+bn=$(basename "$0")
 
 echo "1..56"
 
