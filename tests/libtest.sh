@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 # Source library for shell script tests.
 # Add non-bubblewrap-specific code to libtest-core.sh instead.
 #
@@ -17,6 +19,8 @@
 # License along with this library; if not, write to the
 # Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 # Boston, MA 02111-1307, USA.
+
+set -e
 
 if [ -n "${G_TEST_SRCDIR:-}" ]; then
   test_srcdir="${G_TEST_SRCDIR}/tests"
