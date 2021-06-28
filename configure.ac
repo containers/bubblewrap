@@ -62,7 +62,7 @@ AC_ARG_WITH([zsh-completion-dir],
 if test "x$with_zsh_completion_dir" = "xyes"; then
         [ZSH_COMPLETION_DIR="$datadir/zsh/site-functions"]
 else
-    ZSH_COMPLETION_DIR="$with_bash_completion_dir"
+    ZSH_COMPLETION_DIR="$with_zsh_completion_dir"
 fi
 
 
