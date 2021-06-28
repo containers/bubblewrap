@@ -73,7 +73,7 @@ fi
 
 # This is supposed to be an otherwise readable file in an unreadable (by the user) dir
 UNREADABLE=/root/.bashrc
-if "${is_uidzero}" || test -x "`dirname "$UNREADABLE"`"; then
+if "${is_uidzero}" || test -x "$(dirname "$UNREADABLE")"; then
     UNREADABLE=
 fi
 
