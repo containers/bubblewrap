@@ -42,13 +42,15 @@ AC_ARG_WITH([bash-completion-dir],
     [],
     [with_bash_completion_dir=yes])
 
-if test "x$with_bash_completion_dir" = "xyes"; then
+AS_IF([test "x$with_bash_completion_dir" = "xyes"],
+  [
     PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
         [BASH_COMPLETION_DIR="`pkg-config --variable=completionsdir bash-completion`"],
         [BASH_COMPLETION_DIR="$datadir/bash-completion/completions"])
-else
+  ],
+  [
     BASH_COMPLETION_DIR="$with_bash_completion_dir"
-fi
+  ])
 
 AC_SUBST([BASH_COMPLETION_DIR])
 AM_CONDITIONAL([ENABLE_BASH_COMPLETION],[test "x$with_bash_completion_dir" != "xno"])
@@ -59,11 +61,9 @@ AC_ARG_WITH([zsh-completion-dir],
     [],
     [with_zsh_completion_dir=yes])
 
-if test "x$with_zsh_completion_dir" = "xyes"; then
-        [ZSH_COMPLETION_DIR="$datadir/zsh/site-functions"]
-else
-    ZSH_COMPLETION_DIR="$with_zsh_completion_dir"
-fi
+AS_IF([test "x$with_zsh_completion_dir" = "xyes"],
+  [ZSH_COMPLETION_DIR="$datadir/zsh/site-functions"],
+  [ZSH_COMPLETION_DIR="$with_zsh_completion_dir"])
 
 
 AC_SUBST([ZSH_COMPLETION_DIR])
@@ -72,19 +72,18 @@ AM_CONDITIONAL([ENABLE_ZSH_COMPLETION], [test "x$with_zsh_completion_dir" != "xn
 # ------------------------------------------------------------------------------
 have_selinux=no
 AC_ARG_ENABLE(selinux, AS_HELP_STRING([--disable-selinux], [Disable optional SELINUX support]))
-if test "x$enable_selinux" != "xno"; then
+AS_IF([test "x$enable_selinux" != "xno"], [
         PKG_CHECK_MODULES([SELINUX], [libselinux >= 2.1.9],
                 [AC_DEFINE(HAVE_SELINUX, 1, [Define if SELinux is available])
                  have_selinux=yes
                  M4_DEFINES="$M4_DEFINES -DHAVE_SELINUX"],
                 [have_selinux=no])
-        if test "x$have_selinux" = xno -a "x$enable_selinux" = xyes; then
-                AC_MSG_ERROR([*** SELinux support requested but libraries not found])
-        fi
+        AS_IF([test "x$have_selinux" = xno && test "x$enable_selinux" = xyes],
+          [AC_MSG_ERROR([*** SELinux support requested but libraries not found])])
         PKG_CHECK_MODULES([SELINUX_2_3], [libselinux >= 2.3],
                 [AC_DEFINE(HAVE_SELINUX_2_3, 1, [Define if SELinux is version >= 2.3])],
                 [:])
-fi
+])
 AM_CONDITIONAL(HAVE_SELINUX, [test "$have_selinux" = "yes"])
 
 dnl Keep this in sync with ostree, except remove -Werror=declaration-after-statement
@@ -113,9 +112,8 @@ AC_SUBST(WARN_CFLAGS)
 
 AC_CHECK_LIB(cap, cap_from_text)
 
-if test "$ac_cv_lib_cap_cap_from_text" != "yes"; then
-            AC_MSG_ERROR([*** libcap requested but not found])
-fi
+AS_IF([test "$ac_cv_lib_cap_cap_from_text" != "yes"],
+  [AC_MSG_ERROR([*** libcap requested but not found])])
 
 AC_ARG_WITH(priv-mode,
             AS_HELP_STRING([--with-priv-mode=setuid/none],
