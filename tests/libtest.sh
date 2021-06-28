@@ -43,8 +43,8 @@ tempdir=$(mktemp -d /var/tmp/tap-test.XXXXXX)
 touch "${tempdir}/.testtmp"
 function cleanup () {
     if test -n "${TEST_SKIP_CLEANUP:-}"; then
-        echo "Skipping cleanup of ${test_tmpdir}"
-    elif test -f "${tempdir}/.test"; then
+        echo "Skipping cleanup of ${tempdir}"
+    elif test -f "${tempdir}/.testtmp"; then
         rm "${tempdir}" -rf
     fi
 }
