@@ -60,11 +60,11 @@ _bwrap() {
 		--userns-block-fd
 	"
 
-	if [[ "$cur" == -* ]]; then
-	    COMPREPLY=( $( compgen -W "$boolean_options $options_with_args" -- "$cur" ) )
-	fi
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $( compgen -W "$boolean_options $options_with_args" -- "$cur" ) )
+    fi
 
-	return 0
+    return 0
 }
 complete -F _bwrap bwrap
 
