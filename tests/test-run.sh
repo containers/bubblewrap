@@ -15,10 +15,10 @@ ${BWRAP} --help > help.txt
 assert_file_has_content help.txt "usage: ${BWRAP}"
 echo "ok - Help works"
 
-for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshare-pid"; do
+for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare-pid"; do
     # Test fuse fs as bind source
-    if [ x$FUSE_DIR != x ]; then
-        $RUN $ALT  --proc /proc --dev /dev --bind $FUSE_DIR /tmp/foo true
+    if [ "x$FUSE_DIR" != "x" ]; then
+        $RUN $ALT --proc /proc --dev /dev --bind $FUSE_DIR /tmp/foo true
         echo "ok - can bind-mount a FUSE directory with $ALT"
     else
         echo "ok # SKIP no FUSE support"
@@ -39,14 +39,14 @@ for ALT in "" "--unshare-user-try"  "--unshare-pid" "--unshare-user-try --unshar
         CAP=""
     fi
 
-    if ! ${is_uidzero} && $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow  /tmp/foo cat /etc/shadow; then
+    if ! ${is_uidzero} && $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow /tmp/foo cat /etc/shadow; then
         assert_not_reached Could read /etc/shadow
     fi
     echo "ok - cannot read /etc/shadow with $ALT"
     # Unreadable dir
-    if [ x$UNREADABLE != x ]; then
+    if [ "x$UNREADABLE" != "x" ]; then
         echo -n "expect EPERM: " >&2
-        if $RUN $ALT --unshare-net --proc /proc --dev /dev --bind $UNREADABLE  /tmp/foo cat /tmp/foo ; then
+        if $RUN $ALT --unshare-net --proc /proc --dev /dev --bind $UNREADABLE /tmp/foo cat /tmp/foo; then
             assert_not_reached Could read $UNREADABLE
         fi
         echo "ok - cannot read $UNREADABLE with $ALT"
@@ -113,13 +113,13 @@ else
     assert_file_has_content recursive_proc.txt "hello"
     echo "ok - can mount /proc recursively"
 
-    $BWRAP_RECURSE -- /proc/self/exe --unshare-all  ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
+    $BWRAP_RECURSE -- /proc/self/exe --unshare-all ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
     assert_file_has_content recursive-newroot.txt "/usr"
     echo "ok - can pivot to new rootfs recursively"
 fi
 
 # Test error prefixing
-if $RUN --unshare-pid  --bind /source-enoent /dest true 2>err.txt; then
+if $RUN --unshare-pid --bind /source-enoent /dest true 2>err.txt; then
     assert_not_reached "bound nonexistent source"
 fi
 assert_file_has_content err.txt "^bwrap: Can't find source path.*source-enoent"
@@ -147,12 +147,12 @@ else
     # Check for dropping kill/fowner (we assume all uid 0 callers have this)
     # But we should still have net_bind_service for example
     $RUN $OPT --cap-drop CAP_KILL --cap-drop CAP_FOWNER --unshare-pid capsh --print >caps.test
-	# capsh's output format changed from v2.29 -> drops are now indicated with -eip
-	if grep 'Current: =.*+eip$' caps.test; then
+    # capsh's output format changed from v2.29 -> drops are now indicated with -eip
+    if grep 'Current: =.*+eip$' caps.test; then
         assert_not_file_has_content caps.test '^Current: =.*cap_kill.*+eip$'
         assert_not_file_has_content caps.test '^Current: =.*cap_fowner.*+eip$'
         assert_file_has_content caps.test '^Current: =.*cap_net_bind_service.*+eip$'
-	else
+    else
         assert_file_has_content caps.test '^Current: =eip.*cap_kill.*-eip$'
         assert_file_has_content caps.test '^Current: =eip.*cap_fowner.*-eip$'
         assert_not_file_has_content caps.test '^Current: =.*cap_net_bind_service.*-eip$'

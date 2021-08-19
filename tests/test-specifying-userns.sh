@@ -17,7 +17,7 @@ else
     while ! test -f sandbox-userns; do sleep 1; done
     SANDBOX1PID=$(extract_child_pid info.json)
 
-    $RUN  --userns 11 readlink /proc/self/ns/user > sandbox2-userns 11< /proc/$SANDBOX1PID/ns/user
+    $RUN --userns 11 readlink /proc/self/ns/user > sandbox2-userns 11< /proc/$SANDBOX1PID/ns/user
     echo foo > donepipe
 
     assert_files_equal sandbox-userns sandbox2-userns

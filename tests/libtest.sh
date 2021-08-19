@@ -42,11 +42,11 @@ PATH="$PATH:/usr/sbin:/sbin"
 
 tempdir=$(mktemp -d /var/tmp/tap-test.XXXXXX)
 touch "${tempdir}/.testtmp"
-function cleanup () {
+cleanup() {
     if test -n "${TEST_SKIP_CLEANUP:-}"; then
         echo "Skipping cleanup of ${tempdir}"
     elif test -f "${tempdir}/.testtmp"; then
-        rm "${tempdir}" -rf
+        rm -rf "${tempdir}"
     fi
 }
 trap cleanup EXIT

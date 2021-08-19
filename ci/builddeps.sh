@@ -5,7 +5,7 @@
 set -eux
 set -o pipefail
 
-usage () {
+usage() {
     if [ "${1-2}" -ne 0 ]; then
         exec >&2
     fi
