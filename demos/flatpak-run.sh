@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # For this to work you first have to run these commands:
 #  curl -O http://sdk.gnome.org/nightly/keys/nightly.gpg
 #  flatpak --user remote-add --gpg-key=nightly.gpg gnome-nightly http://sdk.gnome.org/nightly/repo/

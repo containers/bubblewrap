@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright 2021 Simon McVittie
 # SPDX-License-Identifier: LGPL-2.0-or-later
 
