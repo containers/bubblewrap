@@ -46,4 +46,3 @@ find $RPM_BUILD_ROOT -name '*.la' -delete
 %{_bindir}/bwrap
 %endif
 %{_mandir}/man1/*
-

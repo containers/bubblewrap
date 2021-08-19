@@ -1,4 +1,3 @@
-
 bwrap_SOURCES = \
 	$(bwrap_srcpath)/bubblewrap.c \
 	$(bwrap_srcpath)/bind-mount.h \
