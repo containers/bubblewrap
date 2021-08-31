@@ -86,7 +86,7 @@ decode_mountoptions (const char *options)
   int i;
   unsigned long flags = 0;
   static const struct  { int   flag;
-                         char *name;
+                         const char *name;
   } flags_data[] = {
     { 0, "rw" },
     { MS_RDONLY, "ro" },
