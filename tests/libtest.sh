@@ -4,6 +4,7 @@
 # Add non-bubblewrap-specific code to libtest-core.sh instead.
 #
 # Copyright (C) 2017 Colin Walters <walters@verbum.org>
+# SPDX-License-Identifier: LGPL-2.0-or-later
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
