@@ -1168,7 +1168,7 @@ setup_newroot (bool unshare_pid,
              problematic (for instance /proc/sysrq-trigger lets you shut down the machine
              if you have write access). We should not have access to these as a non-privileged
              user, but lets cover them anyway just to make sure */
-          const char *cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
+          static const char * const cover_proc_dirs[] = { "sys", "sysrq-trigger", "irq", "bus" };
           for (i = 0; i < N_ELEMENTS (cover_proc_dirs); i++)
             {
               cleanup_free char *subdir = strconcat3 (dest, "/", cover_proc_dirs[i]);
