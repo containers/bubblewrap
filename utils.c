@@ -779,7 +779,7 @@ read_pid_from_socket (int socket)
   msg.msg_controllen = control_len_rcv;
 
   if (recvmsg (socket, &msg, 0) < 0)
-    die_with_error ("Cant read pid from socket");
+    die_with_error ("Can't read pid from socket");
 
   if (msg.msg_controllen <= 0)
     die ("Unexpected short read from pid socket");

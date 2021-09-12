@@ -108,7 +108,7 @@ if test -n "${bwrap_is_suid:-}"; then
 else
     BWRAP_RECURSE="$BWRAP --unshare-user --uid 0 --gid 0 --cap-add ALL --bind / / --bind /proc /proc"
 
-    # $BWRAP May be inaccessable due to the user namespace so use /proc/self/exe
+    # $BWRAP May be inaccessible due to the user namespace so use /proc/self/exe
     $BWRAP_RECURSE -- /proc/self/exe --unshare-all --bind / / --bind /proc /proc echo hello > recursive_proc.txt
     assert_file_has_content recursive_proc.txt "hello"
     echo "ok - can mount /proc recursively"

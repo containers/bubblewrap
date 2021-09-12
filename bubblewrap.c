@@ -2539,7 +2539,7 @@ main (int    argc,
    * because (as described in acquire_privs()) setuid bwrap causes
    * root to own the namespaces that it creates, so you will not be
    * able to access these namespaces anyway. So, best just not support
-   * it anway.
+   * it anyway.
    */
   if (opt_userns_fd != -1 && is_privileged)
     die ("--userns doesn't work in setuid mode");
