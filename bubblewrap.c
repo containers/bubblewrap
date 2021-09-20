@@ -66,6 +66,7 @@ static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
 
 const char *opt_chdir_path = NULL;
+bool opt_disable_userns = FALSE;
 bool opt_unshare_user = FALSE;
 bool opt_unshare_user_try = FALSE;
 bool opt_unshare_pid = FALSE;
@@ -240,6 +241,7 @@ usage (int ecode, FILE *out)
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
            "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
            "    --userns2 FD                 After setup switch to this user namespace, only useful with --userns\n"
+           "    --disable-userns             Disable further use of user namespaces inside sandbox\n"
            "    --pidns FD                   Use this user namespace (as parent namespace if using --unshare-pid)\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
@@ -2068,6 +2070,10 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--disable-userns") == 0)
+        {
+          opt_disable_userns = TRUE;
+        }
       else if (strcmp (arg, "--userns2") == 0)
         {
           int the_fd;
@@ -2420,6 +2426,7 @@ main (int    argc,
   struct sock_fprog seccomp_prog;
   cleanup_free char *args_data = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
+  bool using_userns2 = FALSE;
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2947,8 +2954,12 @@ main (int    argc,
       die_with_error ("chdir /");
   }
 
-  if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
-    die_with_error ("Setting userns2 failed");
+  if (opt_userns2_fd > 0)
+    {
+      if (setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
+        die_with_error ("Setting userns2 failed");
+      using_userns2 = TRUE;
+    }
 
   if (opt_unshare_user &&
       (ns_uid != opt_sandbox_uid || ns_gid != opt_sandbox_gid) &&
@@ -2961,12 +2972,41 @@ main (int    argc,
       if (unshare (CLONE_NEWUSER))
         die_with_error ("unshare user ns");
 
+      using_userns2 = TRUE;
+
       /* We're in a new user namespace, we got back the bounding set, clear it again */
       drop_cap_bounding_set (FALSE);
 
       write_uid_gid_map (opt_sandbox_uid, ns_uid,
                          opt_sandbox_gid, ns_gid,
                          -1, FALSE, FALSE);
+    }
+
+  if (opt_disable_userns)
+    {
+      if (using_userns2)
+        {
+          /* If we're not in the main userns, the we don't own the
+             current fs namespace and are not allowed to mount, so
+             create a new NS */
+          if (unshare (CLONE_NEWNS))
+            die_with_error ("unshare fs ns");
+        }
+
+      /* Mount a bind cover of the root fs. This will trigger
+       * current_chrooted() in create_user_ns() in the kernel at:
+       *   https://elixir.bootlin.com/linux/v5.14.4/source/kernel/user_namespace.c#L92
+       * making it impossible for the process to create new user namespaces.
+       *
+       * What happens is that the path "/" in the namespace noew
+       * resolve to the covering bindmount, but the container process
+       * tree root is still the lower mount. Note that it is still
+       * possible for the container to reach the covering bind mount
+       * (as e.g. "/.."), but since its just a copy of the regular
+       * hierarchy it works identically to it.
+       */
+      if (mount ("/", "/", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+        die_with_error ("setting up root cover bind");
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
