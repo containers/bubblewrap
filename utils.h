@@ -48,6 +48,8 @@ typedef int bool;
 #define PIPE_READ_END 0
 #define PIPE_WRITE_END 1
 
+void  warn (const char *format,
+            ...) __attribute__((format (printf, 1, 2)));
 void  die_with_error (const char *format,
                       ...) __attribute__((__noreturn__)) __attribute__((format (printf, 1, 2)));
 void  die (const char *format,
