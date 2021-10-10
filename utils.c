@@ -56,9 +56,9 @@ die_with_error (const char *format, ...)
   va_list args;
   int errsv;
 
-  fprintf (stderr, "bwrap: ");
-
   errsv = errno;
+
+  fprintf (stderr, "bwrap: ");
 
   va_start (args, format);
   vfprintf (stderr, format, args);
