@@ -32,6 +32,24 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
+__attribute__((format(printf, 1, 0))) static void
+warnv (const char *format, va_list args)
+{
+  fprintf (stderr, "bwrap: ");
+  vfprintf (stderr, format, args);
+  fprintf (stderr, "\n");
+}
+
+void
+warn (const char *format, ...)
+{
+  va_list args;
+
+  va_start (args, format);
+  warnv (format, args);
+  va_end (args);
+}
+
 void
 die_with_error (const char *format, ...)
 {
@@ -56,13 +74,9 @@ die (const char *format, ...)
 {
   va_list args;
 
-  fprintf (stderr, "bwrap: ");
-
   va_start (args, format);
-  vfprintf (stderr, format, args);
+  warnv (format, args);
   va_end (args);
-
-  fprintf (stderr, "\n");
 
   exit (1);
 }

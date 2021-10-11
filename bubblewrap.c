@@ -1537,6 +1537,12 @@ takes_perms (const char *next_option)
 }
 
 static void
+warn_only_last_option (const char *name)
+{
+  warn ("Only the last %s option will take effect", name);
+}
+
+static void
 parse_args_recurse (int          *argcp,
                     const char ***argvp,
                     bool          in_file,
@@ -1693,6 +1699,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--chdir takes one argument");
 
+          if (opt_chdir_path != NULL)
+            warn_only_last_option ("--chdir");
+
           opt_chdir_path = argv[1];
           argv++;
           argc--;
@@ -1768,6 +1777,10 @@ parse_args_recurse (int          *argcp,
         {
           if (argc < 2)
             die ("--exec-label takes an argument");
+
+          if (opt_exec_label != NULL)
+            warn_only_last_option ("--exec-label");
+
           opt_exec_label = argv[1];
           die_unless_label_valid (opt_exec_label);
 
@@ -1778,6 +1791,10 @@ parse_args_recurse (int          *argcp,
         {
           if (argc < 2)
             die ("--file-label takes an argument");
+
+          if (opt_file_label != NULL)
+            warn_only_last_option ("--file-label");
+
           opt_file_label = argv[1];
           die_unless_label_valid (opt_file_label);
           if (label_create_file (opt_file_label))
@@ -1957,6 +1974,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--sync-fd takes an argument");
 
+          if (opt_sync_fd != -1)
+            warn_only_last_option ("--sync-fd");
+
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
@@ -1973,6 +1993,9 @@ parse_args_recurse (int          *argcp,
 
           if (argc < 2)
             die ("--block-fd takes an argument");
+
+          if (opt_block_fd != -1)
+            warn_only_last_option ("--block-fd");
 
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
@@ -1991,6 +2014,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--userns-block-fd takes an argument");
 
+          if (opt_userns_block_fd != -1)
+            warn_only_last_option ("--userns-block-fd");
+
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
@@ -2007,6 +2033,9 @@ parse_args_recurse (int          *argcp,
 
           if (argc < 2)
             die ("--info-fd takes an argument");
+
+          if (opt_info_fd != -1)
+            warn_only_last_option ("--info-fd");
 
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
@@ -2025,6 +2054,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--json-status-fd takes an argument");
 
+          if (opt_json_status_fd != -1)
+            warn_only_last_option ("--json-status-fd");
+
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
@@ -2041,6 +2073,9 @@ parse_args_recurse (int          *argcp,
 
           if (argc < 2)
             die ("--seccomp takes an argument");
+
+          if (opt_seccomp_fd != -1)
+            warn_only_last_option ("--seccomp");
 
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
@@ -2059,6 +2094,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--userns takes an argument");
 
+          if (opt_userns_fd != -1)
+            warn_only_last_option ("--userns");
+
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
@@ -2076,6 +2114,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--userns2 takes an argument");
 
+          if (opt_userns2_fd != -1)
+            warn_only_last_option ("--userns2");
+
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
@@ -2092,6 +2133,9 @@ parse_args_recurse (int          *argcp,
 
           if (argc < 2)
             die ("--pidns takes an argument");
+
+          if (opt_pidns_fd != -1)
+            warn_only_last_option ("--pidns");
 
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
@@ -2134,6 +2178,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--uid takes an argument");
 
+          if (opt_sandbox_uid != -1)
+            warn_only_last_option ("--uid");
+
           the_uid = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_uid < 0)
             die ("Invalid uid: %s", argv[1]);
@@ -2151,6 +2198,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--gid takes an argument");
 
+          if (opt_sandbox_gid != -1)
+            warn_only_last_option ("--gid");
+
           the_gid = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_gid < 0)
             die ("Invalid gid: %s", argv[1]);
@@ -2164,6 +2214,9 @@ parse_args_recurse (int          *argcp,
         {
           if (argc < 2)
             die ("--hostname takes an argument");
+
+          if (opt_sandbox_hostname != NULL)
+            warn_only_last_option ("--hostname");
 
           op = setup_op_new (SETUP_SET_HOSTNAME);
           op->dest = argv[1];
