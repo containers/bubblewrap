@@ -161,11 +161,6 @@ struct _LockFile
   LockFile   *next;
 };
 
-static SetupOp *ops = NULL;
-static SetupOp *last_op = NULL;
-static LockFile *lock_files = NULL;
-static LockFile *last_lock_file = NULL;
-
 enum {
   PRIV_SEP_OP_DONE,
   PRIV_SEP_OP_BIND_MOUNT,
@@ -186,35 +181,57 @@ typedef struct
   uint32_t arg2_offset;
 } PrivSepOp;
 
+/*
+ * DEFINE_LINKED_LIST:
+ * @Type: A struct with a `Type *next` member
+ * @name: Used to form the names of variables and functions
+ *
+ * Define a global linked list of @Type structures, with pointers
+ * `NAMEs` to the head of the list and `last_NAME` to the tail of the
+ * list.
+ *
+ * A new zero-filled item can be allocated and appended to the list
+ * by calling `_NAME_append_new()`, which returns the new item.
+ */
+#define DEFINE_LINKED_LIST(Type, name) \
+static Type *name ## s = NULL; \
+static Type *last_ ## name = NULL; \
+\
+static inline Type * \
+_ ## name ## _append_new (void) \
+{ \
+  Type *self = xcalloc (sizeof (Type)); \
+\
+  if (last_ ## name != NULL) \
+    last_ ## name ->next = self; \
+  else \
+    name ## s = self; \
+\
+  last_ ## name = self; \
+  return self; \
+}
+
+DEFINE_LINKED_LIST (SetupOp, op)
+
 static SetupOp *
 setup_op_new (SetupOpType type)
 {
-  SetupOp *op = xcalloc (sizeof (SetupOp));
+  SetupOp *op = _op_append_new ();
 
   op->type = type;
   op->fd = -1;
   op->flags = 0;
-  if (last_op != NULL)
-    last_op->next = op;
-  else
-    ops = op;
-
-  last_op = op;
   return op;
 }
+
+DEFINE_LINKED_LIST (LockFile, lock_file)
 
 static LockFile *
 lock_file_new (const char *path)
 {
-  LockFile *lock = xcalloc (sizeof (LockFile));
+  LockFile *lock = _lock_file_append_new ();
 
   lock->path = path;
-  if (last_lock_file != NULL)
-    last_lock_file->next = lock;
-  else
-    lock_files = lock;
-
-  last_lock_file = lock;
   return lock;
 }
 
