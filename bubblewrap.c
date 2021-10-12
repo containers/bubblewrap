@@ -235,6 +235,50 @@ lock_file_new (const char *path)
   return lock;
 }
 
+typedef struct _SeccompProgram SeccompProgram;
+
+struct _SeccompProgram
+{
+  struct sock_fprog  program;
+  SeccompProgram    *next;
+};
+
+DEFINE_LINKED_LIST (SeccompProgram, seccomp_program)
+
+static SeccompProgram *
+seccomp_program_new (int *fd)
+{
+  SeccompProgram *self = _seccomp_program_append_new ();
+  cleanup_free char *data = NULL;
+  size_t len;
+
+  data = load_file_data (*fd, &len);
+
+  if (data == NULL)
+    die_with_error ("Can't read seccomp data");
+
+  close (*fd);
+  *fd = -1;
+
+  if (len % 8 != 0)
+    die ("Invalid seccomp data, must be multiple of 8");
+
+  self->program.len = len / 8;
+  self->program.filter = (struct sock_filter *) steal_pointer (&data);
+  return self;
+}
+
+static void
+seccomp_programs_apply (void)
+{
+  SeccompProgram *program;
+
+  for (program = seccomp_programs; program != NULL; program = program->next)
+    {
+      if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &program->program) != 0)
+        die_with_error ("prctl(PR_SET_SECCOMP)");
+    }
+}
 
 static void
 usage (int ecode, FILE *out)
@@ -285,7 +329,8 @@ usage (int ecode, FILE *out)
            "    --bind-data FD DEST          Copy from FD to file which is bind-mounted on DEST\n"
            "    --ro-bind-data FD DEST       Copy from FD to file which is readonly bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
-           "    --seccomp FD                 Load and use seccomp rules from FD\n"
+           "    --seccomp FD                 Load and use seccomp rules from FD (not repeatable)\n"
+           "    --add-seccomp FD             Load and use seccomp rules from FD (repeatable)\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
@@ -519,7 +564,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
  * When there are no other processes in the sandbox the wait will return
  * ECHILD, and we then exit pid 1 to clean up the sandbox. */
 static int
-do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
+do_init (int event_fd, pid_t initial_pid)
 {
   int initial_exit_status = 1;
   LockFile *lock;
@@ -547,9 +592,7 @@ do_init (int event_fd, pid_t initial_pid, struct sock_fprog *seccomp_prog)
   /* Optionally bind our lifecycle to that of the caller */
   handle_die_with_parent ();
 
-  if (seccomp_prog != NULL &&
-      prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, seccomp_prog) != 0)
-    die_with_error ("prctl(PR_SET_SECCOMP)");
+  seccomp_programs_apply ();
 
   while (TRUE)
     {
@@ -2091,6 +2134,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--seccomp takes an argument");
 
+          if (seccomp_programs != NULL)
+            die ("--seccomp cannot be combined with --add-seccomp-fd");
+
           if (opt_seccomp_fd != -1)
             warn_only_last_option ("--seccomp");
 
@@ -2099,6 +2145,27 @@ parse_args_recurse (int          *argcp,
             die ("Invalid fd: %s", argv[1]);
 
           opt_seccomp_fd = the_fd;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--add-seccomp-fd") == 0)
+        {
+          int the_fd;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--add-seccomp-fd takes an argument");
+
+          if (opt_seccomp_fd != -1)
+            die ("--add-seccomp-fd cannot be combined with --seccomp");
+
+          the_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          /* takes ownership of fd */
+          seccomp_program_new (&the_fd);
 
           argv += 1;
           argc -= 1;
@@ -2485,9 +2552,6 @@ main (int    argc,
   struct stat sbuf;
   uint64_t val;
   int res UNUSED;
-  cleanup_free char *seccomp_data = NULL;
-  size_t seccomp_len;
-  struct sock_fprog seccomp_prog;
   cleanup_free char *args_data = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
 
@@ -3051,17 +3115,9 @@ main (int    argc,
 
   if (opt_seccomp_fd != -1)
     {
-      seccomp_data = load_file_data (opt_seccomp_fd, &seccomp_len);
-      if (seccomp_data == NULL)
-        die_with_error ("Can't read seccomp data");
-
-      if (seccomp_len % 8 != 0)
-        die ("Invalid seccomp data, must be multiple of 8");
-
-      seccomp_prog.len = seccomp_len / 8;
-      seccomp_prog.filter = (struct sock_filter *) seccomp_data;
-
-      close (opt_seccomp_fd);
+      assert (seccomp_programs == NULL);
+      /* takes ownership of fd */
+      seccomp_program_new (&opt_seccomp_fd);
     }
 
   umask (old_umask);
@@ -3130,7 +3186,7 @@ main (int    argc,
             fdwalk (proc_fd, close_extra_fds, dont_close);
           }
 
-          return do_init (event_fd, pid, seccomp_data != NULL ? &seccomp_prog : NULL);
+          return do_init (event_fd, pid);
         }
     }
 
@@ -3158,9 +3214,7 @@ main (int    argc,
 
   /* Should be the last thing before execve() so that filters don't
    * need to handle anything above */
-  if (seccomp_data != NULL &&
-      prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &seccomp_prog) != 0)
-    die_with_error ("prctl(PR_SET_SECCOMP)");
+  seccomp_programs_apply ();
 
   if (setup_finished_pipe[1] != -1)
     {
