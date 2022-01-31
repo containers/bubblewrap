@@ -222,7 +222,7 @@ lock_file_new (const char *path)
 static void
 usage (int ecode, FILE *out)
 {
-  fprintf (out, "usage: %s [OPTIONS...] [--] COMMAND [ARGS...]\n\n", argv0);
+  fprintf (out, "usage: %s [OPTIONS...] [--] COMMAND [ARGS...]\n\n", argv0 ? argv0 : "bwrap");
 
   fprintf (out,
            "    --help                       Print this help\n"
@@ -2505,7 +2505,7 @@ main (int    argc,
   argv++;
   argc--;
 
-  if (argc == 0)
+  if (argc <= 0)
     usage (EXIT_FAILURE, stderr);
 
   parse_args (&argc, (const char ***) &argv);
@@ -2589,7 +2589,7 @@ main (int    argc,
         opt_unshare_user = TRUE;
     }
 
-  if (argc == 0)
+  if (argc <= 0)
     usage (EXIT_FAILURE, stderr);
 
   __debug__ (("Creating root mount point\n"));
