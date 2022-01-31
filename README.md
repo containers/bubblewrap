@@ -6,7 +6,7 @@ etc. focus on providing infrastructure for system administrators and
 orchestration tools (e.g. Kubernetes) to run containers.
 
 These tools are not suitable to give to unprivileged users, because it
-is trivial to turn such access into to a fully privileged root shell
+is trivial to turn such access into a fully privileged root shell
 on the host.
 
 User namespaces
