@@ -32,11 +32,13 @@ test_programs = \
 	$(NULL)
 test_scripts = \
 	tests/test-run.sh \
+	tests/test-seccomp.py \
 	tests/test-specifying-userns.sh \
 	tests/test-specifying-pidns.sh \
 	$(NULL)
 test_extra_programs = \
 	test-bwrap \
+	tests/try-syscall \
 	$(NULL)
 
 test-bwrap: bwrap
