@@ -3068,8 +3068,8 @@ main (int    argc,
      * Both runc and LXC are using this "alternative" method for
      * setting up the root of the container:
      *
-     * https://github.com/opencontainers/runc/blob/master/libcontainer/rootfs_linux.go#L671
-     * https://github.com/lxc/lxc/blob/master/src/lxc/conf.c#L1121
+     * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
+     * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
      */
     if (pivot_root (".", ".") != 0)
       die_with_error ("pivot_root(/newroot)");

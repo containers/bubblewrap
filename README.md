@@ -117,7 +117,7 @@ Seccomp filters: You can pass in seccomp filters that limit which syscalls can b
 Related project comparison: Firejail
 ------------------------------------
 
-[Firejail](https://github.com/netblue30/firejail/tree/master/src/firejail)
+[Firejail](https://github.com/netblue30/firejail/tree/HEAD/src/firejail)
 is similar to Flatpak before bubblewrap was split out in that it combines
 a setuid tool with a lot of desktop-specific sandboxing features.  For
 example, Firejail knows about Pulseaudio, whereas bubblewrap does not.
