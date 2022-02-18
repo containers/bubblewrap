@@ -1662,6 +1662,9 @@ parse_args_recurse (int          *argcp,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
+          if (opt_args_data != NULL)
+            die ("--args can only be used once");
+
           /* opt_args_data is essentially a recursive argv array, which we must
            * keep allocated until exit time, since its argv entries get used
            * by the other cases in parse_args_recurse() when we recurse. */
