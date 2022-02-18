@@ -10,7 +10,7 @@ on:
 
 jobs:
   check:
-    name: Build with gcc and test
+    name: Build with Autotools and gcc, and test
     runs-on: ubuntu-latest
     steps:
     - name: Check out
@@ -68,6 +68,71 @@ jobs:
     - name: distcheck
       run: |
         make -C _build -j $(getconf _NPROCESSORS_ONLN) distcheck VERBOSE=1 BWRAP_MUST_WORK=1
+
+  meson:
+    name: Build with Meson and gcc, and test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out
+      uses: actions/checkout@v1
+    - name: Install build-dependencies
+      run: sudo ./ci/builddeps.sh
+    - name: Create logs dir
+      run: mkdir test-logs
+    - name: setup
+      run: |
+        meson _build
+      env:
+        CFLAGS: >-
+          -O2
+          -Wp,-D_FORTIFY_SOURCE=2
+          -fsanitize=address
+          -fsanitize=undefined
+    - name: compile
+      run: ninja -C _build -v
+    - name: smoke-test
+      run: |
+        set -x
+        ./_build/bwrap --bind / / --tmpfs /tmp true
+      env:
+        ASAN_OPTIONS: detect_leaks=0
+    - name: test
+      run: |
+        BWRAP_MUST_WORK=1 meson test -C _build
+      env:
+        ASAN_OPTIONS: detect_leaks=0
+    - name: Collect overall test logs on failure
+      if: failure()
+      run: mv _build/meson-logs/testlog.txt test-logs/ || true
+    - name: install
+      run: |
+        DESTDIR="$(pwd)/DESTDIR" meson install -C _build
+        ( cd DESTDIR && find -ls )
+    - name: dist
+      run: |
+        BWRAP_MUST_WORK=1 meson dist -C _build
+    - name: Collect dist test logs on failure
+      if: failure()
+      run: mv _build/meson-private/dist-build/meson-logs/testlog.txt test-logs/disttestlog.txt || true
+    - name: use as subproject
+      run: |
+        mkdir tests/use-as-subproject/subprojects
+        tar -C tests/use-as-subproject/subprojects -xf _build/meson-dist/bubblewrap-*.tar.xz
+        mv tests/use-as-subproject/subprojects/bubblewrap-* tests/use-as-subproject/subprojects/bubblewrap
+        ( cd tests/use-as-subproject && meson _build )
+        ninja -C tests/use-as-subproject/_build -v
+        meson test -C tests/use-as-subproject/_build
+        DESTDIR="$(pwd)/DESTDIR-as-subproject" meson install -C tests/use-as-subproject/_build
+        ( cd DESTDIR-as-subproject && find -ls )
+        test -x DESTDIR-as-subproject/usr/local/libexec/not-flatpak-bwrap
+        test ! -e DESTDIR-as-subproject/usr/local/bin/bwrap
+        test ! -e DESTDIR-as-subproject/usr/local/libexec/bwrap
+    - name: Upload test logs
+      uses: actions/upload-artifact@v1
+      if: failure() || cancelled()
+      with:
+        name: test logs
+        path: test-logs
 
   clang:
     name: Build with clang and analyze
