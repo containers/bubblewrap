@@ -199,8 +199,8 @@ test_has_path_prefix (void)
 }
 
 int
-main (int argc,
-      char **argv)
+main (int argc UNUSED,
+      char **argv UNUSED)
 {
   setvbuf (stdout, NULL, _IONBF, 0);
   test_n_elements ();
