@@ -10,6 +10,7 @@ project(
 
 cc = meson.get_compiler('c')
 add_project_arguments('-D_GNU_SOURCE', language : 'c')
+common_include_directories = include_directories('.')
 
 # Keep this in sync with ostree, except remove -Wall (part of Meson
 # warning_level 2) and -Werror=declaration-after-statement
