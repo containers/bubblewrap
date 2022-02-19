@@ -9,6 +9,11 @@ test_programs = [
   )],
 ]
 
+executable(
+  'try-syscall',
+  'try-syscall.c',
+)
+
 test_scripts = [
   'test-run.sh',
   'test-seccomp.py',
