@@ -61,7 +61,6 @@ if (
   ], language : 'c')
 endif
 
-sh = find_program('sh', required : true)
 bash = find_program('bash', required : false)
 
 libcap_dep = dependency('libcap', required : true)
