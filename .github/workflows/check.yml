@@ -110,7 +110,7 @@ jobs:
         ( cd DESTDIR && find -ls )
     - name: dist
       run: |
-        BWRAP_MUST_WORK=1 meson dist -C _build
+        BWRAP_MUST_WORK=1 CI_MESON_DIST=1 meson dist -C _build
     - name: Collect dist test logs on failure
       if: failure()
       run: mv _build/meson-private/dist-build/meson-logs/testlog.txt test-logs/disttestlog.txt || true
