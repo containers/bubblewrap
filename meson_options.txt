@@ -22,6 +22,11 @@ option(
   description : 'Prepend string to bwrap executable name, for use with subprojects',
 )
 option(
+  'python',
+  type : 'string',
+  description : 'Path to Python 3, or empty to use python3',
+)
+option(
   'require_userns',
   type : 'boolean',
   description : 'require user namespaces by default when installed setuid',

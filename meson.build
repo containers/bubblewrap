@@ -64,6 +64,12 @@ endif
 
 bash = find_program('bash', required : false)
 
+if get_option('python') == ''
+  python = find_program('python3')
+else
+  python = find_program(get_option('python'))
+endif
+
 libcap_dep = dependency('libcap', required : true)
 
 selinux_dep = dependency(

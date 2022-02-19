@@ -46,10 +46,16 @@ foreach pair : test_programs
 endforeach
 
 foreach test_script : test_scripts
+  if test_script.endswith('.py')
+    interpreter = python
+  else
+    interpreter = bash
+  endif
+
   if meson.version().version_compare('>=0.50.0')
     test(
       test_script,
-      bash,
+      interpreter,
       args : [test_script],
       env : test_env,
       protocol : 'tap',
@@ -57,7 +63,7 @@ foreach test_script : test_scripts
   else
     test(
       test_script,
-      bash,
+      interpreter,
       args : [test_script],
       env : test_env,
     )
