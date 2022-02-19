@@ -56,7 +56,7 @@ foreach test_script : test_scripts
     test(
       test_script,
       interpreter,
-      args : [test_script],
+      args : [files(test_script)],
       env : test_env,
       protocol : 'tap',
     )
@@ -64,7 +64,7 @@ foreach test_script : test_scripts
     test(
       test_script,
       interpreter,
-      args : [test_script],
+      args : [files(test_script)],
       env : test_env,
     )
   endif
