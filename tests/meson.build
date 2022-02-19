@@ -23,8 +23,8 @@ test_scripts = [
 
 test_env = environment()
 test_env.set('BWRAP', bwrap.full_path())
-test_env.set('G_TEST_BUILDDIR', meson.current_build_dir())
-test_env.set('G_TEST_SRCDIR', meson.current_source_dir())
+test_env.set('G_TEST_BUILDDIR', meson.current_build_dir() / '..')
+test_env.set('G_TEST_SRCDIR', meson.current_source_dir() / '..')
 
 foreach pair : test_programs
   name = pair[0]
