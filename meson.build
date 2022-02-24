@@ -10,6 +10,7 @@ project(
 
 cc = meson.get_compiler('c')
 add_project_arguments('-D_GNU_SOURCE', language : 'c')
+common_include_directories = include_directories('.')
 
 # Keep this in sync with ostree, except remove -Wall (part of Meson
 # warning_level 2) and -Werror=declaration-after-statement
@@ -61,8 +62,13 @@ if (
   ], language : 'c')
 endif
 
-sh = find_program('sh', required : true)
 bash = find_program('bash', required : false)
+
+if get_option('python') == ''
+  python = find_program('python3')
+else
+  python = find_program(get_option('python'))
+endif
 
 libcap_dep = dependency('libcap', required : true)
 
@@ -145,3 +151,5 @@ endif
 if not meson.is_subproject()
   subdir('completions')
 endif
+
+subdir('tests')

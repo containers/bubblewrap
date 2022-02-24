@@ -22,7 +22,6 @@ if bash_completion_dir == ''
         'completionsdir',
         default: '',
         define_variable: [
-          'prefix', get_option('prefix'),
           'datadir', get_option('prefix') / get_option('datadir'),
         ],
       )

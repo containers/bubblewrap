@@ -10,6 +10,8 @@ echo "1..1"
 # This test needs user namespaces
 if test -n "${bwrap_is_suid:-}"; then
     echo "ok - # SKIP no setuid support for --unshare-user"
+elif test -n "${CI_MESON_DIST:-}"; then
+    echo "not ok - # TODO this test hangs under 'meson dist' during Github Workflow CI"
 else
     mkfifo donepipe
     $RUN --info-fd 42 --unshare-user --unshare-pid sh -c 'readlink /proc/self/ns/pid > sandbox-pidns; cat < donepipe' >/dev/null 42>info.json &
