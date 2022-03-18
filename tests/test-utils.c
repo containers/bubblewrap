@@ -25,6 +25,8 @@
 
 /* A small implementation of TAP */
 static unsigned int test_number = 0;
+
+__attribute__((format(printf, 1, 2)))
 static void
 ok (const char *format, ...)
 {
