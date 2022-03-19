@@ -14,6 +14,7 @@ _bwrap_args=(
     $_bwrap_args_after_perms
 
     # Please sort alphabetically (in LC_ALL=C order) by option name
+    '--add-seccomp-fd[Load and use seccomp rules from FD]: :_guard "[0-9]#" "file descriptor to read seccomp rules from"'
     '--args[Parse NUL-separated args from FD]: :_guard "[0-9]#" "file descriptor with NUL-separated arguments"'
     '--as-pid-1[Do not install a reaper process with PID=1]'
     '--bind-try[Equal to --bind but ignores non-existent SRC]:source:_files:destination:_files'
