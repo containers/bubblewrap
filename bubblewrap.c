@@ -330,7 +330,7 @@ usage (int ecode, FILE *out)
            "    --ro-bind-data FD DEST       Copy from FD to file which is readonly bind-mounted on DEST\n"
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD (not repeatable)\n"
-           "    --add-seccomp FD             Load and use seccomp rules from FD (repeatable)\n"
+           "    --add-seccomp-fd FD          Load and use seccomp rules from FD (repeatable)\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
