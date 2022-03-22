@@ -8,7 +8,7 @@ srcd=$(cd $(dirname "$0") && pwd)
 
 bn=$(basename "$0")
 
-echo "1..57"
+echo "1..58"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -112,6 +112,7 @@ echo "ok exec failure doesn't include exit-code in json-status"
 if test -n "${bwrap_is_suid:-}"; then
     echo "ok - # SKIP no --cap-add support"
     echo "ok - # SKIP no --cap-add support"
+    echo "ok - # SKIP no --disable-userns"
 else
     BWRAP_RECURSE="$BWRAP --unshare-user --uid 0 --gid 0 --cap-add ALL --bind / / --bind /proc /proc"
 
@@ -123,6 +124,13 @@ else
     $BWRAP_RECURSE -- /proc/self/exe --unshare-all ${BWRAP_RO_HOST_ARGS} findmnt > recursive-newroot.txt
     assert_file_has_content recursive-newroot.txt "/usr"
     echo "ok - can pivot to new rootfs recursively"
+
+    $BWRAP --dev-bind / / -- true
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- true
+    ! $BWRAP --unshare-user --disable-userns --dev-bind / / -- $BWRAP --dev-bind / / -- true
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 2 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --dev-bind / / -- true"
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 100 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --dev-bind / / -- true"
+    echo "ok - can disable nested userns"
 fi
 
 # Test error prefixing

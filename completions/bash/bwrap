@@ -11,6 +11,7 @@ _bwrap() {
 	local boolean_options="
 		--as-pid-1
 		--clearenv
+		--disable-userns
 		--help
 		--new-session
 		--unshare-all
