@@ -152,4 +152,6 @@ if not meson.is_subproject()
   subdir('completions')
 endif
 
-subdir('tests')
+if get_option('tests')
+  subdir('tests')
+endif
