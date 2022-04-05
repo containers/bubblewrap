@@ -101,12 +101,14 @@ configure_file(
   configuration : cdata,
 )
 
-if meson.is_subproject()
-  bwrapdir = get_option('libexecdir')
+if meson.is_subproject() and get_option('program_prefix') == ''
+  error('program_prefix option must be set when bwrap is a subproject')
+endif
 
-  if get_option('program_prefix') == ''
-    error('program_prefix option must be set when bwrap is a subproject')
-  endif
+if get_option('bwrapdir') != ''
+  bwrapdir = get_option('bwrapdir')
+elif meson.is_subproject()
+  bwrapdir = get_option('libexecdir')
 else
   bwrapdir = get_option('bindir')
 endif
