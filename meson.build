@@ -70,7 +70,14 @@ else
   python = find_program(get_option('python'))
 endif
 
-libcap_dep = dependency('libcap', required : true)
+libcap_dep = dependency('libcap', required : false)
+if not libcap_dep.found()
+  # Very old versions of libcap didn't have pkg-config metadata
+  libcap_dep = cc.find_library('cap')
+  if not cc.check_header('sys/capability.h')
+    error('<sys/capability.h> is required')
+  endif
+endif
 
 selinux_dep = dependency(
   'libselinux',
