@@ -48,6 +48,10 @@ typedef int bool;
 #define PIPE_READ_END 0
 #define PIPE_WRITE_END 1
 
+#ifndef PR_SET_CHILD_SUBREAPER
+#define PR_SET_CHILD_SUBREAPER 36
+#endif
+
 void  warn (const char *format,
             ...) __attribute__((format (printf, 1, 2)));
 void  die_with_error (const char *format,
