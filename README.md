@@ -31,7 +31,7 @@ user namespaces.  Emphasis on subset - specifically relevant to the
 above CVE, bubblewrap does not allow control over iptables.
 
 The original bubblewrap code existed before user namespaces - it inherits code from
-[xdg-app helper](https://cgit.freedesktop.org/xdg-app/xdg-app/tree/common/xdg-app-helper.c)
+[xdg-app helper](https://cgit.freedesktop.org/xdg-app/xdg-app/tree/common/xdg-app-helper.c?id=4c3bf179e2e4a2a298cd1db1d045adaf3f564532)
 which in turn distantly derives from
 [linux-user-chroot](https://git.gnome.org/browse/linux-user-chroot).
 
