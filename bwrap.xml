@@ -131,6 +131,10 @@
       <listitem><para>Unshare all possible namespaces. Currently equivalent with: <option>--unshare-user-try</option> <option>--unshare-ipc</option> <option>--unshare-pid</option> <option>--unshare-net</option> <option>--unshare-uts</option> <option>--unshare-cgroup-try</option></para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--share-net</option></term>
+      <listitem><para>Retain the network namespace, overriding an earlier <option>--unshare-all</option> or <option>--unshare-net</option></para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--userns <arg choice="plain">FD</arg></option></term>
       <listitem><para>Use an existing user namespace instead of creating a new one. The namespace must fulfil the permission requirements for setns(), which generally means that it must be a descendant of the currently active user namespace, owned by the same user. </para>
       <para>This is incompatible with --unshare-user, and doesn't work in the setuid version of bubblewrap.</para></listitem>
@@ -379,6 +383,28 @@
       <term><option>--info-fd <arg choice="plain">FD</arg></option></term>
       <listitem><para>
 	Write information in JSON format about the sandbox to FD.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--json-status-fd <arg choice="plain">FD</arg></option></term>
+      <listitem><para>
+        Multiple JSON documents are written to <arg choice="plain">FD</arg>,
+        one per line (<ulink url="https://jsonlines.org/">"JSON lines" format</ulink>).
+        Each line is a single JSON object.
+        After <command>bwrap</command> has started the child process inside the sandbox,
+        it writes an object with a <literal>child-pid</literal> member to the
+        <option>--json-status-fd</option> (this duplicates the older <option>--info-fd</option>).
+        The corresponding value is the process ID of the child process in the pid namespace from
+        which <command>bwrap</command> was run.
+        If available, the namespace IDs are also included in the object with the <literal>child-pid</literal>;
+        again, this duplicates the older <option>--info-fd</option>.
+        When the child process inside the sandbox exits, <command>bwrap</command> writes an object
+        with an exit-code member, and then closes the <option>--json-status-fd</option>. The value
+        corresponding to <literal>exit-code</literal> is the exit status of the child, in the usual
+        shell encoding (n if it exited normally with status n, or 128+n if it was killed by signal n).
+        Other members may be added to those objects in future versions of <command>bwrap</command>,
+        and other JSON objects may be added before or after the current objects, so readers must
+        ignore members and objects that they do not understand.
       </para></listitem>
     </varlistentry>
     <varlistentry>
