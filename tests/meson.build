@@ -12,6 +12,7 @@ test_programs = [
 executable(
   'try-syscall',
   'try-syscall.c',
+  override_options: ['b_sanitize=none'],
 )
 
 test_scripts = [
