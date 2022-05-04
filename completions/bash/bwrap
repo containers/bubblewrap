@@ -54,6 +54,7 @@ _bwrap() {
 		--ro-bind
 		--seccomp
 		--setenv
+		--size
 		--symlink
 		--sync-fd
 		--uid
