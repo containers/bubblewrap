@@ -71,6 +71,10 @@
  */
 #define WRONG_POINTER ((char *) 1)
 
+#ifndef PR_GET_CHILD_SUBREAPER
+#define PR_GET_CHILD_SUBREAPER 37
+#endif
+
 int
 main (int argc, char **argv)
 {
