@@ -127,6 +127,7 @@ jobs:
         test -x DESTDIR-as-subproject/usr/local/libexec/not-flatpak-bwrap
         test ! -e DESTDIR-as-subproject/usr/local/bin/bwrap
         test ! -e DESTDIR-as-subproject/usr/local/libexec/bwrap
+        tests/use-as-subproject/assert-correct-rpath.py DESTDIR-as-subproject/usr/local/libexec/not-flatpak-bwrap
     - name: Upload test logs
       uses: actions/upload-artifact@v1
       if: failure() || cancelled()

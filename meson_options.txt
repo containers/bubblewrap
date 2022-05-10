@@ -16,6 +16,16 @@ option(
   description : 'install bwrap in this directory [default: bindir, or libexecdir in subprojects]',
 )
 option(
+  'build_rpath',
+  type : 'string',
+  description : 'set a RUNPATH or RPATH on the bwrap executable',
+)
+option(
+  'install_rpath',
+  type : 'string',
+  description : 'set a RUNPATH or RPATH on the bwrap executable',
+)
+option(
   'man',
   type : 'feature',
   description : 'generate man pages',

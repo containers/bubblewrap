@@ -14,6 +14,7 @@ configure_file(
 subproject(
   'bubblewrap',
   default_options : [
+    'install_rpath=${ORIGIN}/../lib',
     'program_prefix=not-flatpak-',
   ],
 )
