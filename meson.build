@@ -121,8 +121,10 @@ bwrap = executable(
     'network.c',
     'utils.c',
   ],
+  build_rpath : get_option('build_rpath'),
   install : true,
   install_dir : bwrapdir,
+  install_rpath : get_option('install_rpath'),
   dependencies : [selinux_dep, libcap_dep],
 )
 
