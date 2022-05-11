@@ -40,9 +40,15 @@ for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare
     fi
 
     if ! cat /etc/shadow >/dev/null &&
+        $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow /tmp/foo cat /tmp/foo; then
+        assert_not_reached Could read /etc/shadow via /tmp/foo bind-mount
+    fi
+
+    if ! cat /etc/shadow >/dev/null &&
         $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow /tmp/foo cat /etc/shadow; then
         assert_not_reached Could read /etc/shadow
     fi
+
     echo "ok - cannot read /etc/shadow with $ALT"
     # Unreadable dir
     if [ "x$UNREADABLE" != "x" ]; then
