@@ -82,7 +82,7 @@ die (const char *format, ...)
 }
 
 void
-die_unless_label_valid (const char *label)
+die_unless_label_valid (UNUSED const char *label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () == 1)
@@ -854,7 +854,7 @@ pivot_root (const char * new_root, const char * put_old)
 }
 
 char *
-label_mount (const char *opt, const char *mount_label)
+label_mount (const char *opt, UNUSED const char *mount_label)
 {
 #ifdef HAVE_SELINUX
   if (mount_label)
@@ -871,7 +871,7 @@ label_mount (const char *opt, const char *mount_label)
 }
 
 int
-label_create_file (const char *file_label)
+label_create_file (UNUSED const char *file_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && file_label)
@@ -881,7 +881,7 @@ label_create_file (const char *file_label)
 }
 
 int
-label_exec (const char *exec_label)
+label_exec (UNUSED const char *exec_label)
 {
 #ifdef HAVE_SELINUX
   if (is_selinux_enabled () > 0 && exec_label)

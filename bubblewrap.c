@@ -2552,7 +2552,7 @@ main (int    argc,
   struct stat sbuf;
   uint64_t val;
   int res UNUSED;
-  cleanup_free char *args_data = NULL;
+  cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
 
   /* Handle --version early on before we try to acquire/drop
