@@ -39,7 +39,8 @@ for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare
         CAP=""
     fi
 
-    if ! ${is_uidzero} && $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow /tmp/foo cat /etc/shadow; then
+    if ! cat /etc/shadow >/dev/null &&
+        $RUN $CAP $ALT --unshare-net --proc /proc --bind /etc/shadow /tmp/foo cat /etc/shadow; then
         assert_not_reached Could read /etc/shadow
     fi
     echo "ok - cannot read /etc/shadow with $ALT"
