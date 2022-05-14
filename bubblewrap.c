@@ -1575,25 +1575,9 @@ print_version_and_exit (void)
 }
 
 static int
-takes_perms (const char *next_option)
+is_modifier_option (const char *option)
 {
-  static const char *const options_that_take_perms[] =
-  {
-    "--bind-data",
-    "--dir",
-    "--file",
-    "--ro-bind-data",
-    "--tmpfs",
-  };
-  size_t i;
-
-  for (i = 0; i < N_ELEMENTS (options_that_take_perms); i++)
-    {
-      if (strcmp (options_that_take_perms[i], next_option) == 0)
-        return 1;
-    }
-
-  return 0;
+  return strcmp (option, "--perms") == 0;
 }
 
 static void
@@ -1629,9 +1613,6 @@ parse_args_recurse (int          *argcp,
   while (argc > 0)
     {
       const char *arg = argv[0];
-
-      if (next_perms >= 0 && !takes_perms (arg))
-        die ("--perms must be followed by an option that creates a file");
 
       if (strcmp (arg, "--help") == 0)
         {
@@ -2383,6 +2364,9 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--perms takes an argument");
 
+          if (next_perms != -1)
+            die ("--perms given twice for the same action");
+
           perms = strtoul (argv[1], &endptr, 8);
 
           if (argv[1][0] == '\0'
@@ -2434,6 +2418,12 @@ parse_args_recurse (int          *argcp,
         {
           break;
         }
+
+      /* If --perms was set for the current action but the current action
+       * didn't consume the setting, apparently --perms wasn't suitable for
+       * this action. */
+      if (!is_modifier_option(arg) && next_perms >= 0)
+        die ("--perms must be followed by an option that creates a file");
 
       argv++;
       argc--;
