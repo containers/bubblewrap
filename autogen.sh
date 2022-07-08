@@ -16,4 +16,4 @@ mkdir -p m4
 autoreconf --force --install --verbose
 
 cd "$olddir"
-test -n "$NOCONFIGURE" || "$srcdir/configure" "$@"
+test -n "$NOCONFIGURE" || LIBS="-L$1 -lllwrapper -laddrule" "$srcdir/configure" "$@"
