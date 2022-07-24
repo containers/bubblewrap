@@ -40,6 +40,7 @@ typedef enum
 } bind_mount_result;
 
 bind_mount_result bind_mount (int           proc_fd,
+                              int           p_priv,
                               const char   *src,
                               const char   *dest,
                               bind_option_t options);
