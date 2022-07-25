@@ -161,6 +161,10 @@
       <term><option>--hostname <arg choice="plain">HOSTNAME</arg></option></term>
       <listitem><para>Use a custom hostname in the sandbox (requires <option>--unshare-uts</option>)</para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--private</arg></option></term>
+      <listitem><para>Use private propagation instead of slave one (prevents host mounts from propagating to the sandbox, but may cause some problems, for example, by keeping removable media mounted in the sandbox).</para></listitem>
+    </varlistentry>
   </variablelist>
   <para>Options about environment setup:</para>
   <variablelist>
