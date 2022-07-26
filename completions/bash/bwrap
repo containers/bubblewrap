@@ -13,6 +13,7 @@ _bwrap() {
 		--clearenv
 		--help
 		--new-session
+		--private
 		--unshare-all
 		--unshare-cgroup
 		--unshare-cgroup-try

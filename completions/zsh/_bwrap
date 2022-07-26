@@ -41,6 +41,7 @@ _bwrap_args=(
     '--new-session[Create a new terminal session]'
     '--perms[Set permissions for next action argument]: :_guard "[0-7]#" "permissions in octal": :->after_perms'
     '--pidns[Use this user namespace (as parent namespace if using --unshare-pid)]: :'
+    '--private[Use private propagation instead of slave]'
     '--proc[Mount new procfs on DEST]:mount point for procfs:_files -/'
     '--remount-ro[Remount DEST as readonly; does not recursively remount]:mount point to remount read-only:_files'
     '--ro-bind-try[Equal to --ro-bind but ignores non-existent SRC]:source:_files:destination:_files'

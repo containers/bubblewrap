@@ -241,7 +241,6 @@ parse_mountinfo (int  proc_fd,
   int max_id;
   unsigned int n_lines;
   int root;
-
   mountinfo = load_file_at (proc_fd, "self/mountinfo");
   if (mountinfo == NULL)
     die_with_error ("Can't open /proc/self/mountinfo");
@@ -376,6 +375,7 @@ parse_mountinfo (int  proc_fd,
 
 bind_mount_result
 bind_mount (int           proc_fd,
+            int           p_priv,
             const char   *src,
             const char   *dest,
             bind_option_t options)
@@ -391,10 +391,12 @@ bind_mount (int           proc_fd,
   cleanup_free char *kernel_case_combination = NULL;
   cleanup_fd int dest_fd = -1;
   int i;
-
+  int current_propagation = 0;
+  if (p_priv == 1)
+    current_propagation = MS_PRIVATE;
   if (src)
     {
-      if (mount (src, dest, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
+      if (mount (src, dest, NULL, MS_SILENT | MS_BIND | current_propagation | (recursive ? MS_REC : 0), NULL) != 0)
         return BIND_MOUNT_ERROR_MOUNT;
     }
 
@@ -436,7 +438,7 @@ bind_mount (int           proc_fd,
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
       mount ("none", resolved_dest,
-             NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
+             NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags | current_propagation, NULL) != 0)
     return BIND_MOUNT_ERROR_REMOUNT_DEST;
 
   /* We need to work around the fact that a bind mount does not apply the flags, so we need to manually
@@ -451,7 +453,7 @@ bind_mount (int           proc_fd,
           new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
           if (new_flags != current_flags &&
               mount ("none", mount_tab[i].mountpoint,
-                     NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
+                     NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags | current_propagation, NULL) != 0)
             {
               /* If we can't read the mountpoint we can't remount it, but that should
                  be safe to ignore because its not something the user can access. */

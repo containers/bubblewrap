@@ -85,6 +85,7 @@ int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
 int opt_json_status_fd = -1;
 int opt_seccomp_fd = -1;
+int opt_propagation = 0;
 const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
 int opt_userns_fd = -1;
@@ -331,6 +332,7 @@ usage (int ecode, FILE *out)
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD (not repeatable)\n"
            "    --add-seccomp-fd FD          Load and use seccomp rules from FD (repeatable)\n"
+           "    --private                    Set mount propagation to private\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
@@ -1070,7 +1072,7 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
-      bind_result = bind_mount (proc_fd, NULL, arg2, BIND_READONLY);
+      bind_result = bind_mount (proc_fd, opt_propagation, NULL, arg2, BIND_READONLY);
 
       if (bind_result != BIND_MOUNT_SUCCESS)
         die_with_bind_result (bind_result, errno,
@@ -1081,7 +1083,7 @@ privileged_op (int         privileged_op_socket,
     case PRIV_SEP_OP_BIND_MOUNT:
       /* We always bind directories recursively, otherwise this would let us
          access files that are otherwise covered on the host */
-      bind_result = bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags);
+      bind_result = bind_mount (proc_fd, opt_propagation, arg1, arg2, BIND_RECURSIVE | flags);
 
       if (bind_result != BIND_MOUNT_SUCCESS)
         die_with_bind_result (bind_result, errno,
@@ -2149,6 +2151,8 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--private") == 0)
+        opt_propagation = 1;
       else if (strcmp (arg, "--add-seccomp-fd") == 0)
         {
           int the_fd;
@@ -2956,7 +2960,12 @@ main (int    argc,
   /* Mark everything as slave, so that we still
    * receive mounts from the real root, but don't
    * propagate mounts to the real root. */
-  if (mount (NULL, "/", NULL, MS_SILENT | MS_SLAVE | MS_REC, NULL) < 0)
+  int current_propagation;
+  if (opt_propagation == 0)
+    current_propagation = MS_SLAVE;
+  else
+    current_propagation = MS_PRIVATE;
+  if (mount (NULL, "/", NULL, MS_SILENT | current_propagation | MS_REC, NULL) < 0)
     die_with_error ("Failed to make / slave");
 
   /* Create a tmpfs which we will use as / in the namespace */
