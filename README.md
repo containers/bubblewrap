@@ -1,3 +1,5 @@
+# WARNING! THIS IS AN EXPERIMENTAL BRANCH CONTAINING CHANGES THAT HAVE NOT BEEN TESTED ENOUGH! PLEASE, USE WITH CAUTION!
+
 Bubblewrap
 ==========
 
@@ -72,6 +74,8 @@ If you need to build bubblewrap from source, you can do this with meson or autot
 
 meson:
 
+**Warning: Meson build hasn't been tested with experimental changes. Not recommeneded for experimental branch**
+
 ```
 meson _builddir
 meson compile -C _builddir
@@ -81,10 +85,11 @@ meson install -C _builddir
 autotools:
 
 ```
-./autogen.sh
+./autogen.sh $path
 make
 sudo make install
 ```
+where $path -- a full path to the directory containing [helper functions built as shared libraries](https://github.com/ChrysoliteAzalea/landlock-functions/).
 
 Usage
 -----

@@ -34,10 +34,13 @@
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
+#include <linux/landlock.h>
 
 #include "utils.h"
 #include "network.h"
 #include "bind-mount.h"
+#include "ll_wrapper.h"
+#include "add_rule.h"
 
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
@@ -85,6 +88,7 @@ int opt_userns_block_fd = -1;
 int opt_info_fd = -1;
 int opt_json_status_fd = -1;
 int opt_seccomp_fd = -1;
+int opt_landlock_ruleset_fd = -1;
 const char *opt_sandbox_hostname = NULL;
 char *opt_args_data = NULL;  /* owned */
 int opt_userns_fd = -1;
@@ -331,6 +335,7 @@ usage (int ecode, FILE *out)
            "    --symlink SRC DEST           Create symlink at DEST with target SRC\n"
            "    --seccomp FD                 Load and use seccomp rules from FD (not repeatable)\n"
            "    --add-seccomp-fd FD          Load and use seccomp rules from FD (repeatable)\n"
+           "    --landlock                   Enable Landlock self-restriction\n"
            "    --block-fd FD                Block on FD until some data to read is available\n"
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
@@ -1070,6 +1075,13 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
+      if (opt_landlock_ruleset_fd>-1)
+        {
+          int exposed_fd = open(arg2,O_PATH | O_CLOEXEC);
+          add_read_access_rule(opt_landlock_ruleset_fd,exposed_fd);
+          add_execute_rule(opt_landlock_ruleset_fd,exposed_fd);
+          close(exposed_fd);
+        }
       bind_result = bind_mount (proc_fd, NULL, arg2, BIND_READONLY);
 
       if (bind_result != BIND_MOUNT_SUCCESS)
@@ -1081,6 +1093,15 @@ privileged_op (int         privileged_op_socket,
     case PRIV_SEP_OP_BIND_MOUNT:
       /* We always bind directories recursively, otherwise this would let us
          access files that are otherwise covered on the host */
+         
+      if (opt_landlock_ruleset_fd>-1)
+        {
+          int exposed_fd = open(arg1,O_PATH | O_CLOEXEC);
+          add_read_access_rule(opt_landlock_ruleset_fd,exposed_fd);
+          add_write_access_rule(opt_landlock_ruleset_fd,exposed_fd,1);
+          add_execute_rule(opt_landlock_ruleset_fd,exposed_fd);
+          close(exposed_fd);
+        }
       bind_result = bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags);
 
       if (bind_result != BIND_MOUNT_SUCCESS)
@@ -1090,9 +1111,19 @@ privileged_op (int         privileged_op_socket,
       break;
 
     case PRIV_SEP_OP_PROC_MOUNT:
-      if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
-        die_with_error ("Can't mount proc on %s", arg1);
-      break;
+      {
+        if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+          die_with_error ("Can't mount proc on %s", arg1);
+        if (opt_landlock_ruleset_fd>-1)
+          {
+            int exposed_fd = open(arg1,O_PATH | O_CLOEXEC);
+            add_read_access_rule(opt_landlock_ruleset_fd,exposed_fd);
+            add_write_access_rule(opt_landlock_ruleset_fd,exposed_fd,1);
+            add_execute_rule(opt_landlock_ruleset_fd,exposed_fd);
+            close(exposed_fd);
+          }
+        break;
+      }
 
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
@@ -1100,6 +1131,14 @@ privileged_op (int         privileged_op_socket,
         cleanup_free char *opt = label_mount (mode, opt_file_label);
         if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
           die_with_error ("Can't mount tmpfs on %s", arg1);
+        if (opt_landlock_ruleset_fd>-1)
+          {
+            int exposed_fd = open(arg1,O_PATH | O_CLOEXEC);
+            add_read_access_rule(opt_landlock_ruleset_fd,exposed_fd);
+            add_write_access_rule(opt_landlock_ruleset_fd,exposed_fd,1);
+            add_execute_rule(opt_landlock_ruleset_fd,exposed_fd);
+            close(exposed_fd);
+          }
         break;
       }
 
@@ -1107,11 +1146,27 @@ privileged_op (int         privileged_op_socket,
       if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
                  "newinstance,ptmxmode=0666,mode=620") != 0)
         die_with_error ("Can't mount devpts on %s", arg1);
+      if (opt_landlock_ruleset_fd>-1)
+        {
+          int exposed_fd = open(arg1,O_PATH | O_CLOEXEC);
+          add_read_access_rule(opt_landlock_ruleset_fd,exposed_fd);
+          add_write_access_rule(opt_landlock_ruleset_fd,exposed_fd,0);
+          add_execute_rule(opt_landlock_ruleset_fd,exposed_fd);
+          close(exposed_fd);
+        }
       break;
 
     case PRIV_SEP_OP_MQUEUE_MOUNT:
       if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
         die_with_error ("Can't mount mqueue on %s", arg1);
+      if (opt_landlock_ruleset_fd>-1)
+        {
+          int exposed_fd = open(arg1,O_PATH | O_CLOEXEC);
+          add_read_access_rule(opt_landlock_ruleset_fd,exposed_fd);
+          add_write_access_rule(opt_landlock_ruleset_fd,exposed_fd,1);
+          add_execute_rule(opt_landlock_ruleset_fd,exposed_fd);
+          close(exposed_fd);
+        }
       break;
 
     case PRIV_SEP_OP_SET_HOSTNAME:
@@ -1704,6 +1759,16 @@ parse_args_recurse (int          *argcp,
 
           argv += 1;
           argc -= 1;
+        }
+      else if (strcmp (arg, "--landlock") == 0)
+        {
+          struct landlock_ruleset_attr llattrs;
+          llattrs.handled_access_fs = LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR | LANDLOCK_ACCESS_FS_WRITE_FILE | LANDLOCK_ACCESS_FS_REMOVE_FILE | LANDLOCK_ACCESS_FS_REMOVE_DIR | LANDLOCK_ACCESS_FS_MAKE_CHAR | LANDLOCK_ACCESS_FS_MAKE_DIR | LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_MAKE_SYM;
+          opt_landlock_ruleset_fd = landlock_create_ruleset(&llattrs,sizeof(llattrs),0);
+          if (opt_landlock_ruleset_fd<0) {
+            warn("An error has occured while creating Landlock ruleset. The sandbox will start without Landlock protection.\n");
+            opt_landlock_ruleset_fd = -1;
+          }
         }
       else if (strcmp (arg, "--unshare-all") == 0)
         {
@@ -3214,6 +3279,11 @@ main (int    argc,
 
   /* Should be the last thing before execve() so that filters don't
    * need to handle anything above */
+  if (opt_landlock_ruleset_fd>-1)
+    {
+      if (landlock_restrict_self(opt_landlock_ruleset_fd,0)!=0)
+        warn("An error has occured while enabling Landlock restrictions. The sandbox will start without Landlock protection.\n");
+    }
   seccomp_programs_apply ();
 
   if (setup_finished_pipe[1] != -1)
