@@ -95,7 +95,7 @@ done
 
 echo "ok namespace id info in info and json-status fd"
 
-if ! which strace >/dev/null 2>/dev/null || ! strace -h | grep -v -e default | grep -e fault >/dev/null; then
+if ! command -v strace >/dev/null || ! strace -h | grep -v -e default | grep -e fault >/dev/null; then
     echo "ok - # SKIP no strace fault injection"
 else
     ! strace -o /dev/null -f -e trace=prctl -e fault=prctl:when=39 $RUN --die-with-parent --json-status-fd 42 true 42>json-status.json
