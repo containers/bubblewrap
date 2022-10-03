@@ -2793,6 +2793,9 @@ main (int    argc,
             die ("No permissions to creating new namespace, likely because the kernel does not allow non-privileged user namespaces. On e.g. debian this can be enabled with 'sysctl kernel.unprivileged_userns_clone=1'.");
         }
 
+      if (errno == ENOSPC)
+        die ("Creating new namespace failed: nesting depth or /proc/sys/user/max_*_namespaces exceeded (ENOSPC)");
+
       die_with_error ("Creating new namespace failed");
     }
 
