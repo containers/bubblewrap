@@ -1,11 +1,23 @@
 #compdef bwrap
 
+_bwrap_args_after_perms_size=(
+    # Please sort alphabetically (in LC_ALL=C order) by option name
+    '--tmpfs[Mount new tmpfs on DEST]:mount point for tmpfs:_files -/'
+)
+
 _bwrap_args_after_perms=(
     # Please sort alphabetically (in LC_ALL=C order) by option name
     '--bind-data[Copy from FD to file which is bind-mounted on DEST]: :_guard "[0-9]#" "file descriptor to read content":destination:_files'
     '--dir[Create dir at DEST]:directory to create:_files -/'
     '--file[Copy from FD to destination DEST]: :_guard "[0-9]#" "file descriptor to read content from":destination:_files'
     '--ro-bind-data[Copy from FD to file which is readonly bind-mounted on DEST]: :_guard "[0-9]#" "file descriptor to read content from":destination:_files'
+    '--size[Set size in bytes for next action argument]: :->after_perms_size'
+    '--tmpfs[Mount new tmpfs on DEST]:mount point for tmpfs:_files -/'
+)
+
+_bwrap_args_after_size=(
+    # Please sort alphabetically (in LC_ALL=C order) by option name
+    '--perms[Set permissions for next action argument]: :_guard "[0-7]#" "permissions in octal": :->after_perms_size'
     '--tmpfs[Mount new tmpfs on DEST]:mount point for tmpfs:_files -/'
 )
 
@@ -47,6 +59,7 @@ _bwrap_args=(
     '--ro-bind[Bind mount the host path SRC readonly on DEST]:source:_files:destination:_files'
     '--seccomp[Load and use seccomp rules from FD]: :_guard "[0-9]#" "file descriptor to read seccomp rules from"'
     '--setenv[Set an environment variable]:variable to set:_parameters -g "*export*":value of variable: :'
+    '--size[Set size in bytes for next action argument]: :->after_size'
     '--symlink[Create symlink at DEST with target SRC]:symlink target:_files:symlink to create:_files:'
     '--sync-fd[Keep this fd open while sandbox is running]: :_guard "[0-9]#" "file descriptor to keep open"'
     '--uid[Custom uid in the sandbox (requires --unshare-user or --userns)]: :_guard "[0-9]#" "numeric group ID"'
@@ -71,6 +84,14 @@ _bwrap() {
     case "$state" in
         after_perms)
             _values -S ' ' 'option' $_bwrap_args_after_perms
+            ;;
+
+        after_size)
+            _values -S ' ' 'option' $_bwrap_args_after_size
+            ;;
+
+        after_perms_size)
+            _values -S ' ' 'option' $_bwrap_args_after_perms_size
             ;;
 
         caps)

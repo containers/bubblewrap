@@ -8,7 +8,7 @@ srcd=$(cd $(dirname "$0") && pwd)
 
 bn=$(basename "$0")
 
-echo "1..54"
+echo "1..57"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -405,6 +405,29 @@ $RUN \
 assert_file_has_content dir-permissions '^755$'
 echo "ok - tmpfs has expected permissions"
 
+# 1048576 = 1 MiB
+$RUN \
+    --size 1048576 --tmpfs "$(pwd -P)" \
+    df --output=size --block-size=1K "$(pwd -P)" > dir-size
+assert_file_has_content dir-size '^ *1024$'
+$RUN \
+    --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" \
+    stat -c '%a' "$(pwd -P)" > dir-permissions
+assert_file_has_content dir-permissions '^1777$'
+$RUN \
+    --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" \
+    df --output=size --block-size=1K "$(pwd -P)" > dir-size
+assert_file_has_content dir-size '^ *1024$'
+$RUN \
+    --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" \
+    stat -c '%a' "$(pwd -P)" > dir-permissions
+assert_file_has_content dir-permissions '^1777$'
+$RUN \
+    --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" \
+    df --output=size --block-size=1K "$(pwd -P)" > dir-size
+assert_file_has_content dir-size '^ *1024$'
+echo "ok - tmpfs has expected size"
+
 $RUN \
     --file 0 /tmp/file \
     stat -c '%a' /tmp/file < /dev/null > file-permissions
@@ -430,6 +453,40 @@ $RUN \
     stat -c '%a' /tmp/file < /dev/null > file-permissions
 assert_file_has_content file-permissions '^640$'
 echo "ok - files have expected permissions"
+
+if $RUN --size 0 --tmpfs /tmp/a true; then
+    assert_not_reached Zero tmpfs size allowed
+fi
+if $RUN --size 123bogus --tmpfs /tmp/a true; then
+    assert_not_reached Bogus tmpfs size allowed
+fi
+if $RUN --size '' --tmpfs /tmp/a true; then
+    assert_not_reached Empty tmpfs size allowed
+fi
+if $RUN --size -12345678 --tmpfs /tmp/a true; then
+    assert_not_reached Negative tmpfs size allowed
+fi
+if $RUN --size ' -12345678' --tmpfs /tmp/a true; then
+    assert_not_reached Negative tmpfs size with space allowed
+fi
+# This is 2^64
+if $RUN --size 18446744073709551616 --tmpfs /tmp/a true; then
+    assert_not_reached Overflowing tmpfs size allowed
+fi
+# This is 2^63 + 1; note that the current max size is SIZE_MAX/2
+if $RUN --size 9223372036854775809 --tmpfs /tmp/a true; then
+    assert_not_reached Too-large tmpfs size allowed
+fi
+echo "ok - bogus tmpfs size not allowed"
+
+if $RUN --perms 0640 --perms 0640 --tmpfs /tmp/a true; then
+    assert_not_reached Multiple perms options allowed
+fi
+if $RUN --size 1048576 --size 1048576 --tmpfs /tmp/a true; then
+    assert_not_reached Multiple perms options allowed
+fi
+echo "ok - --perms and --size only allowed once"
+
 
 FOO= BAR=baz $RUN --setenv FOO bar sh -c 'echo "$FOO$BAR"' > stdout
 assert_file_has_content stdout barbaz

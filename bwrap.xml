@@ -207,6 +207,9 @@
     (rwxr-xr-x). However, if a <option>--perms</option> option is in effect, and
     it sets the permissions for group or other to zero, then newly-created
     parent directories will also have their corresponding permission set to zero.
+    <option>--size</option> modifies the size of the created mount when preceding a
+    <option>--tmpfs</option> action; <option>--perms</option> and <option>--size</option>
+    can be combined.
   </para>
   <variablelist>
     <varlistentry>
@@ -217,7 +220,24 @@
         Subsequent operations are not affected: for example,
         <literal>--perms 0700 --tmpfs /a --tmpfs /b</literal> will mount
         <filename>/a</filename> with permissions 0700, then return to
-        the default permissions for <filename>/b</filename>.</para></listitem>
+        the default permissions for <filename>/b</filename>.
+        Note that <option>--perms</option> and <option>--size</option> can be
+        combined: <literal>--perms 0700 --size 10485760 --tmpfs /s</literal> will apply
+        permissions as well as a maximum size to the created tmpfs.</para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--size <arg choice="plain">BYTES</arg></option></term>
+      <listitem><para>This option does nothing on its own, and must be followed
+        by <literal>--tmpfs</literal>. It sets the size in bytes for the next tmpfs.
+        For example, <literal>--size 10485760 --tmpfs /tmp</literal> will create a tmpfs
+        at <filename>/tmp</filename> of size 10MiB. Subsequent operations are not
+        affected: for example,
+        <literal>--size 10485760 --tmpfs /a --tmpfs /b</literal> will mount
+        <filename>/a</filename> with size 10MiB, then return to the default size for
+        <filename>/b</filename>.
+        Note that <option>--perms</option> and <option>--size</option> can be
+        combined: <literal>--size 10485760 --perms 0700 --tmpfs /s</literal> will apply
+        permissions as well as a maximum size to the created tmpfs.</para></listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--bind <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
@@ -260,7 +280,9 @@
       <listitem>
         <para>Mount new tmpfs on <arg choice="plain">DEST</arg>.
           If the previous option was <option>--perms</option>, it sets the
-          mode of the tmpfs. Otherwise, the tmpfs has mode 0755.</para>
+          mode of the tmpfs. Otherwise, the tmpfs has mode 0755.
+          If the previous option was <option>--size</option>, it sets the
+          size in bytes of the tmpfs. Otherwise, the tmpfs has the default size.</para>
       </listitem>
     </varlistentry>
     <varlistentry>
