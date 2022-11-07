@@ -406,27 +406,34 @@ assert_file_has_content dir-permissions '^755$'
 echo "ok - tmpfs has expected permissions"
 
 # 1048576 = 1 MiB
-$RUN \
-    --size 1048576 --tmpfs "$(pwd -P)" \
-    df --output=size --block-size=1K "$(pwd -P)" > dir-size
-assert_file_has_content dir-size '^ *1024$'
-$RUN \
-    --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" \
-    stat -c '%a' "$(pwd -P)" > dir-permissions
-assert_file_has_content dir-permissions '^1777$'
-$RUN \
-    --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" \
-    df --output=size --block-size=1K "$(pwd -P)" > dir-size
-assert_file_has_content dir-size '^ *1024$'
-$RUN \
-    --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" \
-    stat -c '%a' "$(pwd -P)" > dir-permissions
-assert_file_has_content dir-permissions '^1777$'
-$RUN \
-    --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" \
-    df --output=size --block-size=1K "$(pwd -P)" > dir-size
-assert_file_has_content dir-size '^ *1024$'
-echo "ok - tmpfs has expected size"
+if test -n "${bwrap_is_suid:-}"; then
+    if $RUN --size 1048576 --tmpfs "$(pwd -P)" true; then
+        assert_not_reached "Should not allow --size --tmpfs when setuid"
+    fi
+    echo "ok - --size --tmpfs is not allowed when setuid"
+else
+    $RUN \
+        --size 1048576 --tmpfs "$(pwd -P)" \
+        df --output=size --block-size=1K "$(pwd -P)" > dir-size
+    assert_file_has_content dir-size '^ *1024$'
+    $RUN \
+        --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" \
+        stat -c '%a' "$(pwd -P)" > dir-permissions
+    assert_file_has_content dir-permissions '^1777$'
+    $RUN \
+        --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" \
+        df --output=size --block-size=1K "$(pwd -P)" > dir-size
+    assert_file_has_content dir-size '^ *1024$'
+    $RUN \
+        --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" \
+        stat -c '%a' "$(pwd -P)" > dir-permissions
+    assert_file_has_content dir-permissions '^1777$'
+    $RUN \
+        --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" \
+        df --output=size --block-size=1K "$(pwd -P)" > dir-size
+    assert_file_has_content dir-size '^ *1024$'
+    echo "ok - tmpfs has expected size"
+fi
 
 $RUN \
     --file 0 /tmp/file \
