@@ -1,7 +1,7 @@
 project(
   'bubblewrap',
   'c',
-  version : '0.6.2',
+  version : '0.7.0',
   meson_version : '>=0.49.0',
   default_options : [
     'warning_level=2',
