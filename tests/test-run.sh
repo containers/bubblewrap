@@ -411,7 +411,7 @@ if test -n "${bwrap_is_suid:-}"; then
         assert_not_reached "Should not allow --size --tmpfs when setuid"
     fi
     echo "ok - --size --tmpfs is not allowed when setuid"
-else
+elif df --output=size --block-size=1K "$(pwd -P)" >/dev/null 2>/dev/null; then
     $RUN \
         --size 1048576 --tmpfs "$(pwd -P)" \
         df --output=size --block-size=1K "$(pwd -P)" > dir-size
@@ -433,6 +433,11 @@ else
         df --output=size --block-size=1K "$(pwd -P)" > dir-size
     assert_file_has_content dir-size '^ *1024$'
     echo "ok - tmpfs has expected size"
+else
+    $RUN --size 1048576 --tmpfs "$(pwd -P)" true
+    $RUN --perms 01777 --size 1048576 --tmpfs "$(pwd -P)" true
+    $RUN --size 1048576 --perms 01777 --tmpfs "$(pwd -P)" true
+    echo "ok # SKIP df is too old, cannot test --size --tmpfs fully"
 fi
 
 $RUN \
