@@ -153,10 +153,11 @@ if ! ${is_uidzero}; then
     done
     echo "ok - we have no caps as uid != 0"
 else
-    capsh --print > caps.orig
+    capsh --print | sed -e 's/no-new-privs=0/no-new-privs=1/' > caps.expected
+
     for OPT in "" "--as-pid-1"; do
         $RUN $OPT --unshare-pid capsh --print >caps.test
-        diff -u caps.orig caps.test
+        diff -u caps.expected caps.test
     done
     # And test that we can drop all, as well as specific caps
     $RUN $OPT --cap-drop ALL --unshare-pid capsh --print >caps.test
