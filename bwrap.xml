@@ -159,6 +159,17 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--assert-userns-disabled</option></term>
+      <listitem><para>
+        Confirm that the process in the sandbox has been prevented from
+        creating further user namespaces, but without taking any particular
+        action to prevent that. For example, this can be combined with
+        <option>--userns</option> to check that the given user namespace
+        has already been set up to prevent the creation of further user
+        namespaces.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--pidns <arg choice="plain">FD</arg></option></term>
       <listitem><para>Use an existing pid namespace instead of creating one. This is often used with --userns, because the pid namespace must be owned by the same user namespace that bwrap uses. </para>
       <para>Note that this can be combined with --unshare-pid, and in that case it means that the sandbox will be in its own pid namespace, which is a child of the passed in one.</para></listitem>

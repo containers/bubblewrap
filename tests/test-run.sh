@@ -126,10 +126,12 @@ else
     echo "ok - can pivot to new rootfs recursively"
 
     $BWRAP --dev-bind / / -- true
+    ! $BWRAP --assert-userns-disabled --dev-bind / / -- true
     $BWRAP --unshare-user --disable-userns --dev-bind / / -- true
     ! $BWRAP --unshare-user --disable-userns --dev-bind / / -- $BWRAP --dev-bind / / -- true
     $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 2 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --dev-bind / / -- true"
     $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 100 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --dev-bind / / -- true"
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "! $BWRAP --dev-bind / / --assert-userns-disabled -- true"
     echo "ok - can disable nested userns"
 fi
 

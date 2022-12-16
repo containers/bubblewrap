@@ -10,6 +10,7 @@ _bwrap() {
 	# Please keep sorted in LC_ALL=C order
 	local boolean_options="
 		--as-pid-1
+		--assert-userns-disabled
 		--clearenv
 		--disable-userns
 		--help
