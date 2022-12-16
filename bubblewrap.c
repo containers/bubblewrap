@@ -73,6 +73,7 @@ static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
 
 const char *opt_chdir_path = NULL;
+bool opt_assert_userns_disabled = FALSE;
 bool opt_disable_userns = FALSE;
 bool opt_unshare_user = FALSE;
 bool opt_unshare_user_try = FALSE;
@@ -313,6 +314,7 @@ usage (int ecode, FILE *out)
            "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
            "    --userns2 FD                 After setup switch to this user namespace, only useful with --userns\n"
            "    --disable-userns             Disable further use of user namespaces inside sandbox\n"
+           "    --assert-userns-disabled     Fail unless further use of user namespace inside sandbox is disabled\n"
            "    --pidns FD                   Use this pid namespace (as parent namespace if using --unshare-pid)\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
@@ -1783,6 +1785,10 @@ parse_args_recurse (int          *argcp,
         {
           opt_disable_userns = TRUE;
         }
+      else if (strcmp (arg, "--assert-userns-disabled") == 0)
+        {
+          opt_assert_userns_disabled = TRUE;
+        }
       else if (strcmp (arg, "--remount-ro") == 0)
         {
           if (argc < 2)
@@ -3202,18 +3208,18 @@ main (int    argc,
       /* We're in a new user namespace, we got back the bounding set, clear it again */
       drop_cap_bounding_set (FALSE);
 
-      if (opt_disable_userns)
-        {
-          /* Verify that we can't make a new userns again */
-          res = unshare (CLONE_NEWUSER);
-
-          if (res == 0)
-            die ("unable to disable creation of new user namespaces");
-        }
-
       write_uid_gid_map (opt_sandbox_uid, ns_uid,
                          opt_sandbox_gid, ns_gid,
                          -1, FALSE, FALSE);
+    }
+
+  if (opt_disable_userns || opt_assert_userns_disabled)
+    {
+      /* Verify that we can't make a new userns again */
+      res = unshare (CLONE_NEWUSER);
+
+      if (res == 0)
+        die ("creation of new user namespaces was not disabled as requested");
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
