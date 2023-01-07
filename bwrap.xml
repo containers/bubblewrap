@@ -54,6 +54,7 @@
 </para>
 <para>
   By default, <command>bwrap</command> creates a new mount namespace for the sandbox.
+  Be aware that this may interfere with attempts to close mapped devices such as encrypted drives.
   Optionally it also sets up new user, ipc, pid, network and uts namespaces (but note the
   user namespace is required if bwrap is not installed setuid root).
   The application in the sandbox can be made to run with a different UID and GID.
