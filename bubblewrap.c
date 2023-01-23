@@ -288,7 +288,15 @@ seccomp_programs_apply (void)
   for (program = seccomp_programs; program != NULL; program = program->next)
     {
       if (prctl (PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &program->program) != 0)
-        die_with_error ("prctl(PR_SET_SECCOMP)");
+        {
+          if (errno == EINVAL)
+            die ("Unable to set up system call filtering as requested: "
+                 "prctl(PR_SET_SECCOMP) reported EINVAL. "
+                 "(Hint: this requires a kernel configured with "
+                 "CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER.)");
+
+          die_with_error ("prctl(PR_SET_SECCOMP)");
+        }
     }
 }
 
