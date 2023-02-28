@@ -672,7 +672,7 @@ ensure_dir (const char *path,
 /* Sets errno on error (!= 0) */
 int
 mkdir_with_parents (const char *pathname,
-                    int         mode,
+                    mode_t      mode,
                     bool        create_last)
 {
   cleanup_free char *fn = NULL;
