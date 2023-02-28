@@ -965,7 +965,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   cleanup_free char *gid_map = NULL;
   cleanup_free char *dir = NULL;
   cleanup_fd int dir_fd = -1;
-  uid_t old_fsuid = -1;
+  uid_t old_fsuid = (uid_t)-1;
 
   if (pid == -1)
     dir = xstrdup ("self");
@@ -1207,12 +1207,12 @@ setup_newroot (bool unshare_pid,
            * inaccessible by that group. */
           if (op->perms >= 0 &&
               (op->perms & 0070) == 0)
-            parent_mode &= ~0050;
+            parent_mode &= ~0050U;
 
           /* The same, but for users other than the owner and group. */
           if (op->perms >= 0 &&
               (op->perms & 0007) == 0)
-            parent_mode &= ~0005;
+            parent_mode &= ~0005U;
 
           dest = get_newroot_path (op->dest);
           if (mkdir_with_parents (dest, parent_mode, FALSE) != 0)
