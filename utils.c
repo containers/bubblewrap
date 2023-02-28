@@ -156,9 +156,13 @@ xcalloc (size_t nmemb, size_t size)
 void *
 xrealloc (void *ptr, size_t size)
 {
-  void *res = realloc (ptr, size);
+  void *res;
 
-  if (size != 0 && res == NULL)
+  assert (size != 0);
+
+  res = realloc (ptr, size);
+
+  if (res == NULL)
     die_oom ();
   return res;
 }
