@@ -454,7 +454,7 @@ create_file (const char *path,
   int res;
   int errsv;
 
-  fd = creat (path, mode);
+  fd = open (path, O_WRONLY | O_CREAT | O_EXCL | O_TRUNC | O_CLOEXEC, mode);
   if (fd == -1)
     return -1;
 
