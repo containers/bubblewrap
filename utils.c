@@ -815,7 +815,7 @@ readlink_malloc (const char *pathname)
       if (n < 0)
         return NULL;
     }
-  while (size - 2 < n);
+  while (size - 2 < (size_t)n);
 
   value[n] = 0;
   return steal_pointer (&value);

@@ -496,7 +496,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   int num_fds;
   struct signalfd_siginfo fdsi;
   int dont_close[] = {-1, -1, -1, -1};
-  int j = 0;
+  unsigned int j = 0;
   int exitc;
   pid_t died_pid;
   int died_status;
@@ -1014,7 +1014,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   if (is_privileged)
     {
       setfsuid (old_fsuid);
-      if (setfsuid (-1) != real_uid)
+      if ((uid_t) setfsuid (-1) != real_uid)
         die ("Unable to re-set fsuid");
     }
 }
@@ -1065,7 +1065,7 @@ privileged_op (int         privileged_op_socket,
       if (arg2 != NULL)
         strcpy ((char *) buffer + arg2_offset, arg2);
 
-      if (write (privileged_op_socket, buffer, buffer_size) != buffer_size)
+      if (write (privileged_op_socket, buffer, buffer_size) != (ssize_t)buffer_size)
         die ("Can't write to privileged_op_socket");
 
       if (read (privileged_op_socket, buffer, 1) != 1)
@@ -1182,7 +1182,7 @@ setup_newroot (bool unshare_pid,
       cleanup_free char *source = NULL;
       cleanup_free char *dest = NULL;
       int source_mode = 0;
-      int i;
+      unsigned int i;
 
       if (op->source &&
           op->type != SETUP_MAKE_SYMLINK)
@@ -1593,7 +1593,7 @@ read_priv_sec_op (int          read_socket,
   if (rec_len == 0)
     exit (1); /* Privileged helper died and printed error, so exit silently */
 
-  if (rec_len < sizeof (PrivSepOp))
+  if ((size_t)rec_len < sizeof (PrivSepOp))
     die ("Invalid size %zd from unprivileged helper", rec_len);
 
   /* Guarantee zero termination of any strings */
@@ -1647,7 +1647,7 @@ parse_args_recurse (int          *argcp,
    * I picked 9000 because the Internet told me to and it was hard to
    * resist.
    */
-  static const uint32_t MAX_ARGS = 9000;
+  static const int32_t MAX_ARGS = 9000;
 
   if (*total_parsed_argc_p > MAX_ARGS)
     die ("Exceeded maximum number of arguments %u", MAX_ARGS);
@@ -2300,7 +2300,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--uid takes an argument");
 
-          if (opt_sandbox_uid != -1)
+          if (opt_sandbox_uid != (uid_t)-1)
             warn_only_last_option ("--uid");
 
           the_uid = strtol (argv[1], &endptr, 10);
@@ -2320,7 +2320,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--gid takes an argument");
 
-          if (opt_sandbox_gid != -1)
+          if (opt_sandbox_gid != (gid_t)-1)
             warn_only_last_option ("--gid");
 
           the_gid = strtol (argv[1], &endptr, 10);
@@ -2768,9 +2768,9 @@ main (int    argc,
 
   __debug__ (("Creating root mount point\n"));
 
-  if (opt_sandbox_uid == -1)
+  if (opt_sandbox_uid == (uid_t)-1)
     opt_sandbox_uid = real_uid;
-  if (opt_sandbox_gid == -1)
+  if (opt_sandbox_gid == (gid_t)-1)
     opt_sandbox_gid = real_gid;
 
   if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_uid != real_uid)
