@@ -143,9 +143,9 @@ xmalloc (size_t size)
 }
 
 void *
-xcalloc (size_t size)
+xcalloc (size_t nmemb, size_t size)
 {
-  void *res = calloc (1, size);
+  void *res = calloc (nmemb, size);
 
   if (res == NULL)
     die_oom ();

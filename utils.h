@@ -66,7 +66,7 @@ void  die_unless_label_valid (const char *label);
 void  fork_intermediate_child (void);
 
 void *xmalloc (size_t size);
-void *xcalloc (size_t size);
+void *xcalloc (size_t nmemb, size_t size);
 void *xrealloc (void  *ptr,
                 size_t size);
 char *xstrdup (const char *str);
