@@ -130,7 +130,7 @@ rtnl_setup_request (char  *buffer,
   header->nlmsg_seq = counter++;
   header->nlmsg_pid = getpid ();
 
-  return (struct nlmsghdr *) header;
+  return header;
 }
 
 void
