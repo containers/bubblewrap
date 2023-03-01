@@ -482,15 +482,22 @@ ensure_file (const char *path,
      We're trying to set up a mount point for a non-directory, so any
      non-directory, non-symlink is acceptable - it doesn't necessarily
      have to be a regular file. */
-  if (stat (path, &buf) ==  0 &&
-      !S_ISDIR (buf.st_mode) &&
-      !S_ISLNK (buf.st_mode))
-    return 0;
+  if (stat (path, &buf) == 0)
+  {
+    if (S_ISDIR (buf.st_mode) ||
+        S_ISLNK (buf.st_mode))
+    {
+      errno = EEXIST;
+      return -1;
+    }
 
-  if (create_file (path, mode, NULL) != 0 &&  errno != EEXIST)
+    return 0;
+  }
+
+  if (errno != ENOENT)
     return -1;
 
-  return 0;
+  return create_file (path, mode, NULL);
 }
 
 
@@ -662,10 +669,10 @@ ensure_dir (const char *path,
       return 0;
     }
 
-  if (mkdir (path, mode) == -1 && errno != EEXIST)
+  if (errno != ENOENT)
     return -1;
 
-  return 0;
+  return mkdir (path, mode);
 }
 
 
