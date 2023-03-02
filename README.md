@@ -145,6 +145,11 @@ UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox wi
 
 Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
 
+If you are not filtering out `TIOCSTI` commands using seccomp filters,
+argument `--new-session` is needed to protect against out-of-sandbox
+command execution
+(see [CVE-2017-5226](https://github.com/containers/bubblewrap/issues/142)).
+
 Related project comparison: Firejail
 ------------------------------------
 
