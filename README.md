@@ -101,7 +101,13 @@ source code, but here's a trimmed down version which runs
 a new shell reusing the host's `/usr`.
 
 ```
-bwrap --ro-bind /usr /usr --symlink usr/lib64 /lib64 --proc /proc --dev /dev --unshare-pid bash
+bwrap \
+    --ro-bind /usr /usr \
+    --symlink usr/lib64 /lib64 \
+    --proc /proc \
+    --dev /dev \
+    --unshare-pid \
+    bash
 ```
 
 This is an incomplete example, but useful for purposes of
