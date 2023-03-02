@@ -107,6 +107,7 @@ bwrap \
     --proc /proc \
     --dev /dev \
     --unshare-pid \
+    --new-session \
     bash
 ```
 
