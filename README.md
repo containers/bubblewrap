@@ -35,8 +35,8 @@ The original bubblewrap code existed before user namespaces - it inherits code f
 which in turn distantly derives from
 [linux-user-chroot](https://git.gnome.org/browse/linux-user-chroot).
 
-Security
---------
+System security
+---------------
 
 The maintainers of this tool believe that it does not, even when used
 in combination with typical software installed on that distribution,
@@ -46,6 +46,27 @@ in user to perform denial of service attacks, however.
 In particular, bubblewrap uses `PR_SET_NO_NEW_PRIVS` to turn off
 setuid binaries, which is the [traditional way](https://en.wikipedia.org/wiki/Chroot#Limitations) to get out of things
 like chroots.
+
+Sandbox security
+----------------
+
+bubblewrap is a tool for constructing sandbox environments.
+bubblewrap is not a complete, ready-made sandbox with a specific security
+policy.
+
+Some of bubblewrap's use-cases want a security boundary between the sandbox
+and the real system; other use-cases want the ability to change the layout of
+the filesystem for processes inside the sandbox, but do not aim to be a
+security boundary.
+As a result, the level of protection between the sandboxed processes and
+the host system is entirely determined by the arguments passed to
+bubblewrap.
+
+Whatever program constructs the command-line arguments for bubblewrap
+(often a larger framework like Flatpak, libgnome-desktop, sandwine
+or an ad-hoc script) is responsible for defining its own security model,
+and choosing appropriate bubblewrap command-line arguments to implement
+that security model.
 
 Users
 -----
