@@ -484,7 +484,8 @@
     <varlistentry>
       <term><option>--cap-add <arg choice="plain">CAP</arg></option></term>
       <listitem><para>
-        Add the specified capability when running as privileged user.  It accepts
+        Add the specified capability <arg choice="plain">CAP</arg>, e.g.
+        CAP_DAC_READ_SEARCH, when running as privileged user.  It accepts
         the special value ALL to add all the permitted caps.
       </para></listitem>
     </varlistentry>
