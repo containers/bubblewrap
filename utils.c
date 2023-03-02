@@ -568,7 +568,6 @@ load_file_data (int     fd,
   ssize_t data_read;
   ssize_t data_len;
   ssize_t res;
-  int errsv;
 
   data_read = 0;
   data_len = 4080;
@@ -587,12 +586,7 @@ load_file_data (int     fd,
       while (res < 0 && errno == EINTR);
 
       if (res < 0)
-        {
-          errsv = errno;
-          close (fd);
-          errno = errsv;
-          return NULL;
-        }
+        return NULL;
 
       data_read += res;
     }
