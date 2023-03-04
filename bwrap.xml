@@ -42,7 +42,8 @@
 
 <refsect1><title>Description</title>
 <para>
-  <command>bwrap</command> is a privileged helper for container setup. You
+  <command>bwrap</command> is a unprivileged low-level sandboxing tool
+  (optionally setuid on older distributions). You
   are unlikely to use it directly from the commandline, although that is possible.
 </para>
 <para>
