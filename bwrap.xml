@@ -464,7 +464,9 @@
         </para><para>
         Note: In a general sandbox, if you don't use --new-session, it is
         recommended to use seccomp to disallow the TIOCSTI ioctl, otherwise
-        the application can feed keyboard input to the terminal.
+        the application can feed keyboard input to the terminal
+        which can e.g. lead to out-of-sandbox command execution
+        (see CVE-2017-5226).
       </para></listitem>
     </varlistentry>
     <varlistentry>
