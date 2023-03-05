@@ -47,6 +47,16 @@ In particular, bubblewrap uses `PR_SET_NO_NEW_PRIVS` to turn off
 setuid binaries, which is the [traditional way](https://en.wikipedia.org/wiki/Chroot#Limitations) to get out of things
 like chroots.
 
+Features
+--------
+
+Bubblewrap exposes useful features that are also supported by
+unprivileged user namespaces the Linux kernel. Features that are not
+available in an unprivileged mode in the upstream kernel are not
+considered for inclusion, partly to keep non-setuid builds working,
+but also because we trust the kernel maintainers to know which
+features are secure to expose to users.
+
 Users
 -----
 
