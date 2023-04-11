@@ -84,7 +84,7 @@ bool opt_unshare_uts = FALSE;
 bool opt_unshare_cgroup = FALSE;
 bool opt_unshare_cgroup_try = FALSE;
 bool opt_needs_devpts = FALSE;
-bool opt_new_session = FALSE;
+bool opt_no_new_session = FALSE;
 bool opt_die_with_parent = FALSE;
 uid_t opt_sandbox_uid = -1;
 gid_t opt_sandbox_gid = -1;
@@ -357,7 +357,7 @@ usage (int ecode, FILE *out)
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --json-status-fd FD          Write container status to FD as multiple JSON documents\n"
-           "    --new-session                Create a new terminal session\n"
+           "    --no-new-session             Don't create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
            "    --cap-add CAP                Add cap CAP when running as privileged user\n"
@@ -2349,9 +2349,13 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--no-new-session") == 0)
+        {
+          opt_no_new_session = TRUE;
+        }
       else if (strcmp (arg, "--new-session") == 0)
         {
-          opt_new_session = TRUE;
+          warn ("--new-session is deprecated, a new terminal session is now created by default");
         }
       else if (strcmp (arg, "--die-with-parent") == 0)
         {
@@ -3272,7 +3276,7 @@ main (int    argc,
   xsetenv ("PWD", new_cwd, 1);
   free (old_cwd);
 
-  if (opt_new_session &&
+  if (!opt_no_new_session &&
       setsid () == (pid_t) -1)
     die_with_error ("setsid");
 

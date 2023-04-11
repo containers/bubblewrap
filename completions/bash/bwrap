@@ -14,7 +14,7 @@ _bwrap() {
 		--clearenv
 		--disable-userns
 		--help
-		--new-session
+		--no-new-session
 		--unshare-all
 		--unshare-cgroup
 		--unshare-cgroup-try

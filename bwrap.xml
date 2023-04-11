@@ -456,14 +456,15 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
-      <term><option>--new-session</option></term>
+      <term><option>--no-new-session</option></term>
       <listitem><para>
-	Create a new terminal session for the sandbox (calls setsid()). This
-        disconnects the sandbox from the controlling terminal which means
-        the sandbox can't for instance inject input into the terminal.
+	Don't create a new terminal session for the sandbox (won't call setsid()). 
+        Creating a new session disconnects the sandbox from the controlling 
+        terminal which means the sandbox can't for instance inject input 
+        into the terminal.
         </para><para>
-        Note: In a general sandbox, if you don't use --new-session, it is
-        recommended to use seccomp to disallow the TIOCSTI ioctl, otherwise
+        Note: In a general sandbox, if you decide to use --no-new-session, it
+        is recommended to use seccomp to disallow the TIOCSTI ioctl, otherwise
         the application can feed keyboard input to the terminal
         which can e.g. lead to out-of-sandbox command execution
         (see CVE-2017-5226).
