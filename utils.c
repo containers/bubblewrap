@@ -666,7 +666,7 @@ ensure_dir (const char *path,
 /* Sets errno on error (!= 0) */
 int
 mkdir_with_parents (const char *pathname,
-                    int         mode,
+                    mode_t      mode,
                     bool        create_last)
 {
   cleanup_free char *fn = NULL;
@@ -809,7 +809,7 @@ readlink_malloc (const char *pathname)
       if (n < 0)
         return NULL;
     }
-  while (size - 2 < n);
+  while (size - 2 < (size_t)n);
 
   value[n] = 0;
   return steal_pointer (&value);

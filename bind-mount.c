@@ -237,7 +237,7 @@ parse_mountinfo (int  proc_fd,
   MountInfo *end_tab;
   int n_mounts;
   char *line;
-  int i;
+  unsigned int i;
   int max_id;
   unsigned int n_lines;
   int root;

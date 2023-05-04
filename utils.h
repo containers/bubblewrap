@@ -115,7 +115,7 @@ int   ensure_dir (const char *path,
                   mode_t      mode);
 int   get_file_mode (const char *pathname);
 int   mkdir_with_parents (const char *pathname,
-                          int         mode,
+                          mode_t      mode,
                           bool        create_last);
 void create_pid_socketpair (int sockets[2]);
 void send_pid_on_socket (int socket);

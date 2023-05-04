@@ -72,35 +72,35 @@ static const char *opt_exec_label = NULL;
 static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
 
-const char *opt_chdir_path = NULL;
-bool opt_assert_userns_disabled = FALSE;
-bool opt_disable_userns = FALSE;
-bool opt_unshare_user = FALSE;
-bool opt_unshare_user_try = FALSE;
-bool opt_unshare_pid = FALSE;
-bool opt_unshare_ipc = FALSE;
-bool opt_unshare_net = FALSE;
-bool opt_unshare_uts = FALSE;
-bool opt_unshare_cgroup = FALSE;
-bool opt_unshare_cgroup_try = FALSE;
-bool opt_needs_devpts = FALSE;
-bool opt_new_session = FALSE;
-bool opt_die_with_parent = FALSE;
-uid_t opt_sandbox_uid = -1;
-gid_t opt_sandbox_gid = -1;
-int opt_sync_fd = -1;
-int opt_block_fd = -1;
-int opt_userns_block_fd = -1;
-int opt_info_fd = -1;
-int opt_json_status_fd = -1;
-int opt_seccomp_fd = -1;
-const char *opt_sandbox_hostname = NULL;
-char *opt_args_data = NULL;  /* owned */
-int opt_userns_fd = -1;
-int opt_userns2_fd = -1;
-int opt_pidns_fd = -1;
-int next_perms = -1;
-size_t next_size_arg = 0;
+static const char *opt_chdir_path = NULL;
+static bool opt_assert_userns_disabled = FALSE;
+static bool opt_disable_userns = FALSE;
+static bool opt_unshare_user = FALSE;
+static bool opt_unshare_user_try = FALSE;
+static bool opt_unshare_pid = FALSE;
+static bool opt_unshare_ipc = FALSE;
+static bool opt_unshare_net = FALSE;
+static bool opt_unshare_uts = FALSE;
+static bool opt_unshare_cgroup = FALSE;
+static bool opt_unshare_cgroup_try = FALSE;
+static bool opt_needs_devpts = FALSE;
+static bool opt_new_session = FALSE;
+static bool opt_die_with_parent = FALSE;
+static uid_t opt_sandbox_uid = -1;
+static gid_t opt_sandbox_gid = -1;
+static int opt_sync_fd = -1;
+static int opt_block_fd = -1;
+static int opt_userns_block_fd = -1;
+static int opt_info_fd = -1;
+static int opt_json_status_fd = -1;
+static int opt_seccomp_fd = -1;
+static const char *opt_sandbox_hostname = NULL;
+static char *opt_args_data = NULL;  /* owned */
+static int opt_userns_fd = -1;
+static int opt_userns2_fd = -1;
+static int opt_pidns_fd = -1;
+static int next_perms = -1;
+static size_t next_size_arg = 0;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -496,7 +496,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   int num_fds;
   struct signalfd_siginfo fdsi;
   int dont_close[] = {-1, -1, -1, -1};
-  int j = 0;
+  unsigned int j = 0;
   int exitc;
   pid_t died_pid;
   int died_status;
@@ -965,7 +965,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   cleanup_free char *gid_map = NULL;
   cleanup_free char *dir = NULL;
   cleanup_fd int dir_fd = -1;
-  uid_t old_fsuid = -1;
+  uid_t old_fsuid = (uid_t)-1;
 
   if (pid == -1)
     dir = xstrdup ("self");
@@ -1014,7 +1014,7 @@ write_uid_gid_map (uid_t sandbox_uid,
   if (is_privileged)
     {
       setfsuid (old_fsuid);
-      if (setfsuid (-1) != real_uid)
+      if ((uid_t) setfsuid (-1) != real_uid)
         die ("Unable to re-set fsuid");
     }
 }
@@ -1065,7 +1065,7 @@ privileged_op (int         privileged_op_socket,
       if (arg2 != NULL)
         strcpy ((char *) buffer + arg2_offset, arg2);
 
-      if (write (privileged_op_socket, buffer, buffer_size) != buffer_size)
+      if (write (privileged_op_socket, buffer, buffer_size) != (ssize_t)buffer_size)
         die ("Can't write to privileged_op_socket");
 
       if (read (privileged_op_socket, buffer, 1) != 1)
@@ -1182,7 +1182,7 @@ setup_newroot (bool unshare_pid,
       cleanup_free char *source = NULL;
       cleanup_free char *dest = NULL;
       int source_mode = 0;
-      int i;
+      unsigned int i;
 
       if (op->source &&
           op->type != SETUP_MAKE_SYMLINK)
@@ -1207,12 +1207,12 @@ setup_newroot (bool unshare_pid,
            * inaccessible by that group. */
           if (op->perms >= 0 &&
               (op->perms & 0070) == 0)
-            parent_mode &= ~0050;
+            parent_mode &= ~0050U;
 
           /* The same, but for users other than the owner and group. */
           if (op->perms >= 0 &&
               (op->perms & 0007) == 0)
-            parent_mode &= ~0005;
+            parent_mode &= ~0005U;
 
           dest = get_newroot_path (op->dest);
           if (mkdir_with_parents (dest, parent_mode, FALSE) != 0)
@@ -1593,7 +1593,7 @@ read_priv_sec_op (int          read_socket,
   if (rec_len == 0)
     exit (1); /* Privileged helper died and printed error, so exit silently */
 
-  if (rec_len < sizeof (PrivSepOp))
+  if ((size_t)rec_len < sizeof (PrivSepOp))
     die ("Invalid size %zd from unprivileged helper", rec_len);
 
   /* Guarantee zero termination of any strings */
@@ -1647,7 +1647,7 @@ parse_args_recurse (int          *argcp,
    * I picked 9000 because the Internet told me to and it was hard to
    * resist.
    */
-  static const uint32_t MAX_ARGS = 9000;
+  static const int32_t MAX_ARGS = 9000;
 
   if (*total_parsed_argc_p > MAX_ARGS)
     die ("Exceeded maximum number of arguments %u", MAX_ARGS);
@@ -2300,7 +2300,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--uid takes an argument");
 
-          if (opt_sandbox_uid != -1)
+          if (opt_sandbox_uid != (uid_t)-1)
             warn_only_last_option ("--uid");
 
           the_uid = strtol (argv[1], &endptr, 10);
@@ -2320,7 +2320,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--gid takes an argument");
 
-          if (opt_sandbox_gid != -1)
+          if (opt_sandbox_gid != (gid_t)-1)
             warn_only_last_option ("--gid");
 
           the_gid = strtol (argv[1], &endptr, 10);
@@ -2768,9 +2768,9 @@ main (int    argc,
 
   __debug__ (("Creating root mount point\n"));
 
-  if (opt_sandbox_uid == -1)
+  if (opt_sandbox_uid == (uid_t)-1)
     opt_sandbox_uid = real_uid;
-  if (opt_sandbox_gid == -1)
+  if (opt_sandbox_gid == (gid_t)-1)
     opt_sandbox_gid = real_gid;
 
   if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_uid != real_uid)

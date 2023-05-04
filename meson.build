@@ -37,11 +37,6 @@ add_project_arguments(
     '-Werror=switch-default',
     '-Wswitch-enum',
 
-    # Meson warning_level=2 would do this, but we are not fully
-    # signedness-safe yet
-    '-Wno-sign-compare',
-    '-Wno-error=sign-compare',
-
     # Deliberately not warning about these, ability to zero-initialize
     # a struct is a feature
     '-Wno-missing-field-initializers',

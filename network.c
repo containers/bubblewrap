@@ -62,8 +62,8 @@ rtnl_send_request (int              rtnl_fd,
 }
 
 static int
-rtnl_read_reply (int rtnl_fd,
-                 int seq_nr)
+rtnl_read_reply (int          rtnl_fd,
+                 unsigned int seq_nr)
 {
   char buffer[1024];
   ssize_t received;
@@ -80,7 +80,7 @@ rtnl_read_reply (int rtnl_fd,
         {
           if (rheader->nlmsg_seq != seq_nr)
             return -1;
-          if (rheader->nlmsg_pid != getpid ())
+          if ((pid_t)rheader->nlmsg_pid != getpid ())
             return -1;
           if (rheader->nlmsg_type == NLMSG_ERROR)
             {
@@ -130,7 +130,7 @@ rtnl_setup_request (char  *buffer,
   header->nlmsg_seq = counter++;
   header->nlmsg_pid = getpid ();
 
-  return (struct nlmsghdr *) header;
+  return header;
 }
 
 void
