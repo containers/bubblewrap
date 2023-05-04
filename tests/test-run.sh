@@ -129,9 +129,18 @@ else
     ! $BWRAP --assert-userns-disabled --dev-bind / / -- true
     $BWRAP --unshare-user --disable-userns --dev-bind / / -- true
     ! $BWRAP --unshare-user --disable-userns --dev-bind / / -- $BWRAP --dev-bind / / -- true
-    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 2 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --dev-bind / / -- true"
-    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 100 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --dev-bind / / -- true"
-    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "! $BWRAP --dev-bind / / --assert-userns-disabled -- true"
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 2 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --unshare-user --dev-bind / / -- true"
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 100 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --unshare-user --dev-bind / / -- true"
+    $BWRAP --unshare-user --disable-userns --dev-bind / / -- sh -c "! $BWRAP --unshare-user --dev-bind / / --assert-userns-disabled -- true"
+
+    $BWRAP_RECURSE --dev-bind / / -- true
+    ! $BWRAP_RECURSE --assert-userns-disabled --dev-bind / / -- true
+    $BWRAP_RECURSE --unshare-user --disable-userns --dev-bind / / -- true
+    ! $BWRAP_RECURSE --unshare-user --disable-userns --dev-bind / / -- /proc/self/exe --dev-bind / / -- true
+    $BWRAP_RECURSE --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 2 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --unshare-user --dev-bind / / -- true"
+    $BWRAP_RECURSE --unshare-user --disable-userns --dev-bind / / -- sh -c "echo 100 > /proc/sys/user/max_user_namespaces || true; ! $BWRAP --unshare-user --dev-bind / / -- true"
+    $BWRAP_RECURSE --unshare-user --disable-userns --dev-bind / / -- sh -c "! $BWRAP --unshare-user --dev-bind / / --assert-userns-disabled -- true"
+
     echo "ok - can disable nested userns"
 fi
 
