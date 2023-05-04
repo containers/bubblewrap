@@ -53,6 +53,14 @@
        __result; }))
 #endif
 
+/* Bionic doesnt include this C function, so
+ * we pull it from the musl source tree for use here.
+ * Should be possible to add more checks for other libcs
+ * when needed. */
+#ifdef __BIONIC__
+#include "get_current_dir_name.c"
+#endif
+
 /* We limit the size of a tmpfs to half the architecture's address space,
  * to avoid hitting arbitrary limits in the kernel.
  * For example, on at least one x86_64 machine, the actual limit seems to be
