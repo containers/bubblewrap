@@ -2630,6 +2630,7 @@ main (int    argc,
   int clone_flags;
   char *old_cwd = NULL;
   pid_t pid;
+  pid_t command_pid;
   int event_fd = -1;
   int child_wait_fd = -1;
   int setup_finished_pipe[] = {-1, -1};
@@ -2641,6 +2642,7 @@ main (int    argc,
   int res UNUSED;
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
+  int command_pid_sockets[2] = {-1, -1};
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2872,6 +2874,14 @@ main (int    argc,
       create_pid_socketpair (intermediate_pids_sockets);
     }
 
+  /* Sometimes we spawn command as immediate child, sometimes we run pid 1, sometimes there are more intermediate pids...
+   * For simplicity, get pid just before exec'ing command to get the real pid.
+   **/
+  if (opt_json_status_fd != -1)
+    {
+      create_pid_socketpair (command_pid_sockets);
+    }
+
   pid = raw_clone (clone_flags, NULL);
   if (pid == -1)
     {
@@ -2960,6 +2970,16 @@ main (int    argc,
       res = write (child_wait_fd, &val, 8);
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
+
+      close (command_pid_sockets[1]);
+      command_pid = read_pid_from_socket (command_pid_sockets[0]);
+      close (command_pid_sockets[0]);
+
+      if (opt_json_status_fd != -1)
+        {
+          cleanup_free char *output = xasprintf ("{ \"command-pid\": %i }\n", command_pid);
+          dump_info (opt_json_status_fd, output, TRUE);
+        }
 
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
@@ -3318,6 +3338,13 @@ main (int    argc,
     }
 
   __debug__ (("launch executable %s\n", argv[0]));
+
+  if (opt_json_status_fd != -1)
+    {
+      close (command_pid_sockets[0]);
+      send_pid_on_socket (command_pid_sockets[1]);
+      close (command_pid_sockets[1]);
+    }
 
   if (proc_fd != -1)
     close (proc_fd);
