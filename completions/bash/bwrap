@@ -9,12 +9,14 @@ _bwrap() {
 
 	# Please keep sorted in LC_ALL=C order
 	local boolean_options="
+		--allow-userns
 		--as-pid-1
 		--assert-userns-disabled
 		--clearenv
 		--disable-userns
 		--help
 		--new-session
+		--no-new-session
 		--unshare-all
 		--unshare-cgroup
 		--unshare-cgroup-try
@@ -39,6 +41,7 @@ _bwrap() {
 		--cap-drop
 		--chdir
 		--chmod
+		--compat
 		--dev
 		--dev-bind
 		--die-with-parent
