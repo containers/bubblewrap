@@ -380,6 +380,25 @@ handle_die_with_parent (void)
 }
 
 static void
+gate_signals (int action, sigset_t *prevmask)
+{
+  sigset_t mask;
+
+  /* When unblocking, only restore if not previously blocked. */
+
+  sigemptyset (&mask);
+
+  if (action == SIG_BLOCK || !sigismember (prevmask, SIGINT))
+    sigaddset (&mask, SIGINT);
+
+  if (action == SIG_BLOCK || !sigismember (prevmask, SIGTERM))
+    sigaddset (&mask, SIGTERM);
+
+  if (sigprocmask (action, &mask, prevmask) == -1)
+    die_with_error ("sigprocmask");
+}
+
+static void
 block_sigchild (void)
 {
   sigset_t mask;
@@ -514,6 +533,8 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
+  sigaddset (&mask, SIGINT);
+  sigaddset (&mask, SIGTERM);
 
   signal_fd = signalfd (-1, &mask, SFD_CLOEXEC | SFD_NONBLOCK);
   if (signal_fd == -1)
@@ -553,11 +574,16 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
         }
 
       /* We need to read the signal_fd, or it will keep polling as read,
-       * however we ignore the details as we get them from waitpid
+       * however we ignore the details for SIGCHLD as we get them from waitpid
        * below anyway */
       s = read (signal_fd, &fdsi, sizeof (struct signalfd_siginfo));
       if (s == -1 && errno != EINTR && errno != EAGAIN)
         die_with_error ("read signalfd");
+
+      /* Propagate signal to child so that it will take the correct
+       * action. This avoids the parent terminating, leaving an orphan. */
+      if (fdsi.ssi_signo != SIGCHLD && kill (child_pid, fdsi.ssi_signo))
+        die_with_error ("kill child");
 
       /* We may actually get several sigchld compressed into one
          SIGCHLD, so we have to handle all of them. */
@@ -2641,6 +2667,7 @@ main (int    argc,
   int res UNUSED;
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
+  sigset_t sigmask;
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2814,6 +2841,9 @@ main (int    argc,
   /* We block sigchild here so that we can use signalfd in the monitor. */
   block_sigchild ();
 
+  /* We block other signals here to avoid leaving an orphan. */
+  gate_signals (SIG_BLOCK, &sigmask);
+
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
     clone_flags |= CLONE_NEWUSER;
@@ -2963,6 +2993,9 @@ main (int    argc,
 
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
+
+  /* Unblock other signals here to receive signals from the parent. */
+  gate_signals (SIG_UNBLOCK, &sigmask);
 
   if (opt_pidns_fd > 0)
     {
