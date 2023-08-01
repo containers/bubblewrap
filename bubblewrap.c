@@ -87,6 +87,7 @@ static bool opt_unshare_cgroup_try = FALSE;
 static bool opt_needs_devpts = FALSE;
 static bool opt_new_session = FALSE;
 static bool opt_die_with_parent = FALSE;
+static bool opt_signal_propogate = FALSE;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
 static int opt_sync_fd = -1;
@@ -367,6 +368,7 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --no-int-term                Don't handle SIGINT and SIGTERM, but pass them to sandboxed process.\n"
           );
   exit (ecode);
 }
@@ -382,7 +384,7 @@ handle_die_with_parent (void)
 }
 
 static void
-gate_signals (int action, sigset_t *prevmask)
+gate_signals (int action, sigset_t *prevmask) // here
 {
   sigset_t mask;
 
@@ -972,7 +974,15 @@ drop_privs (bool keep_requested_caps,
     die_with_error ("can't set dumpable");
 }
 
-static void
+static char *
+get_newroot_path (const char *path)
+{
+  while (*path == '/')
+    path++;
+  return strconcat ("/newroot/", path);
+}
+
+static void   //fix for uid maps range, instead of single will come here | but that's for later...
 write_uid_gid_map (uid_t sandbox_uid,
                    uid_t parent_uid,
                    uid_t sandbox_gid,
@@ -2553,6 +2563,10 @@ parse_args_recurse (int          *argcp,
           argc -= 1;
           break;
         }
+      else if (strcmp (arg, "--no-int-term") == 0)
+        {
+          opt_signal_propogate = TRUE;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -2867,7 +2881,8 @@ main (int    argc,
   block_sigchild ();
 
   /* We block other signals here to avoid leaving an orphan. */
-  gate_signals (SIG_BLOCK, &sigmask);
+  if (opt_signal_propogate)
+    gate_signals (SIG_BLOCK, &sigmask);
 
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
@@ -3020,7 +3035,8 @@ main (int    argc,
     }
 
   /* Unblock other signals here to receive signals from the parent. */
-  gate_signals (SIG_UNBLOCK, &sigmask);
+  if (opt_signal_propogate)
+    gate_signals (SIG_UNBLOCK, &sigmask);
 
   if (opt_pidns_fd > 0)
     {
