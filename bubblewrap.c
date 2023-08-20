@@ -101,6 +101,7 @@ static int opt_userns2_fd = -1;
 static int opt_pidns_fd = -1;
 static int next_perms = -1;
 static size_t next_size_arg = 0;
+static bool opt_foreground = FALSE;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -365,6 +366,7 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --foreground                 Create a new process group and make it the foreground process group\n"
           );
   exit (ecode);
 }
@@ -2497,6 +2499,10 @@ parse_args_recurse (int          *argcp,
           argv += 2;
           argc -= 2;
         }
+      else if (strcmp(arg, "--foreground") == 0)
+        {
+          opt_foreground = TRUE;
+        }
       else if (strcmp (arg, "--") == 0)
         {
           argv += 1;
@@ -3275,6 +3281,30 @@ main (int    argc,
   if (opt_new_session &&
       setsid () == (pid_t) -1)
     die_with_error ("setsid");
+
+  if (opt_foreground) {
+    cleanup_fd int tty_fd = -1;
+
+    if (setpgid (0, 0) == -1)
+      die_with_error ("setpgid");
+
+    tty_fd = open ("/dev/tty", O_RDONLY|O_CLOEXEC);
+    if (tty_fd >= 0) {
+      sigset_t mask, old_mask;
+
+      sigemptyset (&mask);
+      sigaddset (&mask, SIGTTOU);
+
+      if (sigprocmask (SIG_BLOCK, &mask, &old_mask) == -1)
+        die_with_error ("sigprocmask");
+
+      if (tcsetpgrp (tty_fd, getpgid(0)) == -1)
+        die_with_error ("tcsetpgrp");
+
+      if (sigprocmask (SIG_SETMASK, &old_mask, NULL) == -1)
+        die_with_error ("sigprocmask");
+    }
+  }
 
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);

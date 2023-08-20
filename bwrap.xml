@@ -470,6 +470,14 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--foreground</option></term>
+      <listitem><para>
+	Create a new process group for the sandbox (calls setpgid()) and make it the
+        foreground process group of the controlling terminal if there is a
+        controlling terminal.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--die-with-parent</option></term>
       <listitem><para>
     Ensures child process (COMMAND) dies when bwrap's parent dies. Kills (SIGKILL)
