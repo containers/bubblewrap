@@ -3146,7 +3146,7 @@ main (int    argc,
 
   if (umount2 ("oldroot", MNT_DETACH))
     die_with_error ("unmount old root");
-
+#if 0
   /* This is our second pivot. It's like we're a Silicon Valley startup flush
    * with cash but short on ideas!
    *
@@ -3177,7 +3177,7 @@ main (int    argc,
     if (chdir ("/") != 0)
       die_with_error ("chdir /");
   }
-
+#endif
   if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
     die_with_error ("Setting userns2 failed");
 
@@ -3229,7 +3229,15 @@ main (int    argc,
       if (res == 0)
         die ("creation of new user namespaces was not disabled as requested");
     }
-
+#if 1
+  /* Now make /newroot the real root */
+  if (chdir ("/newroot") != 0)
+    die_with_error ("chdir newroot");
+  if (chroot ("/newroot") != 0)
+    die_with_error ("chroot /newroot");
+  if (chdir ("/") != 0)
+    die_with_error ("chdir /");
+#endif
   /* All privileged ops are done now, so drop caps we don't need */
   drop_privs (!is_privileged, TRUE);
 
