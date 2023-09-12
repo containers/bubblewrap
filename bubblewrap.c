@@ -3080,10 +3080,16 @@ main (int    argc,
 
   if (mkdir ("oldroot", 0755))
     die_with_error ("Creating oldroot failed");
-
+#if 0
   if (pivot_root (base_path, "oldroot"))
     die_with_error ("pivot_root");
+#else
+  if (mount ("/", "oldroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+    die_with_error ("setting up newroot bind");
 
+  if (chroot (base_path))
+    die_with_error ("chroot");
+#endif
   if (chdir ("/") != 0)
     die_with_error ("chdir / (base path)");
 
@@ -3209,16 +3215,17 @@ main (int    argc,
           if (write_to_fd (sysctl_fd, "1", 1) < 0)
             die_with_error ("sysctl user.max_user_namespaces = 1");
         }
-
+#if 0
       if (unshare (CLONE_NEWUSER))
         die_with_error ("unshare user ns");
-
+#endif
       /* We're in a new user namespace, we got back the bounding set, clear it again */
       drop_cap_bounding_set (FALSE);
-
+#if 0
       write_uid_gid_map (opt_sandbox_uid, ns_uid,
                          opt_sandbox_gid, ns_gid,
                          -1, FALSE, FALSE);
+#endif
     }
 
   if (opt_disable_userns || opt_assert_userns_disabled)
