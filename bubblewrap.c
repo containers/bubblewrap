@@ -142,6 +142,7 @@ typedef enum {
   SETUP_REMOUNT_RO_NO_RECURSIVE,
   SETUP_SET_HOSTNAME,
   SETUP_CHMOD,
+  SETUP_OVERLAY_MOUNT,
 } SetupOpType;
 
 typedef enum {
@@ -181,6 +182,7 @@ enum {
   PRIV_SEP_OP_MQUEUE_MOUNT,
   PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE,
   PRIV_SEP_OP_SET_HOSTNAME,
+  PRIV_SEP_OP_OVERLAY_MOUNT,
 };
 
 typedef struct
@@ -365,6 +367,7 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --overlay SRCS DEST          Overlay the paths separated by colons in SRCS readonly on DEST\n"
           );
   exit (ecode);
 }
@@ -1162,6 +1165,15 @@ privileged_op (int         privileged_op_socket,
         die_with_error ("Can't set hostname to %s", arg1);
       break;
 
+    case PRIV_SEP_OP_OVERLAY_MOUNT:
+      {
+        cleanup_free char *opt = xasprintf ("lowerdir=%s", arg1);
+        if (mount ("overlay", arg2, "overlay",
+                   MS_NOSUID | MS_NOEXEC | MS_RDONLY, opt) != 0)
+          die_with_error ("Can't mount overlay on %s", arg2);
+      }
+      break;
+
     default:
       die ("Unexpected privileged op %d", op);
     }
@@ -1185,7 +1197,8 @@ setup_newroot (bool unshare_pid,
       unsigned int i;
 
       if (op->source &&
-          op->type != SETUP_MAKE_SYMLINK)
+          op->type != SETUP_MAKE_SYMLINK &&
+          op->type != SETUP_OVERLAY_MOUNT)
         {
           source = get_oldroot_path (op->source);
           source_mode = get_file_mode (source);
@@ -1484,6 +1497,55 @@ setup_newroot (bool unshare_pid,
                          op->dest, NULL);
           break;
 
+        case SETUP_OVERLAY_MOUNT:
+          {
+            unsigned int len = strlen(op->source) + 1; /* len + null byte */
+            cleanup_free char *sources = strdup (op->source);
+            cleanup_free char *source_opt = NULL;
+            unsigned int source_opt_len = 0;
+            unsigned int source_opt_index = 0;
+            unsigned int start = 0;
+
+            for (i = 0; i < len; i++)
+              {
+                cleanup_free char *lower = NULL;
+                int lower_mode = 0;
+
+                if (sources[i] == ',' || sources[i] == '"')
+                  die_with_error ("Invalid character in source %s", op->source);
+
+                if (sources[i] != ':' && sources[i] != '\0')
+                  continue;
+
+                sources[i] = '\0';
+
+                lower = get_newroot_path (sources + start);
+                lower_mode = get_file_mode (lower);
+                if (lower_mode < 0)
+                  die_with_error ("Can't get type of source %s", op->source);
+
+                source_opt_len += strlen (lower);
+                source_opt = xrealloc (source_opt, source_opt_len + 1);
+
+                memcpy (source_opt + source_opt_index, lower, strlen (lower));
+                source_opt_index += strlen (lower);
+                source_opt[source_opt_index] = ':';
+                source_opt_index += 1;
+
+                start = i + 1;
+              }
+
+            if (source_opt_index < 1)
+                die_with_error ("bad");
+            source_opt[source_opt_index - 1] = '\0';
+
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_OVERLAY_MOUNT,
+                           0, 0, 0,
+                           source_opt, dest);
+          }
+          break;
+
         default:
           die ("Unexpected type %d", op->type);
         }
@@ -1549,6 +1611,7 @@ resolve_symlinks_in_ops (void)
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
         case SETUP_SET_HOSTNAME:
         case SETUP_CHMOD:
+        case SETUP_OVERLAY_MOUNT: /* FIXME: we should probably resolve all overlay directories */
         default:
           break;
         }
@@ -2492,6 +2555,18 @@ parse_args_recurse (int          *argcp,
           op = setup_op_new (SETUP_CHMOD);
           op->flags = NO_CREATE_DEST;
           op->perms = (int) perms;
+          op->dest = argv[2];
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp(arg, "--overlay") == 0)
+        {
+          if (argc < 3)
+            die ("%s takes two arguments", arg);
+
+          op = setup_op_new (SETUP_OVERLAY_MOUNT);
+          op->source = argv[1];
           op->dest = argv[2];
 
           argv += 2;
