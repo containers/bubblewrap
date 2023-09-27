@@ -85,6 +85,10 @@
       <listitem><para>Print version</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--exec-filename <arg choice="plain">PATH</arg></option></term>
+      <listitem><para>Execute <arg choice="plain">PATH</arg> instead of COMMAND.</para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--args <arg choice="plain">FD</arg></option></term>
       <listitem><para>
         Parse nul-separated arguments from the given file descriptor.

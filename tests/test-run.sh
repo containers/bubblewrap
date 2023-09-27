@@ -532,4 +532,14 @@ echo "PWD=$(pwd -P)" > reference
 assert_files_equal stdout reference
 echo "ok - environment manipulation"
 
+
+$RUN sh -c 'echo $0' > stdout
+assert_file_has_content stdout sh
+$RUN --exec-filename sh sh -c 'echo $0' > stdout
+assert_file_has_content stdout sh
+$RUN --exec-filename sh right -c 'echo $0' > stdout
+assert_file_has_content stdout right
+echo "ok - exec file and argv0 manipulation"
+
+
 echo "ok - End of test"

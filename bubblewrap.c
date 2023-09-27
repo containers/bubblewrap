@@ -72,6 +72,7 @@ static const char *opt_exec_label = NULL;
 static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
 
+static const char *opt_exec_path = NULL;
 static const char *opt_chdir_path = NULL;
 static bool opt_assert_userns_disabled = FALSE;
 static bool opt_disable_userns = FALSE;
@@ -308,6 +309,7 @@ usage (int ecode, FILE *out)
   fprintf (out,
            "    --help                       Print this help\n"
            "    --version                    Print version\n"
+           "    --exec-filename PATH         Execute PATH instead of COMMAND\n"
            "    --args FD                    Parse NUL-separated args from FD\n"
            "    --unshare-all                Unshare every namespace we support by default\n"
            "    --share-net                  Retain the network namespace (can only combine with --unshare-all)\n"
@@ -1664,6 +1666,18 @@ parse_args_recurse (int          *argcp,
         {
           print_version_and_exit ();
         }
+      else if (strcmp (arg, "--exec-filename") == 0)
+        {
+          if (argc < 2)
+            die ("--exec-filename takes one argument");
+
+          if (opt_exec_path != NULL)
+            die ("--exec-filename used multiple times");
+
+          opt_exec_path = argv[1];
+          argv++;
+          argc--;
+        }
       else if (strcmp (arg, "--args") == 0)
         {
           int the_fd;
@@ -2641,6 +2655,7 @@ main (int    argc,
   int res UNUSED;
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
+  const char *exec_path = NULL;
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -3351,7 +3366,8 @@ main (int    argc,
          we don't want to error out here */
     }
 
-  if (execvp (argv[0], argv) == -1)
+  exec_path = opt_exec_path ? opt_exec_path : argv[0];
+  if (execvp (exec_path, argv) == -1)
     {
       if (setup_finished_pipe[1] != -1)
         {
@@ -3362,7 +3378,7 @@ main (int    argc,
           /* Ignore res, if e.g. the parent died and closed setup_finished_pipe[0]
              we don't want to error out here */
         }
-      die_with_error ("execvp %s", argv[0]);
+      die_with_error ("execvp %s", exec_path);
     }
 
   return 0;

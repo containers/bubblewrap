@@ -43,6 +43,7 @@ _bwrap() {
 		--dev-bind
 		--die-with-parent
 		--dir
+		--exec-filename
 		--exec-label
 		--file
 		--file-label
