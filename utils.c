@@ -823,6 +823,14 @@ get_oldroot_path (const char *path)
   return strconcat ("/oldroot/", path);
 }
 
+char *
+get_newroot_path (const char *path)
+{
+  while (*path == '/')
+    path++;
+  return strconcat ("/newroot/", path);
+}
+
 int
 raw_clone (unsigned long flags,
            void         *child_stack)

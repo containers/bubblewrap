@@ -121,6 +121,7 @@ void create_pid_socketpair (int sockets[2]);
 void send_pid_on_socket (int socket);
 int  read_pid_from_socket (int socket);
 char *get_oldroot_path (const char *path);
+char *get_newroot_path (const char *path);
 char *readlink_malloc (const char *pathname);
 
 /* syscall wrappers */
