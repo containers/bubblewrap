@@ -264,12 +264,12 @@ if command -v mktemp > /dev/null; then
     $BWRAP --bind / / --bind /tmp /tmp cat "$tempfile" > stdout
     assert_file_has_content stdout hello
     echo "ok - bind-mount of /tmp exposes real /tmp"
-    if [ -d /mnt ]; then
+    if [ -d /mnt ] && [ ! -L /mnt ]; then
         $BWRAP --bind / / --bind /tmp /mnt cat "/mnt/${tempfile#/tmp/}" > stdout
         assert_file_has_content stdout hello
         echo "ok - bind-mount of /tmp onto /mnt exposes real /tmp"
     else
-        echo "ok - # SKIP /mnt does not exist"
+        echo "ok - # SKIP /mnt does not exist or is a symlink"
     fi
 else
     echo "ok - # SKIP mktemp not found"
