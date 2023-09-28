@@ -32,6 +32,7 @@ _bwrap() {
 		$boolean_optons
 		--add-seccomp-fd
 		--args
+		--argv0
 		--bind
 		--bind-data
 		--block-fd

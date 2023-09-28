@@ -92,6 +92,10 @@
         multiple sources.
       </para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--argv0 <arg choice="plain">VALUE</arg></option></term>
+      <listitem><para>Set argv[0] to the value <arg choice="plain">VALUE</arg> before running the program</para></listitem>
+    </varlistentry>
   </variablelist>
   <para>Options related to kernel namespaces:</para>
   <variablelist>
