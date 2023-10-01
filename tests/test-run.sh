@@ -8,7 +8,7 @@ srcd=$(cd $(dirname "$0") && pwd)
 
 bn=$(basename "$0")
 
-echo "1..58"
+echo "1..59"
 
 # Test help
 ${BWRAP} --help > help.txt
@@ -531,5 +531,13 @@ FOO=wrong BAR=wrong $RUN --clearenv /usr/bin/env > stdout
 echo "PWD=$(pwd -P)" > reference
 assert_files_equal stdout reference
 echo "ok - environment manipulation"
+
+$RUN sh -c 'echo $0' > stdout
+assert_file_has_content stdout sh
+$RUN --argv0 sh sh -c 'echo $0' > stdout
+assert_file_has_content stdout sh
+$RUN --argv0 right sh -c 'echo $0' > stdout
+assert_file_has_content stdout right
+echo "ok - argv0 manipulation"
 
 echo "ok - End of test"
