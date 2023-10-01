@@ -222,7 +222,7 @@ for die_with_parent_argv in "--die-with-parent" "--die-with-parent --unshare-pid
     # We have to loop here, because bwrap doesn't wait for the lock if
     # another process is holding it. If we're unlucky, lockf-n.py will
     # be holding it.
-    /bin/bash -c "while true; do $RUN ${die_with_parent_argv} --lock-file $(pwd)/lock sleep 1h; done" &
+    bash -c "while true; do $RUN ${die_with_parent_argv} --lock-file $(pwd)/lock sleep 1h; done" &
     childshellpid=$!
 
     # Wait for lock to be taken (yes hacky)
