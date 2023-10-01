@@ -159,7 +159,7 @@ if $RUN --unshare-pid --bind /source-enoent /dest true 2>err.txt; then
     assert_not_reached "bound nonexistent source"
 fi
 assert_file_has_content err.txt "^bwrap: Can't find source path.*source-enoent"
-ok "error prefxing"
+ok "error prefixing"
 
 if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
