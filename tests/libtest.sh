@@ -94,9 +94,10 @@ else
     BWRAP_RO_HOST_ARGS="--ro-bind /usr /usr
               --ro-bind /etc /etc
               --ro-bind /bin /bin
-              --ro-bind /lib /lib
+              --ro-bind-try /lib /lib
               --ro-bind-try /lib64 /lib64
-              --ro-bind /sbin /sbin
+              --ro-bind-try /sbin /sbin
+              --ro-bind-try /nix/store /nix/store
               --dir /var/tmp
               --proc /proc
               --dev /dev"
