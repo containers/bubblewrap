@@ -24,9 +24,8 @@ else:
     os.close(pipe_info[0])
     os.close(userns_block[1])
 
-    if sys.version_info >= (3, 4):
-        os.set_inheritable(pipe_info[1], True)
-        os.set_inheritable(userns_block[0], True)
+    os.set_inheritable(pipe_info[1], True)
+    os.set_inheritable(userns_block[0], True)
 
     args = ["bwrap",
             "bwrap",
