@@ -891,3 +891,16 @@ label_exec (UNUSED const char *exec_label)
 #endif
   return 0;
 }
+
+int apparmor_change_profile (const char *profile)
+{
+  cleanup_free char *data = NULL;
+
+  if (!profile)
+    return 0;
+  data = strconcat ("changeprofile ", profile);
+  if (write_file_at (-1, "/proc/self/attr/apparmor/current", data) == -1)
+    return -1;
+
+  return 0;
+}

@@ -418,6 +418,13 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--apparmor-profile <arg choice="plain">PROFILE</arg></option></term>
+      <listitem><para>
+	AppArmor Profile from the sandbox. On an AppArmor system you can specify the
+	profile for the sandbox process(s). Requires writable procfs.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--block-fd <arg choice="plain">FD</arg></option></term>
       <listitem><para>
 	Block the sandbox on reading from FD until some data is available.
