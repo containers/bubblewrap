@@ -1161,8 +1161,16 @@ privileged_op (int         privileged_op_socket,
 
     case PRIV_SEP_OP_OVERLAY_MOUNT:
       if (mount ("overlay", arg2, "overlay", MS_MGC_VAL, arg1) != 0)
-        die_with_error ("Can't make overlay mount on %s with options %s",
-                        arg2, arg1);
+        {
+          /* The standard message for ELOOP, "Too many levels of symbolic
+           * links", is not helpful here. */
+          if (errno == ELOOP)
+            die ("Can't make overlay mount on %s with options %s: "
+                "Overlay directories may not overlap",
+                arg2, arg1);
+          die_with_error ("Can't make overlay mount on %s with options %s",
+                          arg2, arg1);
+        }
       break;
 
     case PRIV_SEP_OP_SET_HOSTNAME:
