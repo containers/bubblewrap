@@ -356,6 +356,14 @@
           version of 4.0 or later.
         </para>
         <para>
+          Due to limitations of overlayfs, no host directory given via
+          <arg choice="plain">--overlay-src</arg> or
+          <arg choice="plain">--overlay</arg> may be an ancestor of another,
+          after resolving symlinks. Depending on version, the Linux kernel may
+          or may not enforce this, but if not then overlayfs's behavior is
+          undefined.
+        </para>
+        <para>
           For more information see the Overlay Filesystem documentation in the
           Linux kernel at
           https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt
