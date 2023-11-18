@@ -217,6 +217,18 @@ test_string_builder (void)
   g_assert_cmpstr (sb.str, ==, "aaabbbc9cx/path \\:\\,\\\\zzz");
 
   free (sb.str);
+  sb = (StringBuilder){0};
+
+  strappend_escape_for_mount_options (&sb, "aaa");
+  g_assert_cmpstr (sb.str, ==, "aaa");
+
+  free (sb.str);
+  sb = (StringBuilder){0};
+
+  strappend_escape_for_mount_options (&sb, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  g_assert_cmpstr (sb.str, ==, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+  free (sb.str);
 }
 
 int

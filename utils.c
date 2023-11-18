@@ -956,6 +956,9 @@ strappend (StringBuilder *dest, const char *src)
       dest->str = xrealloc (dest->str, dest->size);
     }
 
+  /* Preserves the invariant that dest->str is always null-terminated, even
+   * though the offset is positioned at the null byte for the next write.
+   */
   strncpy (dest->str + dest->offset, src, len + 1);
   dest->offset += len;
 }

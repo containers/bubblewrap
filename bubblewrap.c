@@ -1712,7 +1712,7 @@ make_setup_overlay_src_ops (const char *const *const argv)
    * of each source, as no other operations involve multiple sources the way
    * the *_OVERLAY_MOUNT ops do.
    *
-   * While the --overlay-src arguments are expected to precede the
+   * While the --overlay-src arguments are expected to (directly) precede the
    * --overlay argument, in bottom-to-top order, the SETUP_OVERLAY_SRC ops
    * follow their corresponding *_OVERLAY_MOUNT op, in top-to-bottom order
    * (the order in which overlayfs will want them). They are handled specially

@@ -606,15 +606,15 @@ else
         ok "--overlay"
 
         # Test --overlay path escaping
-        # Coincidentally, :,\ is the face I make contemplating anyone who might
+        # Coincidentally, ":,\ is the face I make contemplating anyone who might
         # need this functionality, not that that's going to stop me from supporting
         # it.
-        mkdir 'lower :,\' 'upper :,\' 'work :,\'
-        printf 1 > 'lower :,\'/a
-        $RUN --overlay-src 'lower :,\' --overlay 'upper :,\' 'work :,\' /tmp/x sh -c 'cat /tmp/x/a; printf 2 > /tmp/x/a; cat /tmp/x/a' > stdout
+        mkdir 'lower ":,\' 'upper ":,\' 'work ":,\'
+        printf 1 > 'lower ":,\'/a
+        $RUN --overlay-src 'lower ":,\' --overlay 'upper ":,\' 'work ":,\' /tmp/x sh -c 'cat /tmp/x/a; printf 2 > /tmp/x/a; cat /tmp/x/a' > stdout
         assert_file_has_content stdout '^12$'
-        assert_file_has_content 'lower :,\'/a '^1$'
-        assert_file_has_content 'upper :,\'/a '^2$'
+        assert_file_has_content 'lower ":,\'/a '^1$'
+        assert_file_has_content 'upper ":,\'/a '^2$'
         ok "--overlay path escaping"
 
         # Test --tmp-overlay
