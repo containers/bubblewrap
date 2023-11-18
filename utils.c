@@ -21,6 +21,7 @@
 #include "utils.h"
 #include <sys/syscall.h>
 #include <sys/socket.h>
+#include <sys/param.h>
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
 #endif
@@ -890,4 +891,86 @@ label_exec (UNUSED const char *exec_label)
     return setexeccon (exec_label);
 #endif
   return 0;
+}
+
+void
+strappend (StringBuilder *dest, const char *src)
+{
+  size_t len = strlen (src);
+
+  if (dest->offset + len >= dest->size)
+    {
+      dest->size = (dest->size + len + 1) * 2;
+      dest->str = xrealloc (dest->str, dest->size);
+    }
+
+  /* Preserves the invariant that dest->str is always null-terminated, even
+   * though the offset is positioned at the null byte for the next write.
+   */
+  strncpy (dest->str + dest->offset, src, len + 1);
+  dest->offset += len;
+}
+
+__attribute__((format (printf, 2, 3)))
+void
+strappendf (StringBuilder *dest, const char *fmt, ...)
+{
+  va_list args;
+  int len;
+
+  va_start (args, fmt);
+  len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+  va_end (args);
+  if (len < 0)
+    die_with_error ("vsnprintf");
+  if (dest->offset + len >= dest->size)
+    {
+      dest->size = (dest->size + len + 1) * 2;
+      dest->str = xrealloc (dest->str, dest->size);
+      va_start (args, fmt);
+      len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+      va_end (args);
+      if (len < 0)
+        die_with_error ("vsnprintf");
+    }
+
+  dest->offset += len;
+}
+
+void
+strappend_escape_for_mount_options (StringBuilder *dest, const char *src)
+{
+  bool unescaped = TRUE;
+
+  for (;;)
+    {
+      if (dest->offset == dest->size)
+        {
+          dest->size = MAX (64, dest->size * 2);
+          dest->str = xrealloc (dest->str, dest->size);
+        }
+      switch (*src)
+        {
+        case '\0':
+          dest->str[dest->offset] = '\0';
+          return;
+
+        case '\\':
+        case ',':
+        case ':':
+          if (unescaped)
+            {
+              dest->str[dest->offset++] = '\\';
+              unescaped = FALSE;
+              continue;
+            }
+          /* else fall through */
+
+        default:
+          dest->str[dest->offset++] = *src;
+          unescaped = TRUE;
+          break;
+        }
+      src++;
+    }
 }
