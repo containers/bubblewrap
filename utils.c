@@ -72,6 +72,21 @@ die_with_error (const char *format, ...)
 }
 
 void
+die_with_mount_error (const char *format, ...)
+{
+  va_list args;
+  int errsv;
+
+  errsv = errno;
+
+  va_start (args, format);
+  warnv (format, args, mount_strerror (errsv));
+  va_end (args);
+
+  exit (1);
+}
+
+void
 die (const char *format, ...)
 {
   va_list args;
@@ -892,4 +907,25 @@ label_exec (UNUSED const char *exec_label)
     return setexeccon (exec_label);
 #endif
   return 0;
+}
+
+/*
+ * Like strerror(), but specialized for a failed mount(2) call.
+ */
+const char *
+mount_strerror (int errsv)
+{
+  switch (errsv)
+    {
+      case ENOSPC:
+        /* "No space left on device" misleads users into thinking there
+         * is some sort of disk-space problem, but mount(2) uses that
+         * errno value to mean something more like "limit exceeded". */
+        return ("Limit exceeded (ENOSPC). "
+                "(Hint: Check that /proc/sys/fs/mount-max is sufficient, "
+                "typically 100000)");
+
+      default:
+        return strerror (errsv);
+    }
 }

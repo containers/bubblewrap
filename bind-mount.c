@@ -571,7 +571,24 @@ die_with_bind_result (bind_mount_result res,
   /* message is leaked, but we're exiting unsuccessfully anyway, so ignore */
 
   if (want_errno)
-    fprintf (stderr, ": %s", strerror (saved_errno));
+    {
+      switch (res)
+        {
+          case BIND_MOUNT_ERROR_MOUNT:
+          case BIND_MOUNT_ERROR_REMOUNT_DEST:
+          case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
+            fprintf (stderr, ": %s", mount_strerror (saved_errno));
+            break;
+
+          case BIND_MOUNT_ERROR_REALPATH_DEST:
+          case BIND_MOUNT_ERROR_REOPEN_DEST:
+          case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
+          case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
+          case BIND_MOUNT_SUCCESS:
+          default:
+            fprintf (stderr, ": %s", strerror (saved_errno));
+        }
+    }
 
   fprintf (stderr, "\n");
   exit (1);

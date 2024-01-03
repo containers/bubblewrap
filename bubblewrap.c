@@ -1113,7 +1113,7 @@ privileged_op (int         privileged_op_socket,
 
     case PRIV_SEP_OP_PROC_MOUNT:
       if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
-        die_with_error ("Can't mount proc on %s", arg1);
+        die_with_mount_error ("Can't mount proc on %s", arg1);
       break;
 
     case PRIV_SEP_OP_TMPFS_MOUNT:
@@ -1132,19 +1132,19 @@ privileged_op (int         privileged_op_socket,
 
         cleanup_free char *opt = label_mount (mode, opt_file_label);
         if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
-          die_with_error ("Can't mount tmpfs on %s", arg1);
+          die_with_mount_error ("Can't mount tmpfs on %s", arg1);
         break;
       }
 
     case PRIV_SEP_OP_DEVPTS_MOUNT:
       if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
                  "newinstance,ptmxmode=0666,mode=620") != 0)
-        die_with_error ("Can't mount devpts on %s", arg1);
+        die_with_mount_error ("Can't mount devpts on %s", arg1);
       break;
 
     case PRIV_SEP_OP_MQUEUE_MOUNT:
       if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
-        die_with_error ("Can't mount mqueue on %s", arg1);
+        die_with_mount_error ("Can't mount mqueue on %s", arg1);
       break;
 
     case PRIV_SEP_OP_SET_HOSTNAME:
@@ -3060,11 +3060,11 @@ main (int    argc,
    * receive mounts from the real root, but don't
    * propagate mounts to the real root. */
   if (mount (NULL, "/", NULL, MS_SILENT | MS_SLAVE | MS_REC, NULL) < 0)
-    die_with_error ("Failed to make / slave");
+    die_with_mount_error ("Failed to make / slave");
 
   /* Create a tmpfs which we will use as / in the namespace */
   if (mount ("tmpfs", base_path, "tmpfs", MS_NODEV | MS_NOSUID, NULL) != 0)
-    die_with_error ("Failed to mount tmpfs");
+    die_with_mount_error ("Failed to mount tmpfs");
 
   old_cwd = get_current_dir_name ();
 
@@ -3083,7 +3083,7 @@ main (int    argc,
     die_with_error ("Creating newroot failed");
 
   if (mount ("newroot", "newroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
-    die_with_error ("setting up newroot bind");
+    die_with_mount_error ("setting up newroot bind");
 
   if (mkdir ("oldroot", 0755))
     die_with_error ("Creating oldroot failed");
@@ -3149,7 +3149,7 @@ main (int    argc,
 
   /* The old root better be rprivate or we will send unmount events to the parent namespace */
   if (mount ("oldroot", "oldroot", NULL, MS_SILENT | MS_REC | MS_PRIVATE, NULL) != 0)
-    die_with_error ("Failed to make old root rprivate");
+    die_with_mount_error ("Failed to make old root rprivate");
 
   if (umount2 ("oldroot", MNT_DETACH))
     die_with_error ("unmount old root");

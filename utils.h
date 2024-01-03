@@ -56,6 +56,8 @@ void  warn (const char *format,
             ...) __attribute__((format (printf, 1, 2)));
 void  die_with_error (const char *format,
                       ...) __attribute__((__noreturn__)) __attribute__((format (printf, 1, 2)));
+void  die_with_mount_error (const char *format,
+                            ...) __attribute__((__noreturn__)) __attribute__((format (printf, 1, 2)));
 void  die (const char *format,
            ...) __attribute__((__noreturn__)) __attribute__((format (printf, 1, 2)));
 void  die_oom (void) __attribute__((__noreturn__));
@@ -133,6 +135,8 @@ char *label_mount (const char *opt,
                    const char *mount_label);
 int   label_exec (const char *exec_label);
 int   label_create_file (const char *file_label);
+
+const char *mount_strerror (int errsv);
 
 static inline void
 cleanup_freep (void *p)
