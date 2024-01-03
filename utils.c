@@ -33,10 +33,16 @@
 #endif
 
 __attribute__((format(printf, 1, 0))) static void
-warnv (const char *format, va_list args)
+warnv (const char *format,
+       va_list args,
+       const char *detail)
 {
   fprintf (stderr, "bwrap: ");
   vfprintf (stderr, format, args);
+
+  if (detail != NULL)
+    fprintf (stderr, ": %s", detail);
+
   fprintf (stderr, "\n");
 }
 
@@ -46,7 +52,7 @@ warn (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args);
+  warnv (format, args, NULL);
   va_end (args);
 }
 
@@ -58,13 +64,9 @@ die_with_error (const char *format, ...)
 
   errsv = errno;
 
-  fprintf (stderr, "bwrap: ");
-
   va_start (args, format);
-  vfprintf (stderr, format, args);
+  warnv (format, args, strerror (errsv));
   va_end (args);
-
-  fprintf (stderr, ": %s\n", strerror (errsv));
 
   exit (1);
 }
@@ -75,7 +77,7 @@ die (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args);
+  warnv (format, args, NULL);
   va_end (args);
 
   exit (1);
