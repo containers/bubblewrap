@@ -323,6 +323,8 @@
       <term><option>--dir <arg choice="plain">DEST</arg></option></term>
       <listitem>
         <para>Create a directory at <arg choice="plain">DEST</arg>.</para>
+        <para>Note that if <arg choice="plain">DEST</arg> is visible outside
+          of the created mount namespace, the effect is permanent.</para>
         <para>If the directory already exists, its permissions are unmodified,
           ignoring <option>--perms</option> (use <option>--chmod</option>
           if the permissions of an existing directory need to be changed).
@@ -336,6 +338,10 @@
       <listitem>
         <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
           <arg choice="plain">DEST</arg>.</para>
+        <para>If <arg choice="plain">DEST</arg> already exists, it will be overwritten.
+          Unlike <option>--bind-data</option>, if <arg choice="plain">DEST</arg> or
+          a parent directory is a bind-mount from outside the sandbox,
+          this may overwrite an existing file outside the sandbox.</para>
         <para>If the previous option was <option>--perms</option>, it sets the
           mode of the new file. Otherwise, the file has mode 0666
           (note that this is not the same as <option>--bind-data</option>).</para>
@@ -364,7 +370,11 @@
     </varlistentry>
     <varlistentry>
       <term><option>--symlink <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Create a symlink at <arg choice="plain">DEST</arg> with target <arg choice="plain">SRC</arg></para></listitem>
+      <listitem>
+        <para>Create a symlink at <arg choice="plain">DEST</arg> with target <arg choice="plain">SRC</arg></para>
+        <para>Note that if <arg choice="plain">DEST</arg> is visible outside
+          of the created mount namespace, the effect is permanent.</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--chmod <arg choice="plain">OCTAL</arg> <arg choice="plain">PATH</arg></option></term>
@@ -373,6 +383,8 @@
           Set the permissions of <arg choice="plain">PATH</arg>, which
           must already exist, to <arg choice="plain">OCTAL</arg>.
         </para>
+        <para>Note that if <arg choice="plain">DEST</arg> is visible outside
+          of the created mount namespace, the effect is permanent.</para>
       </listitem>
     </varlistentry>
   </variablelist>
