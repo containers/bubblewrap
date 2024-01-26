@@ -308,8 +308,8 @@
     <varlistentry>
       <term><option>--tmpfs <arg choice="plain">DEST</arg></option></term>
       <listitem>
-        <para>Mount new tmpfs on <arg choice="plain">DEST</arg>.
-          If the previous option was <option>--perms</option>, it sets the
+        <para>Mount new tmpfs on <arg choice="plain">DEST</arg>.</para>
+        <para>If the previous option was <option>--perms</option>, it sets the
           mode of the tmpfs. Otherwise, the tmpfs has mode 0755.
           If the previous option was <option>--size</option>, it sets the
           size in bytes of the tmpfs. Otherwise, the tmpfs has the default size.</para>
@@ -322,8 +322,8 @@
     <varlistentry>
       <term><option>--dir <arg choice="plain">DEST</arg></option></term>
       <listitem>
-        <para>Create a directory at <arg choice="plain">DEST</arg>.
-          If the directory already exists, its permissions are unmodified,
+        <para>Create a directory at <arg choice="plain">DEST</arg>.</para>
+        <para>If the directory already exists, its permissions are unmodified,
           ignoring <option>--perms</option> (use <option>--chmod</option>
           if the permissions of an existing directory need to be changed).
           If the directory is newly created and the previous option was
@@ -335,8 +335,8 @@
       <term><option>--file <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
       <listitem>
         <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
-          <arg choice="plain">DEST</arg>.
-          If the previous option was <option>--perms</option>, it sets the
+          <arg choice="plain">DEST</arg>.</para>
+        <para>If the previous option was <option>--perms</option>, it sets the
           mode of the new file. Otherwise, the file has mode 0666
           (note that this is not the same as <option>--bind-data</option>).</para>
       </listitem>
@@ -345,8 +345,8 @@
       <term><option>--bind-data <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
       <listitem>
         <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
-          a file which is bind-mounted on <arg choice="plain">DEST</arg>.
-          If the previous option was <option>--perms</option>, it sets the
+          a file which is bind-mounted on <arg choice="plain">DEST</arg>.</para>
+        <para>If the previous option was <option>--perms</option>, it sets the
           mode of the new file. Otherwise, the file has mode 0600
           (note that this is not the same as <option>--file</option>).</para>
       </listitem>
@@ -356,8 +356,8 @@
       <listitem>
         <para>Copy from the file descriptor <arg choice="plain">FD</arg> to
           a file which is bind-mounted read-only on
-          <arg choice="plain">DEST</arg>.
-          If the previous option was <option>--perms</option>, it sets the
+          <arg choice="plain">DEST</arg>.</para>
+        <para>If the previous option was <option>--perms</option>, it sets the
           mode of the new file. Otherwise, the file has mode 0600
           (note that this is not the same as <option>--file</option>).</para>
       </listitem>
