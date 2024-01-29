@@ -33,10 +33,16 @@
 #endif
 
 __attribute__((format(printf, 1, 0))) static void
-warnv (const char *format, va_list args)
+warnv (const char *format,
+       va_list args,
+       const char *detail)
 {
   fprintf (stderr, "bwrap: ");
   vfprintf (stderr, format, args);
+
+  if (detail != NULL)
+    fprintf (stderr, ": %s", detail);
+
   fprintf (stderr, "\n");
 }
 
@@ -46,7 +52,7 @@ warn (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args);
+  warnv (format, args, NULL);
   va_end (args);
 }
 
@@ -58,13 +64,24 @@ die_with_error (const char *format, ...)
 
   errsv = errno;
 
-  fprintf (stderr, "bwrap: ");
-
   va_start (args, format);
-  vfprintf (stderr, format, args);
+  warnv (format, args, strerror (errsv));
   va_end (args);
 
-  fprintf (stderr, ": %s\n", strerror (errsv));
+  exit (1);
+}
+
+void
+die_with_mount_error (const char *format, ...)
+{
+  va_list args;
+  int errsv;
+
+  errsv = errno;
+
+  va_start (args, format);
+  warnv (format, args, mount_strerror (errsv));
+  va_end (args);
 
   exit (1);
 }
@@ -75,7 +92,7 @@ die (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args);
+  warnv (format, args, NULL);
   va_end (args);
 
   exit (1);
@@ -890,4 +907,25 @@ label_exec (UNUSED const char *exec_label)
     return setexeccon (exec_label);
 #endif
   return 0;
+}
+
+/*
+ * Like strerror(), but specialized for a failed mount(2) call.
+ */
+const char *
+mount_strerror (int errsv)
+{
+  switch (errsv)
+    {
+      case ENOSPC:
+        /* "No space left on device" misleads users into thinking there
+         * is some sort of disk-space problem, but mount(2) uses that
+         * errno value to mean something more like "limit exceeded". */
+        return ("Limit exceeded (ENOSPC). "
+                "(Hint: Check that /proc/sys/fs/mount-max is sufficient, "
+                "typically 100000)");
+
+      default:
+        return strerror (errsv);
+    }
 }
