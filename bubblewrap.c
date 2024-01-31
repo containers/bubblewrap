@@ -1468,7 +1468,25 @@ setup_newroot (bool unshare_pid,
         case SETUP_MAKE_SYMLINK:
           assert (op->source != NULL);  /* guaranteed by the constructor */
           if (symlink (op->source, dest) != 0)
-            die_with_error ("Can't make symlink at %s", op->dest);
+            {
+              if (errno == EEXIST)
+                {
+                  cleanup_free char *existing = readlink_malloc (dest);
+                  if (existing == NULL)
+                    {
+                      if (errno == EINVAL)
+                        die ("Can't make symlink at %s: destination exists and is not a symlink", op->dest);
+                      else
+                        die_with_error ("Can't make symlink at %s: destination exists, and cannot read symlink target", op->dest);
+                    }
+
+                  if (strcmp (existing, op->source) == 0)
+                    break;
+
+                  die ("Can't make symlink at %s: existing destination is %s", op->dest, existing);
+                }
+              die_with_error ("Can't make symlink at %s", op->dest);
+            }
           break;
 
         case SETUP_SET_HOSTNAME:
