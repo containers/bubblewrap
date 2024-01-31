@@ -364,7 +364,16 @@
     </varlistentry>
     <varlistentry>
       <term><option>--symlink <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Create a symlink at <arg choice="plain">DEST</arg> with target <arg choice="plain">SRC</arg></para></listitem>
+      <listitem>
+        <para>Create a symlink at <arg choice="plain">DEST</arg> with target
+          <arg choice="plain">SRC</arg>.</para>
+        <para>Since version 0.9.0, it is not considered to be an error if
+          <arg choice="plain">DEST</arg> already exists as a symbolic link and its
+          target is exactly <arg choice="plain">SRC</arg>.</para>
+        <para>Before version 0.9.0, if <arg choice="plain">DEST</arg> already
+          existed, this would be treated as an error (even if its target
+          was identical to <arg choice="plain">SRC</arg>).</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--chmod <arg choice="plain">OCTAL</arg> <arg choice="plain">PATH</arg></option></term>
