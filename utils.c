@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include "utils.h"
+#include <stdint.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
 #ifdef HAVE_SELINUX
@@ -594,6 +595,12 @@ load_file_data (int     fd,
     {
       if (data_len == data_read + 1)
         {
+          if (data_len > SIZE_MAX / 2)
+            {
+              errno = EFBIG;
+              return NULL;
+            }
+
           data_len *= 2;
           data = xrealloc (data, data_len);
         }
@@ -820,6 +827,8 @@ readlink_malloc (const char *pathname)
 
   do
     {
+      if (size > SIZE_MAX / 2)
+        die ("Symbolic link target pathname too long");
       size *= 2;
       value = xrealloc (value, size);
       n = readlink (pathname, value, size - 1);
