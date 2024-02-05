@@ -384,7 +384,7 @@ handle_die_with_parent (void)
 }
 
 static void
-gate_signals (int action, sigset_t *prevmask) // here
+gate_signals (int action, sigset_t *prevmask)
 {
   sigset_t mask;
 
@@ -982,7 +982,7 @@ get_newroot_path (const char *path)
   return strconcat ("/newroot/", path);
 }
 
-static void   //fix for uid maps range, instead of single will come here | but that's for later...
+static void
 write_uid_gid_map (uid_t sandbox_uid,
                    uid_t parent_uid,
                    uid_t sandbox_gid,
