@@ -76,6 +76,21 @@ for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare
     ok "can bind a destination over a symlink"
 done
 
+# Test symlink behaviour
+rm -f ./symlink
+$RUN --ro-bind / / --bind "$(pwd)" "$(pwd)" --symlink /dev/null "$(pwd)/symlink" true >&2
+readlink ./symlink > target.txt
+assert_file_has_content target.txt /dev/null
+ok "--symlink works"
+$RUN --ro-bind / / --bind "$(pwd)" "$(pwd)" --symlink /dev/null "$(pwd)/symlink" true >&2
+ok "--symlink is idempotent"
+if $RUN --ro-bind / / --bind "$(pwd)" "$(pwd)" --symlink /dev/full "$(pwd)/symlink" true 2>err.txt; then
+    fatal "creating a conflicting symlink should have failed"
+else
+    assert_file_has_content err.txt "Can't make symlink .*: existing destination is /dev/null"
+fi
+ok "--symlink doesn't overwrite a conflicting symlink"
+
 # Test devices
 $RUN --unshare-pid --dev /dev ls -al /dev/{stdin,stdout,stderr,null,random,urandom,fd,core} >/dev/null
 ok "all expected devices were created"
