@@ -383,23 +383,30 @@ handle_die_with_parent (void)
     die_with_error ("prctl");
 }
 
+static int forwarded_signals[] =
+{
+  SIGINT,
+  SIGTERM,
+  SIGCONT,
+  SIGHUP,
+  SIGQUIT,
+  SIGUSR1,
+  SIGUSR2,
+  SIGWINCH,
+};
+
 static void
-gate_signals (int action, sigset_t *prevmask)
+block_forwarded_signals (sigset_t *prevmask)
 {
   sigset_t mask;
-
-  /* When unblocking, only restore if not previously blocked. */
+  size_t i;
 
   sigemptyset (&mask);
 
-  if (action == SIG_BLOCK || !sigismember (prevmask, SIGINT))
-    sigaddset (&mask, SIGINT);
-
-  if (action == SIG_BLOCK || !sigismember (prevmask, SIGTERM))
-    sigaddset (&mask, SIGTERM);
-
-  if (sigprocmask (action, &mask, prevmask) == -1)
-    die_with_error ("sigprocmask");
+  for (i = 0; i < N_ELEMENTS (forwarded_signals); i++)
+  {
+      sigaddset (&mask, forwarded_signals[i]);
+  }
 }
 
 static void
@@ -523,6 +530,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   int exitc;
   pid_t died_pid;
   int died_status;
+  size_t i;
 
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
@@ -537,8 +545,11 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
-  sigaddset (&mask, SIGINT);
-  sigaddset (&mask, SIGTERM);
+
+  for (i = 0; i < N_ELEMENTS(forwarded_signals); i++)
+  {
+    sigaddset(&mask, forwarded_signals[i]);
+  }
 
   signal_fd = signalfd (-1, &mask, SFD_CLOEXEC | SFD_NONBLOCK);
   if (signal_fd == -1)
@@ -2706,7 +2717,8 @@ main (int    argc,
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
   const char *exec_path = NULL;
-  sigset_t sigmask;
+  sigset_t sigmask_before_forwarding;
+  sigemptyset (&sigmask_before_forwarding);
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2882,7 +2894,7 @@ main (int    argc,
 
   /* We block other signals here to avoid leaving an orphan. */
   if (opt_forward_signals)
-    gate_signals (SIG_BLOCK, &sigmask);
+    block_forwarded_signals (&sigmask_before_forwarding);
 
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
@@ -3034,9 +3046,12 @@ main (int    argc,
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
 
-  /* Unblock other signals here to receive signals from the parent. */
+  /* Restore the state of sigmask from before the blocking. */
   if (opt_forward_signals)
-    gate_signals (SIG_UNBLOCK, &sigmask);
+  {
+    if (sigprocmask (SIG_SETMASK, &sigmask_before_forwarding, NULL) != 0)
+      die_with_error ("sigprocmask");
+  }
 
   if (opt_pidns_fd > 0)
     {
