@@ -213,7 +213,7 @@ static Type *last_ ## name = NULL; \
 static inline Type * \
 _ ## name ## _append_new (void) \
 { \
-  Type *self = xcalloc (sizeof (Type)); \
+  Type *self = xcalloc (1, sizeof (Type)); \
 \
   if (last_ ## name != NULL) \
     last_ ## name ->next = self; \
@@ -1720,7 +1720,7 @@ parse_args_recurse (int          *argcp,
                 p++;
             }
 
-          data_argv = xcalloc (sizeof (char *) * (data_argc + 1));
+          data_argv = xcalloc (data_argc + 1, sizeof (char *));
 
           i = 0;
           p = opt_args_data;
