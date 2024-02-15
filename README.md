@@ -68,6 +68,9 @@ or an ad-hoc script) is responsible for defining its own security model,
 and choosing appropriate bubblewrap command-line arguments to implement
 that security model.
 
+Some aspects of sandbox security that require particular care are described
+in the [Limitations](#limitations) section below.
+
 Users
 -----
 
@@ -167,10 +170,34 @@ UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox wi
 
 Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
 
-If you are not filtering out `TIOCSTI` commands using seccomp filters,
+Limitations
+-----------
+
+As noted in the [Sandbox security](#sandbox-security) section above,
+the level of protection between the sandboxed processes and the host system
+is entirely determined by the arguments passed to bubblewrap.
+Some aspects that require special care are noted here.
+
+- If you are not filtering out `TIOCSTI` commands using seccomp filters,
 argument `--new-session` is needed to protect against out-of-sandbox
 command execution
 (see [CVE-2017-5226](https://github.com/containers/bubblewrap/issues/142)).
+
+- Everything mounted into the sandbox can potentially be used to escalate
+privileges.
+For example, if you bind a D-Bus socket into the sandbox, it can be used to
+execute commands via systemd. You can use
+[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) to filter
+D-Bus communication.
+
+- Some applications deploy their own sandboxing mechanisms, and these can be
+restricted by the constraints imposed by bubblewrap's sandboxing.
+For example, some web browsers which configure their child proccesses via
+seccomp to not have access to the filesystem. If you limit the syscalls and
+don't allow the seccomp syscall, a browser cannot apply these restrictions.
+Similarly, if these rules were compiled into a file that is not available in
+the sandbox, the browser cannot load these rules from this file and cannot
+apply these restrictions.
 
 Related project comparison: Firejail
 ------------------------------------
