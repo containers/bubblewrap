@@ -145,7 +145,7 @@ jobs:
           - cpp
     steps:
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v1
+      uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
     - name: Check out
@@ -164,4 +164,4 @@ jobs:
     - name: make
       run: make -j $(getconf _NPROCESSORS_ONLN) V=1
     - name: CodeQL analysis
-      uses: github/codeql-action/analyze@v1
+      uses: github/codeql-action/analyze@v2
