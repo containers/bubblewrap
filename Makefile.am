@@ -51,7 +51,7 @@ test_extra_programs = \
 	tests/try-syscall \
 	$(NULL)
 
-test-bwrap: bwrap
+test-bwrap$(EXEEXT): bwrap
 	rm -rf test-bwrap
 	cp bwrap test-bwrap
 	chmod 0755 test-bwrap
