@@ -4,7 +4,7 @@ bubblewrap release checklist
 * Collect release notes
 * Update version number in `configure.ac` **and** `meson.build`
 * Commit the changes
-* `make distcheck`
+* `meson dist -C ${builddir}`
 * Do any final smoke-testing, e.g. update a package, install and test it
 * `git evtag sign v$VERSION`
     * Include the release notes in the tag message
@@ -13,6 +13,6 @@ bubblewrap release checklist
     * Fill in the new version's tag in the "Tag version" box
     * Title: `$VERSION`
     * Copy the release notes into the description
-    * Upload the tarball that you built with `make distcheck`
+    * Upload the tarball that you built with `meson dist`
     * Get the `sha256sum` of the tarball and append it to the description
     * `Publish release`
