@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include "utils.h"
+#include <limits.h>
 #include <stdint.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
@@ -599,7 +600,7 @@ load_file_data (int     fd,
     {
       if (data_len == data_read + 1)
         {
-          if (data_len > SIZE_MAX / 2)
+          if (data_len > SSIZE_MAX / 2)
             {
               errno = EFBIG;
               return NULL;
