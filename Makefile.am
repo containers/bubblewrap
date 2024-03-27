@@ -99,4 +99,5 @@ endif
 
 AM_DISTCHECK_CONFIGURE_FLAGS =		\
 	--with-bash-completion-dir="\$(datadir)"/bash-completion/ \
+	--disable-dependency-tracking \
 	$(NULL)
