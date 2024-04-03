@@ -56,8 +56,6 @@ done
 if dpkg-vendor --derives-from Debian; then
     apt-get -y update
     apt-get -q -y install \
-        autoconf \
-        automake \
         build-essential \
         docbook-xml \
         docbook-xsl \
@@ -81,8 +79,6 @@ if command -v yum; then
     yum -y install \
         'pkgconfig(libselinux)' \
         /usr/bin/eu-readelf \
-        autoconf \
-        automake \
         docbook-style-xsl \
         gcc \
         git \
