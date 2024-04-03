@@ -92,23 +92,13 @@ Installation
 bubblewrap is available in the package repositories of the most Linux distributions
 and can be installed from there.
 
-If you need to build bubblewrap from source, you can do this with meson or autotools.
+If you need to build bubblewrap from source, you can do this with meson:
 
-meson:
-
-```
+```sh
 meson _builddir
 meson compile -C _builddir
 meson test -C _builddir
 meson install -C _builddir
-```
-
-autotools:
-
-```
-./autogen.sh
-make
-sudo make install
 ```
 
 Usage
