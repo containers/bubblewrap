@@ -1293,6 +1293,8 @@ setup_newroot (bool unshare_pid,
                 multi_src = TRUE;
               }
 
+            strappend (&sb, ",userxattr");
+
             privileged_op (privileged_op_socket,
                            PRIV_SEP_OP_OVERLAY_MOUNT, 0, 0, 0, sb.str, dest);
             free (sb.str);

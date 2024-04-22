@@ -579,7 +579,7 @@ else
     printf 4 > upper/a
 
     # Check if unprivileged overlayfs is available
-    if ! unshare -rm mount -t overlay -o lowerdir=lower1,upperdir=upper,workdir=work overlay lower2; then
+    if ! unshare -rm mount -t overlay -o lowerdir=lower1,upperdir=upper,workdir=work,userxattr overlay lower2; then
         ok_skip "no kernel support for unprivileged overlayfs"
         ok_skip "no kernel support for unprivileged overlayfs"
         ok_skip "no kernel support for unprivileged overlayfs"
