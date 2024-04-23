@@ -1168,8 +1168,8 @@ privileged_op (int         privileged_op_socket,
             die ("Can't make overlay mount on %s with options %s: "
                 "Overlay directories may not overlap",
                 arg2, arg1);
-          die_with_error ("Can't make overlay mount on %s with options %s",
-                          arg2, arg1);
+          die_with_mount_error ("Can't make overlay mount on %s with options %s",
+                                arg2, arg1);
         }
       break;
 
