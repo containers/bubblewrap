@@ -23,6 +23,7 @@
 
 #include "utils.h"
 #include "bind-mount.h"
+#include "data-structures/destinations-graph.h"
 
 static char *
 skip_token (char *line, bool eat_whitespace)
@@ -51,9 +52,9 @@ unescape_inline (char *escaped)
       if (*escaped == '\\')
         {
           *unescaped++ =
-            ((escaped[1] - '0') << 6) |
-            ((escaped[2] - '0') << 3) |
-            ((escaped[3] - '0') << 0);
+              ((escaped[1] - '0') << 6) |
+              ((escaped[2] - '0') << 3) |
+              ((escaped[3] - '0') << 0);
           escaped += 4;
         }
       else
@@ -85,18 +86,19 @@ decode_mountoptions (const char *options)
   const char *token, *end_token;
   int i;
   unsigned long flags = 0;
-  static const struct  { int   flag;
-                         const char *name;
+  static const struct {
+      int flag;
+      const char *name;
   } flags_data[] = {
-    { 0, "rw" },
-    { MS_RDONLY, "ro" },
-    { MS_NOSUID, "nosuid" },
-    { MS_NODEV, "nodev" },
-    { MS_NOEXEC, "noexec" },
-    { MS_NOATIME, "noatime" },
-    { MS_NODIRATIME, "nodiratime" },
-    { MS_RELATIME, "relatime" },
-    { 0, NULL }
+      {0,             "rw"},
+      {MS_RDONLY,     "ro"},
+      {MS_NOSUID,     "nosuid"},
+      {MS_NODEV,      "nodev"},
+      {MS_NOEXEC,     "noexec"},
+      {MS_NOATIME,    "noatime"},
+      {MS_NODIRATIME, "nodiratime"},
+      {MS_RELATIME,   "relatime"},
+      {0, NULL}
   };
 
   token = options;
@@ -125,14 +127,6 @@ decode_mountoptions (const char *options)
   return flags;
 }
 
-typedef struct MountInfo MountInfo;
-struct MountInfo {
-  char *mountpoint;
-  unsigned long options;
-};
-
-typedef MountInfo *MountTab;
-
 static void
 mount_tab_free (MountTab tab)
 {
@@ -149,20 +143,20 @@ cleanup_mount_tabp (void *p)
   void **pp = (void **) p;
 
   if (*pp)
-    mount_tab_free ((MountTab)*pp);
+    mount_tab_free ((MountTab) *pp);
 }
 
 #define cleanup_mount_tab __attribute__((cleanup (cleanup_mount_tabp)))
 
 typedef struct MountInfoLine MountInfoLine;
 struct MountInfoLine {
-  const char *mountpoint;
-  const char *options;
-  bool covered;
-  int id;
-  int parent_id;
-  MountInfoLine *first_child;
-  MountInfoLine *next_sibling;
+    const char *mountpoint;
+    const char *options;
+    bool covered;
+    int id;
+    int parent_id;
+    MountInfoLine *first_child;
+    MountInfoLine *next_sibling;
 };
 
 static unsigned int
@@ -179,7 +173,7 @@ count_lines (const char *data)
     }
 
   /* If missing final newline, add one */
-  if (p > data && *(p-1) != '\n')
+  if (p > data && *(p - 1) != '\n')
     count++;
 
   return count;
@@ -213,7 +207,7 @@ collect_mounts (MountInfo *info, MountInfoLine *line)
     {
       info->mountpoint = xstrdup (line->mountpoint);
       info->options = decode_mountoptions (line->options);
-      info ++;
+      info++;
     }
 
   child = line->first_child;
@@ -227,7 +221,7 @@ collect_mounts (MountInfo *info, MountInfoLine *line)
 }
 
 static MountTab
-parse_mountinfo (int  proc_fd,
+parse_mountinfo (int proc_fd,
                  const char *root_mount)
 {
   cleanup_free char *mountinfo = NULL;
@@ -314,7 +308,7 @@ parse_mountinfo (int  proc_fd,
       return steal_pointer (&mount_tab);
     }
 
-  by_id = xcalloc (max_id + 1, sizeof (MountInfoLine*));
+  by_id = xcalloc (max_id + 1, sizeof (MountInfoLine *));
   for (i = 0; i < n_lines; i++)
     by_id[lines[i].id] = &lines[i];
 
@@ -360,7 +354,7 @@ parse_mountinfo (int  proc_fd,
         }
 
       if (covered)
-          continue;
+        continue;
 
       *to_sibling = this;
     }
@@ -375,11 +369,182 @@ parse_mountinfo (int  proc_fd,
 }
 
 bind_mount_result
-bind_mount (int           proc_fd,
-            const char   *src,
-            const char   *dest,
+retrieve_kernel_case (int proc_fd, char *dest, char **result, char **failing_path);
+
+bind_mount_result
+retrieve_kernel_case (int proc_fd, char *dest, char **result, char **failing_path)
+{
+  unsigned long current_flags, new_flags;
+  cleanup_mount_tab MountTab mount_tab = NULL;
+  cleanup_free char *resolved_dest = NULL;
+  cleanup_free char *dest_proc = NULL;
+  cleanup_free char *oldroot_dest_proc = NULL;
+  cleanup_free char *kernel_case_combination = NULL;
+  cleanup_fd int dest_fd = -1;
+  int i;
+
+  // The mount operation will resolve any symlinks in the destination
+  // path, so to find it in the mount table we need to do that too.
+
+  resolved_dest = realpath (dest, NULL);
+  if (resolved_dest == NULL)
+    return BIND_MOUNT_ERROR_REALPATH_DEST;
+
+  dest_fd = open (resolved_dest, O_PATH | O_CLOEXEC);
+  if (dest_fd < 0)
+    {
+      if (failing_path != NULL)
+        *failing_path = steal_pointer (&resolved_dest);
+
+      return BIND_MOUNT_ERROR_REOPEN_DEST;
+    }
+
+  /* If we are in a case-insensitive filesystem, mountinfo might contain a
+   * different case combination of the path we requested to mount.
+   * This is due to the fact that the kernel, as of the beginning of 2021,
+   * populates mountinfo with whatever case combination first appeared in the
+   * dcache; kernel developers plan to change this in future so that it
+   * reflects the on-disk encoding instead.
+   * To avoid throwing an error when this happens, we use readlink() result
+   * instead of the provided @root_mount, so that we can compare the mountinfo
+   * entries with the same case combination that the kernel is expected to
+   * use. */
+
+  dest_proc = xasprintf ("/proc/self/fd/%d", dest_fd);
+  oldroot_dest_proc = get_oldroot_path (dest_proc);
+
+  kernel_case_combination = readlink_malloc (oldroot_dest_proc);
+
+  if (kernel_case_combination == NULL)
+    {
+      if (failing_path != NULL)
+        *failing_path = steal_pointer (&resolved_dest);
+
+      return BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD;
+    }
+
+  *result = steal_pointer(&kernel_case_combination);
+  return BIND_MOUNT_SUCCESS;
+}
+
+bind_mount_result
+bind_mount_fixup (int proc_fd, BindOp *bind_ops, size_t bind_ops_quantity, char **failing_path)
+{
+  DestinationsGraph *graph;
+  cleanup_mount_tab MountTab mount_tab;
+  DestinationsGraph_Node **mount_points = malloc (bind_ops_quantity * sizeof (DestinationsGraph_Node *));
+  BindOp *bop;
+  size_t current;
+
+  // Bind_mount_fixup calls after all bind mount operations executed
+  // Now we only collect all information about actual mounts to the graph
+
+  graph = DestinationsGraph_create ();
+  mount_tab = parse_mountinfo (proc_fd, "/newroot");
+
+  for (int i = 0; mount_tab[i].mountpoint != NULL; i++)
+    {
+      //printf ("Mountinfo: %s\n", mount_tab[i].mountpoint);
+      DestinationsGraph_ensure_mount_point (graph, &mount_tab[i].mountpoint, NULL);
+    }
+
+  // Here we go through all bind operations and collect list of actual graph nodes
+  // that correspond these bind operations.
+  // And the same time we lazy propagate flags.
+
+  DestinationsGraph_Flags_init (graph);
+
+  for (bop = bind_ops, current = 0; bop != NULL; bop = bop->next, current++)
+    {
+      // Retrieve real path after mounting
+
+      char *kernel_case;
+      bind_mount_result result = retrieve_kernel_case (bop->fd, bop->dest, &kernel_case, failing_path);
+
+      if (result != BIND_MOUNT_SUCCESS)
+        return result;
+
+      // Get corresponding destinations graph node
+      // It's important that here we really shouldn't retrieve any points we haven't mounted before
+      // In the case we have some problems :)
+
+      bool added = FALSE;
+      mount_points[current] = DestinationsGraph_ensure_mount_point (graph, &kernel_case, &added);
+
+      //printf("BindOp: %s [%d]", kernel_case, bop->options);
+      //if(added)
+      //  printf (" (ADDED)");
+      //printf("\n");
+      //printf ("%s\n", kernel_case);
+
+      assert(added == FALSE);
+
+      // Lazy propagate flags specified in bind operation
+
+      bool readonly = (bop->options & BIND_READONLY) != 0;
+      bool devices = (bop->options & BIND_DEVICES) != 0;
+
+      if (readonly)
+        DestinationsGraph_Flags_set_readonly (graph, mount_points[current]);
+
+      if (!readonly)
+        DestinationsGraph_Flags_unset_readonly (graph, mount_points[current]);
+
+      if (!devices)
+        DestinationsGraph_Flags_set_nodev (graph, mount_points[current]);
+
+      if (devices)
+        DestinationsGraph_Flags_unset_nodev (graph, mount_points[current]);
+
+
+//      printf ("Kernel case: %s\n", kernel_case);
+    }
+
+  //DestinationsGraph_debug_pretty_print (graph, stdout);
+
+  for (int i = 0; mount_tab[i].mountpoint != NULL; i++)
+    {
+      char *mount_point = mount_tab[i].mountpoint;
+
+      bool added = FALSE;
+      DestinationsGraph_Node *node = DestinationsGraph_ensure_mount_point (graph, &mount_point, &added);
+      assert(added == FALSE);
+
+      bool readonly = DestinationsGraph_Flags_check_readonly (graph, node);
+      bool devices = !DestinationsGraph_Flags_check_nodev (graph, node);
+
+      unsigned long current_flags, new_flags;
+      current_flags = mount_tab[i].options;
+      new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
+
+      if (new_flags != current_flags)
+        {
+          //printf(">>> %s (readonly %d, nodev %d) (%d | %d)\n", mount_point, readonly, !devices, current_flags, new_flags);
+          int mount_result = mount ("none", mount_point, NULL,
+                                    MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL);
+
+          if (mount_result != 0 && errno != EACCES)
+            {
+              if (failing_path != NULL) *failing_path = steal_pointer (&mount_point);
+              return BIND_MOUNT_ERROR_REMOUNT_DEST;
+            }
+        }
+    }
+
+  mount_tab = parse_mountinfo (proc_fd, "/newroot");
+
+  for (int i = 0; mount_tab[i].mountpoint != NULL; i++)
+      printf ("@ Mountinfo: %s (%d)\n", mount_tab[i].mountpoint, mount_tab[i].options);
+
+  return BIND_MOUNT_SUCCESS;
+}
+
+bind_mount_result
+bind_mount (int proc_fd,
+            const char *src,
+            const char *dest,
             bind_option_t options,
-            char        **failing_path)
+            char **failing_path)
 {
   bool readonly = (options & BIND_READONLY) != 0;
   bool devices = (options & BIND_DEVICES) != 0;
@@ -505,42 +670,42 @@ bind_mount_result_to_string (bind_mount_result res,
     {
       case BIND_MOUNT_ERROR_MOUNT:
         string = xstrdup ("Unable to mount source on destination");
-        break;
+      break;
 
       case BIND_MOUNT_ERROR_REALPATH_DEST:
         string = xstrdup ("realpath(destination)");
-        break;
+      break;
 
       case BIND_MOUNT_ERROR_REOPEN_DEST:
         string = xasprintf ("open(\"%s\", O_PATH)", failing_path);
-        break;
+      break;
 
       case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
         string = xasprintf ("readlink(/proc/self/fd/N) for \"%s\"", failing_path);
-        break;
+      break;
 
       case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
         string = xasprintf ("Unable to find \"%s\" in mount table", failing_path);
-        want_errno = FALSE;
-        break;
+      want_errno = FALSE;
+      break;
 
       case BIND_MOUNT_ERROR_REMOUNT_DEST:
         string = xasprintf ("Unable to remount destination \"%s\" with correct flags",
                             failing_path);
-        break;
+      break;
 
       case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
         string = xasprintf ("Unable to apply mount flags: remount \"%s\"",
                             failing_path);
-        break;
+      break;
 
       case BIND_MOUNT_SUCCESS:
         string = xstrdup ("Success");
-        break;
+      break;
 
       default:
         string = xstrdup ("(unknown/invalid bind_mount_result)");
-        break;
+      break;
     }
 
   if (want_errno_p != NULL)
@@ -551,9 +716,9 @@ bind_mount_result_to_string (bind_mount_result res,
 
 void
 die_with_bind_result (bind_mount_result res,
-                      int               saved_errno,
-                      const char       *failing_path,
-                      const char       *format,
+                      int saved_errno,
+                      const char *failing_path,
+                      const char *format,
                       ...)
 {
   va_list args;
@@ -578,7 +743,7 @@ die_with_bind_result (bind_mount_result res,
           case BIND_MOUNT_ERROR_REMOUNT_DEST:
           case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
             fprintf (stderr, ": %s", mount_strerror (saved_errno));
-            break;
+          break;
 
           case BIND_MOUNT_ERROR_REALPATH_DEST:
           case BIND_MOUNT_ERROR_REOPEN_DEST:

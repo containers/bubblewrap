@@ -39,6 +39,39 @@ typedef enum
   BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
 } bind_mount_result;
 
+typedef struct _BindOp BindOp;
+
+struct _BindOp {
+    int fd;
+    char *source;
+    char *dest;
+    bind_option_t options;
+    BindOp* next;
+};
+
+typedef struct MountInfo MountInfo;
+struct MountInfo {
+    char *mountpoint;
+    unsigned long options;
+};
+
+typedef MountInfo *MountTab;
+
+static void
+mount_tab_free (MountTab tab);
+
+#define cleanup_mount_tab __attribute__((cleanup (cleanup_mount_tabp)))
+
+static inline void
+cleanup_mount_tabp (void *p);
+
+static MountTab
+parse_mountinfo (int  proc_fd,
+                 const char *root_mount);
+
+bind_mount_result
+bind_mount_fixup (int proc_fd, BindOp *bind_ops, size_t bind_ops_quantity, char** failing_path);
+
 bind_mount_result bind_mount (int           proc_fd,
                               const char   *src,
                               const char   *dest,
