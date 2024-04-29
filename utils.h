@@ -31,8 +31,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define DEBUG
-
 #ifdef DEBUG
 #define __debug__(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
 #else
