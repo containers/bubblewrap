@@ -21,67 +21,44 @@
 
 #include "utils.h"
 
+#include "parse-mountinfo.h"
+
+/// --------------------------------------------------------------------------------------------------------------------
+/// Type definitions
+
 typedef enum {
-  BIND_READONLY = (1 << 0),
-  BIND_DEVICES = (1 << 2),
-  BIND_RECURSIVE = (1 << 3),
+    BIND_READONLY = (1 << 0),
+    BIND_DEVICES = (1 << 2),
 } bind_option_t;
 
-typedef enum
-{
-  BIND_MOUNT_SUCCESS = 0,
-  BIND_MOUNT_ERROR_MOUNT,
-  BIND_MOUNT_ERROR_REALPATH_DEST,
-  BIND_MOUNT_ERROR_REOPEN_DEST,
-  BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
-  BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
-  BIND_MOUNT_ERROR_REMOUNT_DEST,
-  BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
+typedef enum {
+    BIND_MOUNT_SUCCESS = 0,
+    BIND_MOUNT_ERROR_MOUNT,
+    BIND_MOUNT_ERROR_REALPATH_DEST,
+    BIND_MOUNT_ERROR_REOPEN_DEST,
+    BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
+    BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
+    BIND_MOUNT_ERROR_REMOUNT,
 } bind_mount_result;
 
 typedef struct _BindOp BindOp;
 
 struct _BindOp {
-    int fd;
-    char *source;
     char *dest;
     bind_option_t options;
-    BindOp* next;
+    BindOp *next;
 };
 
-typedef struct MountInfo MountInfo;
-struct MountInfo {
-    char *mountpoint;
-    unsigned long options;
-};
-
-typedef MountInfo *MountTab;
-
-static void
-mount_tab_free (MountTab tab);
-
-#define cleanup_mount_tab __attribute__((cleanup (cleanup_mount_tabp)))
-
-static inline void
-cleanup_mount_tabp (void *p);
-
-static MountTab
-parse_mountinfo (int  proc_fd,
-                 const char *root_mount);
+/// --------------------------------------------------------------------------------------------------------------------
+/// Functions
 
 bind_mount_result
-bind_mount_fixup (int proc_fd, BindOp *bind_ops, size_t bind_ops_quantity, char** failing_path);
-
-bind_mount_result bind_mount (int           proc_fd,
-                              const char   *src,
-                              const char   *dest,
-                              bind_option_t options,
-                              char        **failing_path);
+bind_mount_fixup (int proc_fd, BindOp *bind_ops, size_t bind_ops_quantity, char **failing_path);
 
 void die_with_bind_result (bind_mount_result res,
-                           int               saved_errno,
-                           const char       *failing_path,
-                           const char       *format,
+                           int saved_errno,
+                           const char *failing_path,
+                           const char *format,
                            ...)
-  __attribute__((__noreturn__))
-  __attribute__((format (printf, 4, 5)));
+__attribute__((__noreturn__))
+__attribute__((format (printf, 4, 5)));

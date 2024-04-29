@@ -1,6 +1,31 @@
-#pragma once
-
 #include "destinations-graph.h"
+
+/// --------------------------------------------------------------------------------------------------------------------
+/// Safety
+
+void
+cleanup_destinations_graphp (void *p)
+{
+  void **pp = (void **) p;
+  if (*pp)
+    DestinationsGraph_free ((DestinationsGraph *) *pp);
+}
+
+void
+cleanup_destinations_graph_nodep (void *p)
+{
+  void **pp = (void **) p;
+  if (*pp)
+    DestinationsGraph_Node_free((DestinationsGraph_Node *) *pp);
+}
+
+void
+cleanup_destinations_graph_node_recursivep (void *p)
+{
+  void **pp = (void **) p;
+  if (*pp)
+    DestinationsGraph_Node_free_recursive ((DestinationsGraph_Node *) *pp);
+}
 
 // --------------------------------------------------------------------------------------------------------------------
 // Regular methods of DestinationsGraph
@@ -8,7 +33,7 @@
 DestinationsGraph *
 DestinationsGraph_create (void)
 {
-  DestinationsGraph *self = malloc (sizeof (DestinationsGraph));
+  DestinationsGraph *self = xcalloc(1, sizeof (DestinationsGraph));
 
   // Create initial root node.
   // It's a little special because it has no path_part.
@@ -19,7 +44,6 @@ DestinationsGraph_create (void)
   self->root = root;
   self->count_mount_points = 0;
   self->count_nodes = 1;
-  self->_euler_tour_timer = 0;
 
   return self;
 }
@@ -33,8 +57,8 @@ DestinationsGraph_free (DestinationsGraph *self)
   if (self->readonly != NULL)
     SumSegmentTree_free (self->readonly);
 
-  DestinationsGraph_Node__free_recursive__ (self->root);
-  self->_euler_tour_timer = 0;
+  if(self->root != NULL)
+    DestinationsGraph_Node_free_recursive (self->root);
 
   free(self);
 }
@@ -45,7 +69,7 @@ DestinationsGraph_ensure_mount_point (DestinationsGraph *self, char **destinatio
   // We duplicate given destination_path because next
   // we will split it by "/" with strtok function.
   // We don'value want to corrupt original data
-  char *destination_path_dup = strdup (*destination_path);
+  char *destination_path_dup = xstrdup (*destination_path);
 
   // Start with root
   DestinationsGraph_Node *current = self->root;
@@ -64,7 +88,7 @@ DestinationsGraph_ensure_mount_point (DestinationsGraph *self, char **destinatio
       if (next == NULL)
         {
           DestinationsGraph_Node *new_node = DestinationsGraph_Node_create ();
-          new_node->path_part = strdup (next_path_part);
+          new_node->path_part = xstrdup (next_path_part);
 
           DestinationsLinkedList_push_back (current->children, new_node);
           self->count_nodes++;
@@ -92,8 +116,8 @@ DestinationsGraph_ensure_mount_point (DestinationsGraph *self, char **destinatio
 void
 DestinationsGraph__euler_tour__ (DestinationsGraph *self)
 {
-  self->_euler_tour_timer = 0;
-  DestinationsGraph_Node__euler_tour__ (self, self->root);
+  size_t euler_tour_timer = 0;
+  DestinationsGraph_Node__euler_tour__ (self->root, &euler_tour_timer);
 }
 
 void
@@ -116,33 +140,23 @@ DestinationsGraph_Flags_init (DestinationsGraph *self)
 }
 
 void
-DestinationsGraph_Flags__set_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node)
+DestinationsGraph_Flags__set_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node, bool value)
 {
-  SumSegmentTree_modify (segment_tree, node->euler_tour_start, node->euler_tour_end, 1);
-}
-
-void
-DestinationsGraph_Flags__unset_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node)
-{
-  SumSegmentTree_modify (segment_tree, node->euler_tour_start, node->euler_tour_end, 0);
+  SumSegmentTree_modify (segment_tree, node->euler_tour_start, node->euler_tour_end, value ? 1 : 0);
 }
 
 bool
 DestinationsGraph_Flags__check_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node)
 {
-  return SumSegmentTree_query (segment_tree, node->euler_tour_start);
+  // For real we CAN convert euler_tour_start to the int.
+  // Although it's size_t, it will never be THAT big.
+  return SumSegmentTree_query (segment_tree, (int)node->euler_tour_start);
 }
 
 void
-DestinationsGraph_Flags_set_readonly (DestinationsGraph *self, DestinationsGraph_Node *node)
+DestinationsGraph_Flags_set_readonly (DestinationsGraph *self, DestinationsGraph_Node *node, bool value)
 {
-  DestinationsGraph_Flags__set_flag__ (self->readonly, node);
-}
-
-void
-DestinationsGraph_Flags_unset_readonly (DestinationsGraph *self, DestinationsGraph_Node *node)
-{
-  DestinationsGraph_Flags__unset_flag__ (self->readonly, node);
+  DestinationsGraph_Flags__set_flag__ (self->readonly, node, value);
 }
 
 bool
@@ -152,15 +166,9 @@ DestinationsGraph_Flags_check_readonly (DestinationsGraph *self, DestinationsGra
 }
 
 void
-DestinationsGraph_Flags_set_nodev (DestinationsGraph *self, DestinationsGraph_Node *node)
+DestinationsGraph_Flags_set_nodev (DestinationsGraph *self, DestinationsGraph_Node *node, bool value)
 {
-  DestinationsGraph_Flags__set_flag__ (self->nodev, node);
-}
-
-void
-DestinationsGraph_Flags_unset_nodev (DestinationsGraph *self, DestinationsGraph_Node *node)
-{
-  DestinationsGraph_Flags__unset_flag__ (self->nodev, node);
+  DestinationsGraph_Flags__set_flag__ (self->nodev, node, value);
 }
 
 bool

@@ -24,8 +24,8 @@ struct _DestinationsGraph_Node {
 
     DestinationsLinkedList *children;
 
-    unsigned int euler_tour_start;
-    unsigned int euler_tour_end;
+    size_t euler_tour_start;
+    size_t euler_tour_end;
 
 };
 
@@ -33,13 +33,11 @@ struct _DestinationsGraph {
 
     DestinationsGraph_Node *root;
 
-    unsigned int count_nodes;
-    unsigned int count_mount_points;
+    size_t count_nodes;
+    size_t count_mount_points;
 
-    unsigned int _euler_tour_timer;
-
-    SumSegmentTree* nodev;
-    SumSegmentTree* readonly;
+    SumSegmentTree *nodev;
+    SumSegmentTree *readonly;
 
 };
 
@@ -82,10 +80,10 @@ void
 DestinationsGraph_Node_free (DestinationsGraph_Node *self);
 
 void
-DestinationsGraph_Node__free_recursive__ (DestinationsGraph_Node *self);
+DestinationsGraph_Node_free_recursive (DestinationsGraph_Node *self);
 
 void
-DestinationsGraph_Node__euler_tour__ (DestinationsGraph *graph, DestinationsGraph_Node *self);
+DestinationsGraph_Node__euler_tour__ (DestinationsGraph_Node *self, size_t *euler_tour_timer);
 
 void
 DestinationsGraph_Node_debug_pretty_print (FILE *fd, DestinationsGraph_Node *current, int depth);
@@ -103,7 +101,7 @@ void
 DestinationsLinkedList_push_back (DestinationsLinkedList *self,
                                   DestinationsGraph_Node *node);
 
-DestinationsGraph_Node*
+DestinationsGraph_Node *
 DestinationsLinkedList_find_by_path_part (DestinationsLinkedList *self,
                                           char *path_part);
 
@@ -114,28 +112,35 @@ void
 DestinationsGraph_Flags_init (DestinationsGraph *self);
 
 void
-DestinationsGraph_Flags__set_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node);
-
-void
-DestinationsGraph_Flags__unset_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node);
+DestinationsGraph_Flags__set_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node, bool value);
 
 bool
 DestinationsGraph_Flags__check_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node);
 
 void
-DestinationsGraph_Flags_set_readonly (DestinationsGraph *self, DestinationsGraph_Node *node);
-
-void
-DestinationsGraph_Flags_unset_readonly (DestinationsGraph *self, DestinationsGraph_Node *node);
+DestinationsGraph_Flags_set_readonly (DestinationsGraph *self, DestinationsGraph_Node *node, bool value);
 
 bool
 DestinationsGraph_Flags_check_readonly (DestinationsGraph *self, DestinationsGraph_Node *node);
 
 void
-DestinationsGraph_Flags_set_nodev (DestinationsGraph *self, DestinationsGraph_Node *node);
-
-void
-DestinationsGraph_Flags_unset_nodev (DestinationsGraph *self, DestinationsGraph_Node *node);
+DestinationsGraph_Flags_set_nodev (DestinationsGraph *self, DestinationsGraph_Node *node, bool value);
 
 bool
 DestinationsGraph_Flags_check_nodev (DestinationsGraph *self, DestinationsGraph_Node *node);
+
+/// --------------------------------------------------------------------------------------------------------------------
+/// Safety
+
+void
+cleanup_destinations_graphp (void *p);
+
+void
+cleanup_destinations_graph_nodep (void *p);
+
+void
+cleanup_destinations_graph_node_recursivep (void *p);
+
+#define cleanup_destinations_graph __attribute__((cleanup (cleanup_destinations_graphp)))
+#define cleanup_destinations_graph_node __attribute__((cleanup (cleanup_destinations_graph_nodep)))
+#define cleanup_destinations_graph_node_subtree __attribute__((cleanup (cleanup_destinations_graph_node_recursivep)))

@@ -1,10 +1,9 @@
 #include "destinations-graph.h"
-#include "../utils.h"
 
 DestinationsLinkedList *
 DestinationsLinkedList_create (void)
 {
-  DestinationsLinkedList *list = malloc (sizeof (DestinationsLinkedList));
+  DestinationsLinkedList *list = xcalloc(1, sizeof (DestinationsLinkedList));
   list->head = NULL;
   list->tail = NULL;
   list->count = 0;
@@ -31,7 +30,7 @@ DestinationsLinkedList_push_back (DestinationsLinkedList *self,
                                   DestinationsGraph_Node *node)
 {
 
-  DestinationsLinkedList_Node *pushed = malloc (sizeof (DestinationsLinkedList_Node));
+  DestinationsLinkedList_Node *pushed = xcalloc(1, sizeof (DestinationsLinkedList_Node));
   pushed->value = node;
   pushed->next = NULL;
 

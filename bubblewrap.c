@@ -35,23 +35,11 @@
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
-#include <time.h>
-#include <sys/time.h>
 
 #include "utils.h"
 #include "network.h"
 #include "data-structures/destinations-graph.h"
 #include "bind-mount.h"
-
-double get_time(void);
-
-double get_time(void)
-{
-  struct timeval t;
-  struct timezone tzp;
-  gettimeofday(&t, &tzp);
-  return t.tv_sec + t.tv_usec*1e-6;
-}
 
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
@@ -187,7 +175,7 @@ struct _LockFile {
 typedef struct _TempFile TempFile;
 
 struct _TempFile {
-    const char* dest;
+    const char *dest;
     TempFile *next;
 };
 
@@ -243,6 +231,18 @@ _ ## name ## _append_new (void) \
 
 size_t bind_ops_quantity = 0;
 DEFINE_LINKED_LIST (BindOp, bind_op)
+
+static BindOp *
+bind_op_new (char *dest, bind_option_t options)
+{
+  BindOp *bop = _bind_op_append_new ();
+  bind_ops_quantity++;
+
+  bop->dest = xstrdup (dest);
+  bop->options = options;
+
+  return bop;
+}
 
 DEFINE_LINKED_LIST (TempFile, temp_file)
 
@@ -559,7 +559,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
         die_with_error ("poll");
 
       /* Always read from the eventfd first, if pid 2 died then pid 1 often
-       * dies too, and we could race, reporting that first and we'd lose
+       * dies too, and we could race, reporting that first, and we'd lose
        * the real exit status. */
       if (event_fd != -1)
         {
@@ -1042,7 +1042,6 @@ privileged_op (int privileged_op_socket,
                const char *arg1,
                const char *arg2)
 {
-  BindOp *bop;
   bind_mount_result bind_result;
   char *failing_path = NULL;
 
@@ -1108,38 +1107,46 @@ privileged_op (int privileged_op_socket,
   switch (op)
     {
       case PRIV_SEP_OP_DONE:
-        break;
+        bind_result = bind_mount_fixup (proc_fd, bind_ops, bind_ops_quantity, &failing_path);
+
+      if (bind_result != BIND_MOUNT_SUCCESS)
+        die_with_bind_result (bind_result, errno, failing_path,
+                              "Setting the correct mount flags up (fixup) failed"
+        );
+
+      assert(failing_path == NULL);
+
+      /* Remove files so we're sure the app can't get to it in any other way.
+       It's outside the container chroot, so it shouldn't be possible, but lets
+       make it really sure. */
+
+      for (TempFile *temp_file = temp_files; temp_file != NULL; temp_file = temp_file->next)
+        unlink (temp_file->dest);
+
+      break;
 
       case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
-
-//        if (mount (NULL, arg2, NULL, MS_SILENT | MS_REMOUNT | MS_NOSUID | MS_RDONLY, NULL) != 0)
-//          die_with_mount_error ("Can't remount readonly on %s", arg2);
-
-        bind_ops_quantity++;
-      bop = _bind_op_append_new ();
-      bop->source = NULL;
-      bop->dest = xstrdup (arg2);
-      bop->options = BIND_READONLY;
-      bop->fd = proc_fd;
-
+        bind_op_new ((char *) arg2, BIND_READONLY);
       break;
 
       case PRIV_SEP_OP_BIND_MOUNT:
 
         if (mount (arg1, arg2, NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
-          die_with_mount_error ("Can't bind mount %s on %s", arg1, arg2);
-
-      bind_ops_quantity++;
-      bop = _bind_op_append_new ();
-      bop->source = xstrdup (arg1);
-      bop->dest = xstrdup (arg2);
-      bop->options = flags;
+          die_with_bind_result (
+              BIND_MOUNT_ERROR_MOUNT, errno, arg2,
+              "Can't bind mount %s on %s", arg1, arg2
+          );
+        else
+          bind_op_new ((char *) arg2, flags);
 
       break;
 
       case PRIV_SEP_OP_PROC_MOUNT:
+
         if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
           die_with_mount_error ("Can't mount proc on %s", arg1);
+        else
+          bind_op_new ((char *) arg1, 0);
 
       break;
 
@@ -1160,6 +1167,9 @@ privileged_op (int privileged_op_socket,
           cleanup_free char *opt = label_mount (mode, opt_file_label);
           if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
             die_with_mount_error ("Can't mount tmpfs on %s", arg1);
+          else
+            bind_op_new ((char *) arg1, 0);
+
           break;
         }
 
@@ -1167,11 +1177,18 @@ privileged_op (int privileged_op_socket,
         if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
                    "newinstance,ptmxmode=0666,mode=620") != 0)
           die_with_mount_error ("Can't mount devpts on %s", arg1);
+        else
+          bind_op_new ((char *) arg1, BIND_DEVICES);
+
       break;
 
       case PRIV_SEP_OP_MQUEUE_MOUNT:
+
         if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
           die_with_mount_error ("Can't mount mqueue on %s", arg1);
+        else
+          bind_op_new ((char *) arg1, BIND_DEVICES);
+
       break;
 
       case PRIV_SEP_OP_SET_HOSTNAME:
@@ -1196,7 +1213,6 @@ static void
 setup_newroot (bool unshare_pid,
                int privileged_op_socket)
 {
-  double startTime = get_time();
   SetupOp *op;
 
   for (op = ops; op != NULL; op = op->next)
@@ -1488,10 +1504,11 @@ setup_newroot (bool unshare_pid,
                              (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
                              0, 0, tempfile, dest);
 
-              /// Todo
-              TempFile* temp = _temp_file_append_new();
+              /* We don't need tempfile anymore. But because we read kernel_case in bind_mount_fixup,
+               * we really still need links to those temp files being correct.
+               * That's why we add all temp files to list and unlink them later. */
+              TempFile *temp = _temp_file_append_new ();
               temp->dest = tempfile;
-
             }
           break;
 
@@ -1531,28 +1548,8 @@ setup_newroot (bool unshare_pid,
         }
     }
 
-  char *failing_path = NULL;
-  bind_mount_result result = bind_mount_fixup (proc_fd, bind_ops, bind_ops_quantity, &failing_path);
-
-  if (result != BIND_MOUNT_SUCCESS)
-    die_with_bind_result (result, errno, failing_path,
-                          "Can't bind mount %s on %s", NULL, NULL);
-
-  assert(failing_path == NULL);
-
-  /* Remove files so we're sure the app can't get to it in any other way.
-   Its outside the container chroot, so it shouldn't be possible, but lets
-   make it really sure. */
-
-  for(TempFile* temp_file = temp_files; temp_file != NULL; temp_file = temp_file->next)
-    unlink (temp_file->dest);
-
   privileged_op (privileged_op_socket,
                  PRIV_SEP_OP_DONE, 0, 0, 0, NULL, NULL);
-
-  double endTime = get_time();
-  double timeElapsed = endTime - startTime;
-  printf("Initialized on %f\n\n\n", timeElapsed);
 }
 
 /* Do not leak file descriptors already used by setup_newroot () */
@@ -2841,7 +2838,7 @@ main (int argc,
   if (argc <= 0)
     usage (EXIT_FAILURE, stderr);
 
-  __debug__ (("Creating root mount point\n"));
+  __debug__ ("Creating root mount point\n");
 
   if (opt_sandbox_uid == (uid_t) -1)
     opt_sandbox_uid = real_uid;
@@ -2877,7 +2874,7 @@ main (int argc,
    * access ourselves. */
   base_path = "/tmp";
 
-  __debug__ (("creating new namespace\n"));
+  __debug__ ("creating new namespace\n");
 
   if (opt_unshare_pid && !opt_as_pid_1)
     {
@@ -3355,7 +3352,7 @@ main (int argc,
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
 
-  __debug__ (("forking for child\n"));
+  __debug__ ("forking for child\n");
 
   if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
     {
@@ -3393,7 +3390,7 @@ main (int argc,
         }
     }
 
-  __debug__ (("launch executable %s\n", argv[0]));
+  __debug__ ("launch executable %s\n", argv[0]);
 
   if (proc_fd != -1)
     close (proc_fd);

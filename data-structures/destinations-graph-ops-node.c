@@ -3,7 +3,7 @@
 DestinationsGraph_Node *
 DestinationsGraph_Node_create (void)
 {
-  DestinationsGraph_Node *self = malloc (sizeof (DestinationsGraph_Node));
+  DestinationsGraph_Node *self = xcalloc(1, sizeof (DestinationsGraph_Node));
 
   self->path_part = NULL;
   self->is_mount_point = FALSE;
@@ -28,13 +28,13 @@ DestinationsGraph_Node_free (DestinationsGraph_Node *self)
 }
 
 void
-DestinationsGraph_Node__free_recursive__ (DestinationsGraph_Node *self)
+DestinationsGraph_Node_free_recursive (DestinationsGraph_Node *self)
 {
   DestinationsLinkedList_Node *currentChild = self->children->head;
 
   while (currentChild != NULL)
     {
-      DestinationsGraph_Node__free_recursive__ (currentChild->value);
+      DestinationsGraph_Node_free_recursive (currentChild->value);
       currentChild = currentChild->next;
     }
 
@@ -42,19 +42,19 @@ DestinationsGraph_Node__free_recursive__ (DestinationsGraph_Node *self)
 }
 
 void
-DestinationsGraph_Node__euler_tour__ (DestinationsGraph *graph, DestinationsGraph_Node *self)
+DestinationsGraph_Node__euler_tour__ (DestinationsGraph_Node *self, size_t *euler_tour_timer)
 {
-  self->euler_tour_start = graph->_euler_tour_timer++;
+  self->euler_tour_start = (*euler_tour_timer)++;
 
   DestinationsLinkedList_Node *currentChild = self->children->head;
 
   while (currentChild != NULL)
     {
-      DestinationsGraph_Node__euler_tour__ (graph, currentChild->value);
+      DestinationsGraph_Node__euler_tour__ (currentChild->value, euler_tour_timer);
       currentChild = currentChild->next;
     }
 
-  self->euler_tour_end = graph->_euler_tour_timer++;
+  self->euler_tour_end = (*euler_tour_timer)++;
 }
 
 void
@@ -64,16 +64,15 @@ DestinationsGraph_Node_debug_pretty_print (FILE *fd, DestinationsGraph_Node *cur
     fputs ("  |", fd);
 
   if (depth == 0)
-    fprintf (fd, "/ ");
+    fputs ("/ ", fd);
   else
     fprintf (fd, "- %s ", current->path_part);
 
   if (current->is_mount_point)
-    fprintf (fd, "(*) ");
+    fputs("(*)", fd);
 
-  fprintf (fd, "<==> (%d; %d)", current->euler_tour_start, current->euler_tour_end);
+  fputs ("\n", fd);
 
-  fprintf (fd, "\n");
 
   DestinationsLinkedList_Node *currentChild = current->children->head;
 

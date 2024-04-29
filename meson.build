@@ -115,6 +115,7 @@ bwrap = executable(
     'bind-mount.c',
     'network.c',
     'utils.c',
+    'parse-mountinfo.c',
     'data-structures/destinations-graph-ops.c',
     'data-structures/destinations-graph-ops-linked-list.c',
     'data-structures/destinations-graph-ops-node.c',

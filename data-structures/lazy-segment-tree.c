@@ -3,9 +3,7 @@
 
 #include "lazy-segment-tree.h"
 #include <stdlib.h>
-#include <math.h>
 #include <stddef.h>
-#include <string.h>
 #include <assert.h>
 
 /// --------------------------------------------------------------------------------------------------------------------
@@ -14,25 +12,21 @@
 SumSegmentTree
 *SumSegmentTree_create (size_t quantity)
 {
-  SumSegmentTree *self = malloc (sizeof (SumSegmentTree));
+  SumSegmentTree *self =  xcalloc(1, sizeof (SumSegmentTree));
   assert(quantity > 0);
 
-  // That's how we replace log2 to not link math library
-  // Anyway we'll not perform many operations
+  // levels = log2(quantity - 1)
   size_t under_logarithm = quantity - 1;
   size_t levels = 1;
   while (under_logarithm >>= 1) levels++;
 
+  // self->n = (levels + 1) ^ 2
   self->n = (1 << (levels + 1));
 
   size_t elements = self->n * 2;
-  size_t bytes = sizeof (int) * elements;
 
-  self->value = malloc (bytes);
-  memset (self->value, 0, bytes);
-
-  self->lazy = malloc (bytes);
-  memset (self->lazy, 0, bytes);
+  self->value = xcalloc (elements, sizeof (int));
+  self->lazy = xcalloc (elements, sizeof (int));
 
   return self;
 }
@@ -49,16 +43,16 @@ SumSegmentTree_free (SumSegmentTree *self)
 /// --------------------------------------------------------------------------------------------------------------------
 /// Private methods
 
-void
+static void
 SumSegmentTree__push__ (SumSegmentTree *self, size_t v, size_t l, size_t r);
 
-void
+static void
 SumSegmentTree__modify__ (SumSegmentTree *self, size_t x, size_t y, int val, size_t root, size_t l, size_t r);
 
-int
+static int
 SumSegmentTree__query__ (SumSegmentTree *self, size_t x, size_t y, size_t root, size_t l, size_t r);
 
-void
+static void
 SumSegmentTree__push__ (SumSegmentTree *self, size_t v, size_t l, size_t r)
 {
   if (self->lazy[v] != -1 && v < self->n)
@@ -78,7 +72,7 @@ SumSegmentTree__push__ (SumSegmentTree *self, size_t v, size_t l, size_t r)
     }
 }
 
-void
+static void
 SumSegmentTree__modify__ (SumSegmentTree *self, size_t x, size_t y, int val, size_t root, size_t l, size_t r)
 {
   // Return if we are out of desired segment
@@ -106,7 +100,7 @@ SumSegmentTree__modify__ (SumSegmentTree *self, size_t x, size_t y, int val, siz
   self->value[root] = self->value[root << 1] + self->value[root << 1 | 1];
 }
 
-int
+static int
 SumSegmentTree__query__ (SumSegmentTree *self, size_t x, size_t y, size_t root, size_t l, size_t r)
 {
   // If we are outside of desired segment, return 0
@@ -122,7 +116,7 @@ SumSegmentTree__query__ (SumSegmentTree *self, size_t x, size_t y, size_t root, 
   // Otherwise, we propagate lazy value and recurse into subtrees
   SumSegmentTree__push__ (self, root, l, r);
 
-  int mid = (l + r) >> 1;
+  size_t mid = (l + r) >> 1;
 
   return SumSegmentTree__query__ (self, x, y, root << 1, l, mid) + \
          SumSegmentTree__query__ (self, x, y, root << 1 | 1, mid, r);
