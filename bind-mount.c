@@ -116,7 +116,7 @@ bind_mount_fixup (int proc_fd, BindOp *bind_ops, size_t bind_ops_quantity, char 
 
   // (2) Initialize flags system.
   // 1. Performs Euler tour by graph to map each node to the index in segment tree
-  // 2. And initializes segment trees for each of the flag
+  // 2. And initializes arrays of flags
   DestinationsGraph_Flags_init (graph);
 
   // (3) Collect all nodes that correspond bind mount operations

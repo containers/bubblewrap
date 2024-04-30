@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../utils.h"
-#include "lazy-segment-tree.h"
 
 /// --------------------------------------------------------------------------------------------------------------------
 /// Type declarations
@@ -36,8 +35,8 @@ struct _DestinationsGraph {
     size_t count_nodes;
     size_t count_mount_points;
 
-    SumSegmentTree *nodev;
-    SumSegmentTree *readonly;
+    bool *nodev;
+    bool *readonly;
 
 };
 
@@ -64,7 +63,7 @@ DestinationsGraph_free (DestinationsGraph *self);
 DestinationsGraph_Node *
 DestinationsGraph_ensure_mount_point (DestinationsGraph *self, char **destination_path, bool *added);
 
-void
+size_t
 DestinationsGraph__euler_tour__ (DestinationsGraph *self);
 
 void
@@ -112,10 +111,10 @@ void
 DestinationsGraph_Flags_init (DestinationsGraph *self);
 
 void
-DestinationsGraph_Flags__set_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node, bool value);
+DestinationsGraph_Flags__set_flag__ (bool **flags, DestinationsGraph_Node *node, bool value);
 
 bool
-DestinationsGraph_Flags__check_flag__ (SumSegmentTree *segment_tree, DestinationsGraph_Node *node);
+DestinationsGraph_Flags__check_flag__ (bool **flags, DestinationsGraph_Node *node);
 
 void
 DestinationsGraph_Flags_set_readonly (DestinationsGraph *self, DestinationsGraph_Node *node, bool value);

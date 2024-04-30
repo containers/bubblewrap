@@ -119,7 +119,6 @@ bwrap = executable(
     'data-structures/destinations-graph-ops.c',
     'data-structures/destinations-graph-ops-linked-list.c',
     'data-structures/destinations-graph-ops-node.c',
-    'data-structures/lazy-segment-tree.c',
   ],
   build_rpath : get_option('build_rpath'),
   install : true,
