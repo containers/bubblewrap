@@ -829,7 +829,6 @@ readlink_malloc (const char *pathname)
   size_t size = 50;
   ssize_t n;
   cleanup_free char *value = NULL;
-
   do
     {
       if (size > SIZE_MAX / 2)

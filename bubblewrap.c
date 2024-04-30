@@ -109,89 +109,96 @@ static size_t next_size_arg = 0;
 typedef struct _NsInfo NsInfo;
 
 struct _NsInfo {
-  const char *name;
-  bool       *do_unshare;
-  ino_t       id;
+    const char *name;
+    bool       *do_unshare;
+    ino_t       id;
 };
 
 static NsInfo ns_infos[] = {
-  {"cgroup", &opt_unshare_cgroup, 0},
-  {"ipc",    &opt_unshare_ipc,    0},
-  {"mnt",    NULL,                0},
-  {"net",    &opt_unshare_net,    0},
-  {"pid",    &opt_unshare_pid,    0},
-  /* user namespace info omitted because it
-   * is not (yet) valid when we obtain the
-   * namespace info (get un-shared later) */
-  {"uts",    &opt_unshare_uts,    0},
-  {NULL,     NULL,                0}
+    {"cgroup", &opt_unshare_cgroup, 0},
+    {"ipc",    &opt_unshare_ipc,    0},
+    {"mnt",    NULL,                0},
+    {"net",    &opt_unshare_net,    0},
+    {"pid",    &opt_unshare_pid,    0},
+    /* user namespace info omitted because it
+     * is not (yet) valid when we obtain the
+     * namespace info (get un-shared later) */
+    {"uts",    &opt_unshare_uts,    0},
+    {NULL,     NULL,                0}
 };
 
 typedef enum {
-  SETUP_BIND_MOUNT,
-  SETUP_RO_BIND_MOUNT,
-  SETUP_DEV_BIND_MOUNT,
-  SETUP_MOUNT_PROC,
-  SETUP_MOUNT_DEV,
-  SETUP_MOUNT_TMPFS,
-  SETUP_MOUNT_MQUEUE,
-  SETUP_MAKE_DIR,
-  SETUP_MAKE_FILE,
-  SETUP_MAKE_BIND_FILE,
-  SETUP_MAKE_RO_BIND_FILE,
-  SETUP_MAKE_SYMLINK,
-  SETUP_REMOUNT_RO_NO_RECURSIVE,
-  SETUP_SET_HOSTNAME,
-  SETUP_CHMOD,
+    SETUP_BIND_MOUNT,
+    SETUP_RO_BIND_MOUNT,
+    SETUP_DEV_BIND_MOUNT,
+    SETUP_MOUNT_PROC,
+    SETUP_MOUNT_DEV,
+    SETUP_MOUNT_TMPFS,
+    SETUP_MOUNT_MQUEUE,
+    SETUP_MAKE_DIR,
+    SETUP_MAKE_FILE,
+    SETUP_MAKE_BIND_FILE,
+    SETUP_MAKE_RO_BIND_FILE,
+    SETUP_MAKE_SYMLINK,
+    SETUP_REMOUNT_RO_NO_RECURSIVE,
+    SETUP_SET_HOSTNAME,
+    SETUP_CHMOD,
 } SetupOpType;
 
 typedef enum {
-  NO_CREATE_DEST = (1 << 0),
-  ALLOW_NOTEXIST = (2 << 0),
+    NO_CREATE_DEST = (1 << 0),
+    ALLOW_NOTEXIST = (2 << 0),
 } SetupOpFlag;
 
 typedef struct _SetupOp SetupOp;
 
 struct _SetupOp
 {
-  SetupOpType type;
-  const char *source;
-  const char *dest;
-  int         fd;
-  SetupOpFlag flags;
-  int         perms;
-  size_t      size;  /* number of bytes, zero means unset/default */
-  SetupOp    *next;
+    SetupOpType type;
+    const char *source;
+    const char *dest;
+    int         fd;
+    SetupOpFlag flags;
+    int         perms;
+    size_t      size;  /* number of bytes, zero means unset/default */
+    SetupOp    *next;
 };
 
 typedef struct _LockFile LockFile;
 
 struct _LockFile
 {
-  const char *path;
-  int         fd;
-  LockFile   *next;
+    const char *path;
+    int         fd;
+    LockFile   *next;
+};
+
+typedef struct _TempFile TempFile;
+
+struct _TempFile {
+    const char *dest;
+    TempFile *next;
 };
 
 enum {
-  PRIV_SEP_OP_DONE,
-  PRIV_SEP_OP_BIND_MOUNT,
-  PRIV_SEP_OP_PROC_MOUNT,
-  PRIV_SEP_OP_TMPFS_MOUNT,
-  PRIV_SEP_OP_DEVPTS_MOUNT,
-  PRIV_SEP_OP_MQUEUE_MOUNT,
-  PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE,
-  PRIV_SEP_OP_SET_HOSTNAME,
+    PRIV_SEP_OP_DONE,
+    PRIV_SEP_OP_BIND_MOUNT,
+    PRIV_SEP_OP_PROC_MOUNT,
+    PRIV_SEP_OP_TMPFS_MOUNT,
+    PRIV_SEP_OP_DEVPTS_MOUNT,
+    PRIV_SEP_OP_MQUEUE_MOUNT,
+    PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE,
+    PRIV_SEP_OP_SET_HOSTNAME,
 };
 
 typedef struct
 {
-  uint32_t op;
-  uint32_t flags;
-  uint32_t perms;
-  size_t   size_arg;
-  uint32_t arg1_offset;
-  uint32_t arg2_offset;
+    uint32_t op;
+    uint32_t flags;
+    uint32_t perms;
+    size_t   size_arg;
+    uint32_t arg1_offset;
+    uint32_t arg2_offset;
 } PrivSepOp;
 
 /*
@@ -224,6 +231,23 @@ _ ## name ## _append_new (void) \
   return self; \
 }
 
+size_t bind_ops_quantity = 0;
+DEFINE_LINKED_LIST (BindOp, bind_op)
+
+static BindOp *
+bind_op_new (char *dest, bind_option_t options)
+{
+  BindOp *bop = _bind_op_append_new ();
+  bind_ops_quantity++;
+
+  bop->dest = xstrdup (dest);
+  bop->options = options;
+
+  return bop;
+}
+
+DEFINE_LINKED_LIST (TempFile, temp_file)
+
 DEFINE_LINKED_LIST (SetupOp, op)
 
 static SetupOp *
@@ -252,8 +276,8 @@ typedef struct _SeccompProgram SeccompProgram;
 
 struct _SeccompProgram
 {
-  struct sock_fprog  program;
-  SeccompProgram    *next;
+    struct sock_fprog  program;
+    SeccompProgram    *next;
 };
 
 DEFINE_LINKED_LIST (SeccompProgram, seccomp_program)
@@ -367,7 +391,7 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
-          );
+  );
   exit (ecode);
 }
 
@@ -601,10 +625,10 @@ do_init (int event_fd, pid_t initial_pid)
         die_with_error ("Unable to open lock file %s", lock->path);
 
       struct flock l = {
-        .l_type = F_RDLCK,
-        .l_whence = SEEK_SET,
-        .l_start = 0,
-        .l_len = 0
+          .l_type = F_RDLCK,
+          .l_whence = SEEK_SET,
+          .l_start = 0,
+          .l_len = 0
       };
 
       if (fcntl (fd, F_SETLK, &l) < 0)
@@ -1086,78 +1110,102 @@ privileged_op (int         privileged_op_socket,
    */
   switch (op)
     {
-    case PRIV_SEP_OP_DONE:
-      break;
-
-    case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
-      bind_result = bind_mount (proc_fd, NULL, arg2, BIND_READONLY, &failing_path);
+      case PRIV_SEP_OP_DONE:
+        bind_result = bind_mount_fixup (proc_fd, bind_ops, bind_ops_quantity, &failing_path);
 
       if (bind_result != BIND_MOUNT_SUCCESS)
         die_with_bind_result (bind_result, errno, failing_path,
-                              "Can't remount readonly on %s", arg2);
+                              "Setting the correct mount flags up (fixup) failed"
+        );
 
-      assert (failing_path == NULL);    /* otherwise we would have died */
+      assert(failing_path == NULL);
+
+      /* Remove files so we're sure the app can't get to it in any other way.
+       It's outside the container chroot, so it shouldn't be possible, but lets
+       make it really sure. */
+
+      for (TempFile *temp_file = temp_files; temp_file != NULL; temp_file = temp_file->next)
+        unlink (temp_file->dest);
+
       break;
 
-    case PRIV_SEP_OP_BIND_MOUNT:
-      /* We always bind directories recursively, otherwise this would let us
-         access files that are otherwise covered on the host */
-      bind_result = bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags, &failing_path);
-
-      if (bind_result != BIND_MOUNT_SUCCESS)
-        die_with_bind_result (bind_result, errno, failing_path,
-                              "Can't bind mount %s on %s", arg1, arg2);
-
-      assert (failing_path == NULL);    /* otherwise we would have died */
+      case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
+        bind_op_new ((char *) arg2, BIND_READONLY);
       break;
 
-    case PRIV_SEP_OP_PROC_MOUNT:
-      if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
-        die_with_mount_error ("Can't mount proc on %s", arg1);
-      break;
+      case PRIV_SEP_OP_BIND_MOUNT:
 
-    case PRIV_SEP_OP_TMPFS_MOUNT:
-      {
-        cleanup_free char *mode = NULL;
-
-        /* This check should be unnecessary since we checked this when parsing
-         * the --size option as well. However, better be safe than sorry. */
-        if (size_arg > MAX_TMPFS_BYTES)
-          die_with_error ("Specified tmpfs size too large (%zu > %zu)", size_arg, MAX_TMPFS_BYTES);
-
-        if (size_arg != 0)
-          mode = xasprintf ("mode=%#o,size=%zu", perms, size_arg);
+        if (mount (arg1, arg2, NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
+          die_with_bind_result (
+              BIND_MOUNT_ERROR_MOUNT, errno, arg2,
+              "Can't bind mount %s on %s", arg1, arg2
+          );
         else
-          mode = xasprintf ("mode=%#o", perms);
+          bind_op_new ((char *) arg2, flags);
 
-        cleanup_free char *opt = label_mount (mode, opt_file_label);
-        if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
-          die_with_mount_error ("Can't mount tmpfs on %s", arg1);
-        break;
-      }
-
-    case PRIV_SEP_OP_DEVPTS_MOUNT:
-      if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
-                 "newinstance,ptmxmode=0666,mode=620") != 0)
-        die_with_mount_error ("Can't mount devpts on %s", arg1);
       break;
 
-    case PRIV_SEP_OP_MQUEUE_MOUNT:
-      if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
-        die_with_mount_error ("Can't mount mqueue on %s", arg1);
+      case PRIV_SEP_OP_PROC_MOUNT:
+
+        if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+          die_with_mount_error ("Can't mount proc on %s", arg1);
+        else
+          bind_op_new ((char *) arg1, 0);
+
       break;
 
-    case PRIV_SEP_OP_SET_HOSTNAME:
-      /* This is checked at the start, but lets verify it here in case
-         something manages to send hacked priv-sep operation requests. */
-      if (!opt_unshare_uts)
-        die ("Refusing to set hostname in original namespace");
+      case PRIV_SEP_OP_TMPFS_MOUNT:
+        {
+          cleanup_free char *mode = NULL;
+
+          /* This check should be unnecessary since we checked this when parsing
+           * the --size option as well. However, better be safe than sorry. */
+          if (size_arg > MAX_TMPFS_BYTES)
+            die_with_error ("Specified tmpfs size too large (%zu > %zu)", size_arg, MAX_TMPFS_BYTES);
+
+          if (size_arg != 0)
+            mode = xasprintf ("mode=%#o,size=%zu", perms, size_arg);
+          else
+            mode = xasprintf ("mode=%#o", perms);
+
+          cleanup_free char *opt = label_mount (mode, opt_file_label);
+          if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
+            die_with_mount_error ("Can't mount tmpfs on %s", arg1);
+          else
+            bind_op_new ((char *) arg1, 0);
+
+          break;
+        }
+
+      case PRIV_SEP_OP_DEVPTS_MOUNT:
+        if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
+                   "newinstance,ptmxmode=0666,mode=620") != 0)
+          die_with_mount_error ("Can't mount devpts on %s", arg1);
+        else
+          bind_op_new ((char *) arg1, BIND_DEVICES);
+
+      break;
+
+      case PRIV_SEP_OP_MQUEUE_MOUNT:
+
+        if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
+          die_with_mount_error ("Can't mount mqueue on %s", arg1);
+        else
+          bind_op_new ((char *) arg1, BIND_DEVICES);
+
+      break;
+
+      case PRIV_SEP_OP_SET_HOSTNAME:
+        /* This is checked at the start, but lets verify it here in case
+           something manages to send hacked priv-sep operation requests. */
+        if (!opt_unshare_uts)
+          die ("Refusing to set hostname in original namespace");
       if (sethostname (arg1, strlen(arg1)) != 0)
         die_with_error ("Can't set hostname to %s", arg1);
       break;
 
-    default:
-      die ("Unexpected privileged op %d", op);
+      default:
+        die ("Unexpected privileged op %d", op);
     }
 }
 
@@ -1215,16 +1263,16 @@ setup_newroot (bool unshare_pid,
 
       switch (op->type)
         {
-        case SETUP_RO_BIND_MOUNT:
-        case SETUP_DEV_BIND_MOUNT:
-        case SETUP_BIND_MOUNT:
-          if (source_mode == S_IFDIR)
-            {
-              if (ensure_dir (dest, 0755) != 0)
-                die_with_error ("Can't mkdir %s", op->dest);
-            }
-          else if (ensure_file (dest, 0444) != 0)
-            die_with_error ("Can't create file at %s", op->dest);
+          case SETUP_RO_BIND_MOUNT:
+          case SETUP_DEV_BIND_MOUNT:
+          case SETUP_BIND_MOUNT:
+            if (source_mode == S_IFDIR)
+              {
+                if (ensure_dir (dest, 0755) != 0)
+                  die_with_error ("Can't mkdir %s", op->dest);
+              }
+            else if (ensure_file (dest, 0444) != 0)
+              die_with_error ("Can't create file at %s", op->dest);
 
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_BIND_MOUNT,
@@ -1233,14 +1281,14 @@ setup_newroot (bool unshare_pid,
                          0, 0, source, dest);
           break;
 
-        case SETUP_REMOUNT_RO_NO_RECURSIVE:
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, 0, 0, 0, NULL, dest);
+          case SETUP_REMOUNT_RO_NO_RECURSIVE:
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, 0, 0, 0, NULL, dest);
           break;
 
-        case SETUP_MOUNT_PROC:
-          if (ensure_dir (dest, 0755) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
+          case SETUP_MOUNT_PROC:
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
 
           if (unshare_pid || opt_pidns_fd != -1)
             {
@@ -1281,9 +1329,9 @@ setup_newroot (bool unshare_pid,
 
           break;
 
-        case SETUP_MOUNT_DEV:
-          if (ensure_dir (dest, 0755) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
+          case SETUP_MOUNT_DEV:
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_TMPFS_MOUNT, 0, 0755, 0,
@@ -1357,8 +1405,8 @@ setup_newroot (bool unshare_pid,
 
           break;
 
-        case SETUP_MOUNT_TMPFS:
-          assert (dest != NULL);
+          case SETUP_MOUNT_TMPFS:
+            assert (dest != NULL);
           assert (op->perms >= 0);
           assert (op->perms <= 07777);
 
@@ -1370,17 +1418,17 @@ setup_newroot (bool unshare_pid,
                          dest, NULL);
           break;
 
-        case SETUP_MOUNT_MQUEUE:
-          if (ensure_dir (dest, 0755) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
+          case SETUP_MOUNT_MQUEUE:
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
 
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_MQUEUE_MOUNT, 0, 0, 0,
                          dest, NULL);
           break;
 
-        case SETUP_MAKE_DIR:
-          assert (dest != NULL);
+          case SETUP_MAKE_DIR:
+            assert (dest != NULL);
           assert (op->perms >= 0);
           assert (op->perms <= 07777);
 
@@ -1389,8 +1437,8 @@ setup_newroot (bool unshare_pid,
 
           break;
 
-        case SETUP_CHMOD:
-          assert (op->dest != NULL);
+          case SETUP_CHMOD:
+            assert (op->dest != NULL);
           /* We used NO_CREATE_DEST so we have to use get_newroot_path()
            * explicitly */
           assert (dest == NULL);
@@ -1404,69 +1452,70 @@ setup_newroot (bool unshare_pid,
 
           break;
 
-        case SETUP_MAKE_FILE:
-          {
-            cleanup_fd int dest_fd = -1;
+          case SETUP_MAKE_FILE:
+            {
+              cleanup_fd int dest_fd = -1;
 
-            assert (dest != NULL);
-            assert (op->perms >= 0);
-            assert (op->perms <= 07777);
+              assert (dest != NULL);
+              assert (op->perms >= 0);
+              assert (op->perms <= 07777);
 
-            dest_fd = creat (dest, op->perms);
-            if (dest_fd == -1)
-              die_with_error ("Can't create file %s", op->dest);
+              dest_fd = creat (dest, op->perms);
+              if (dest_fd == -1)
+                die_with_error ("Can't create file %s", op->dest);
 
-            if (copy_file_data (op->fd, dest_fd) != 0)
-              die_with_error ("Can't write data to file %s", op->dest);
+              if (copy_file_data (op->fd, dest_fd) != 0)
+                die_with_error ("Can't write data to file %s", op->dest);
 
-            close (op->fd);
-            op->fd = -1;
-          }
+              close (op->fd);
+              op->fd = -1;
+            }
           break;
 
-        case SETUP_MAKE_BIND_FILE:
-        case SETUP_MAKE_RO_BIND_FILE:
-          {
-            cleanup_fd int dest_fd = -1;
-            char tempfile[] = "/bindfileXXXXXX";
+          case SETUP_MAKE_BIND_FILE:
+          case SETUP_MAKE_RO_BIND_FILE:
+            {
+              cleanup_fd int dest_fd = -1;
+              char tempfile[] = "/bindfileXXXXXX";
 
-            assert (dest != NULL);
-            assert (op->perms >= 0);
-            assert (op->perms <= 07777);
+              assert (dest != NULL);
+              assert (op->perms >= 0);
+              assert (op->perms <= 07777);
 
-            dest_fd = mkstemp (tempfile);
-            if (dest_fd == -1)
-              die_with_error ("Can't create tmpfile for %s", op->dest);
+              dest_fd = mkstemp (tempfile);
+              if (dest_fd == -1)
+                die_with_error ("Can't create tmpfile for %s", op->dest);
 
-            if (fchmod (dest_fd, op->perms) != 0)
-              die_with_error ("Can't set mode %#o on file to be used for %s",
-                              op->perms, op->dest);
+              if (fchmod (dest_fd, op->perms) != 0)
+                die_with_error ("Can't set mode %#o on file to be used for %s",
+                                op->perms, op->dest);
 
-            if (copy_file_data (op->fd, dest_fd) != 0)
-              die_with_error ("Can't write data to file %s", op->dest);
+              if (copy_file_data (op->fd, dest_fd) != 0)
+                die_with_error ("Can't write data to file %s", op->dest);
 
-            close (op->fd);
-            op->fd = -1;
+              close (op->fd);
+              op->fd = -1;
 
-            assert (dest != NULL);
+              assert (dest != NULL);
 
-            if (ensure_file (dest, 0444) != 0)
-              die_with_error ("Can't create file at %s", op->dest);
+              if (ensure_file (dest, 0444) != 0)
+                die_with_error ("Can't create file at %s", op->dest);
 
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT,
-                           (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
-                           0, 0, tempfile, dest);
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT,
+                             (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
+                             0, 0, tempfile, dest);
 
-            /* Remove the file so we're sure the app can't get to it in any other way.
-               Its outside the container chroot, so it shouldn't be possible, but lets
-               make it really sure. */
-            unlink (tempfile);
-          }
+              /* We don't need tempfile anymore. But because we read kernel_case in bind_mount_fixup,
+               * we really still need links to those temp files being correct.
+               * That's why we add all temp files to list and unlink them later. */
+              TempFile *temp = _temp_file_append_new ();
+              temp->dest = tempfile;
+            }
           break;
 
-        case SETUP_MAKE_SYMLINK:
-          assert (op->source != NULL);  /* guaranteed by the constructor */
+          case SETUP_MAKE_SYMLINK:
+            assert (op->source != NULL);  /* guaranteed by the constructor */
           if (symlink (op->source, dest) != 0)
             {
               if (errno == EEXIST)
@@ -1489,15 +1538,15 @@ setup_newroot (bool unshare_pid,
             }
           break;
 
-        case SETUP_SET_HOSTNAME:
-          assert (op->dest != NULL);  /* guaranteed by the constructor */
+          case SETUP_SET_HOSTNAME:
+            assert (op->dest != NULL);  /* guaranteed by the constructor */
           privileged_op (privileged_op_socket,
                          PRIV_SEP_OP_SET_HOSTNAME, 0, 0, 0,
                          op->dest, NULL);
           break;
 
-        default:
-          die ("Unexpected type %d", op->type);
+          default:
+            die ("Unexpected type %d", op->type);
         }
     }
   privileged_op (privileged_op_socket,
@@ -1535,10 +1584,10 @@ resolve_symlinks_in_ops (void)
 
       switch (op->type)
         {
-        case SETUP_RO_BIND_MOUNT:
-        case SETUP_DEV_BIND_MOUNT:
-        case SETUP_BIND_MOUNT:
-          old_source = op->source;
+          case SETUP_RO_BIND_MOUNT:
+          case SETUP_DEV_BIND_MOUNT:
+          case SETUP_BIND_MOUNT:
+            old_source = op->source;
           op->source = realpath (old_source, NULL);
           if (op->source == NULL)
             {
@@ -1549,20 +1598,20 @@ resolve_symlinks_in_ops (void)
             }
           break;
 
-        case SETUP_MOUNT_PROC:
-        case SETUP_MOUNT_DEV:
-        case SETUP_MOUNT_TMPFS:
-        case SETUP_MOUNT_MQUEUE:
-        case SETUP_MAKE_DIR:
-        case SETUP_MAKE_FILE:
-        case SETUP_MAKE_BIND_FILE:
-        case SETUP_MAKE_RO_BIND_FILE:
-        case SETUP_MAKE_SYMLINK:
-        case SETUP_REMOUNT_RO_NO_RECURSIVE:
-        case SETUP_SET_HOSTNAME:
-        case SETUP_CHMOD:
-        default:
-          break;
+          case SETUP_MOUNT_PROC:
+          case SETUP_MOUNT_DEV:
+          case SETUP_MOUNT_TMPFS:
+          case SETUP_MOUNT_MQUEUE:
+          case SETUP_MAKE_DIR:
+          case SETUP_MAKE_FILE:
+          case SETUP_MAKE_BIND_FILE:
+          case SETUP_MAKE_RO_BIND_FILE:
+          case SETUP_MAKE_SYMLINK:
+          case SETUP_REMOUNT_RO_NO_RECURSIVE:
+          case SETUP_SET_HOSTNAME:
+          case SETUP_CHMOD:
+          default:
+            break;
         }
     }
 }
@@ -1759,10 +1808,10 @@ parse_args_recurse (int          *argcp,
            * to support systems/kernels without support for those.
            */
           opt_unshare_user_try = opt_unshare_ipc = opt_unshare_pid =
-            opt_unshare_uts = opt_unshare_cgroup_try =
-            opt_unshare_net = TRUE;
+          opt_unshare_uts = opt_unshare_cgroup_try =
+          opt_unshare_net = TRUE;
         }
-      /* Begin here the older individual --unshare variants */
+        /* Begin here the older individual --unshare variants */
       else if (strcmp (arg, "--unshare-user") == 0)
         {
           opt_unshare_user = TRUE;
@@ -1795,12 +1844,12 @@ parse_args_recurse (int          *argcp,
         {
           opt_unshare_cgroup_try = TRUE;
         }
-      /* Begin here the newer --share variants */
+        /* Begin here the newer --share variants */
       else if (strcmp (arg, "--share-net") == 0)
         {
           opt_unshare_net = FALSE;
         }
-      /* End --share variants, other arguments begin */
+        /* End --share variants, other arguments begin */
       else if (strcmp (arg, "--chdir") == 0)
         {
           if (argc < 2)
