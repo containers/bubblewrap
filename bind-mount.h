@@ -21,34 +21,44 @@
 
 #include "utils.h"
 
+#include "parse-mountinfo.h"
+
+/// --------------------------------------------------------------------------------------------------------------------
+/// Type definitions
+
 typedef enum {
-  BIND_READONLY = (1 << 0),
-  BIND_DEVICES = (1 << 2),
-  BIND_RECURSIVE = (1 << 3),
+    BIND_READONLY = (1 << 0),
+    BIND_DEVICES = (1 << 2),
 } bind_option_t;
 
-typedef enum
-{
-  BIND_MOUNT_SUCCESS = 0,
-  BIND_MOUNT_ERROR_MOUNT,
-  BIND_MOUNT_ERROR_REALPATH_DEST,
-  BIND_MOUNT_ERROR_REOPEN_DEST,
-  BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
-  BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
-  BIND_MOUNT_ERROR_REMOUNT_DEST,
-  BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
+typedef enum {
+    BIND_MOUNT_SUCCESS = 0,
+    BIND_MOUNT_ERROR_MOUNT,
+    BIND_MOUNT_ERROR_REALPATH_DEST,
+    BIND_MOUNT_ERROR_REOPEN_DEST,
+    BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
+    BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
+    BIND_MOUNT_ERROR_REMOUNT,
 } bind_mount_result;
 
-bind_mount_result bind_mount (int           proc_fd,
-                              const char   *src,
-                              const char   *dest,
-                              bind_option_t options,
-                              char        **failing_path);
+typedef struct _BindOp BindOp;
+
+struct _BindOp {
+    char *dest;
+    bind_option_t options;
+    BindOp *next;
+};
+
+/// --------------------------------------------------------------------------------------------------------------------
+/// Functions
+
+bind_mount_result
+bind_mount_fixup (int proc_fd, BindOp *bind_ops, size_t bind_ops_quantity, char **failing_path);
 
 void die_with_bind_result (bind_mount_result res,
-                           int               saved_errno,
-                           const char       *failing_path,
-                           const char       *format,
+                           int saved_errno,
+                           const char *failing_path,
+                           const char *format,
                            ...)
-  __attribute__((__noreturn__))
-  __attribute__((format (printf, 4, 5)));
+__attribute__((__noreturn__))
+__attribute__((format (printf, 4, 5)));

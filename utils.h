@@ -31,10 +31,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if 0
-#define __debug__(x) printf x
+#ifdef DEBUG
+#define __debug__(...) do { fprintf(stderr, __VA_ARGS__); } while (0)
 #else
-#define __debug__(x)
+#define __debug__(...)
 #endif
 
 #define UNUSED __attribute__((__unused__))

@@ -1,7 +1,7 @@
 project(
   'bubblewrap',
   'c',
-  version : '0.9.0',
+  version : '0.10.0',
   meson_version : '>=0.49.0',
   default_options : [
     'warning_level=2',
@@ -115,6 +115,10 @@ bwrap = executable(
     'bind-mount.c',
     'network.c',
     'utils.c',
+    'parse-mountinfo.c',
+    'data-structures/destinations-graph-ops.c',
+    'data-structures/destinations-graph-ops-linked-list.c',
+    'data-structures/destinations-graph-ops-node.c',
   ],
   build_rpath : get_option('build_rpath'),
   install : true,

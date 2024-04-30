@@ -6,6 +6,12 @@ bwrap_SOURCES = \
 	$(bwrap_srcpath)/network.c \
 	$(bwrap_srcpath)/utils.h \
 	$(bwrap_srcpath)/utils.c \
+	$(bwrap-srcpath)/parse-mountinfo.h \
+	$(bwrap-srcpath)/parse-mountinfo.c \
+	$(bwrap-srcpath)/data-structures/destinations-graph.h \
+	$(bwrap-srcpath)/data-structures/destinations-graph-ops.c \
+	$(bwrap-srcpath)/data-structures/destinations-graph-ops-linked-list.c \
+	$(bwrap-srcpath)/data-structures/destinations-graph-ops-node.c \
 	$(NULL)
 
 bwrap_CFLAGS = $(AM_CFLAGS)
