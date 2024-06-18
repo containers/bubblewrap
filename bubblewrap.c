@@ -317,6 +317,8 @@ usage (int ecode, FILE *out)
            "    --dev-bind-try SRC DEST      Equal to --dev-bind but ignores non-existent SRC\n"
            "    --ro-bind SRC DEST           Bind mount the host path SRC readonly on DEST\n"
            "    --ro-bind-try SRC DEST       Equal to --ro-bind but ignores non-existent SRC\n"
+           "    --bind-fd FD DEST            Bind open directory or path fd on DEST\n"
+           "    --ro-bind-fd FD DEST         Bind open directory or path fd read-only on DEST\n"
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
            "    --exec-label LABEL           Exec label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
@@ -1198,6 +1200,30 @@ setup_newroot (bool unshare_pid,
                          (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
                          (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
                          0, source, dest);
+
+          if (op->fd >= 0)
+            {
+              struct stat fd_st, mount_st;
+
+              /* When using bind-fd, there is a race condition between resolving the fd as a magic symlink
+               * and mounting it, where someone could replace what is at the symlink target. Ideally
+               * we would not even resolve the symlink and directly bind-mount from the fd, but unfortunately
+               * we can't do that, because its not permitted to bind mount a fd from another user namespace.
+               * So, we resolve, mount and then compare fstat+stat to detect the race. */
+
+              if (fstat(op->fd, &fd_st) != 0)
+                die_with_error("Can't stat fd %d", op->fd);
+              if (lstat(dest, &mount_st) != 0)
+                die_with_error("Can't stat mount at %s", dest);
+
+              if (fd_st.st_ino != mount_st.st_ino ||
+                  fd_st.st_dev != mount_st.st_dev)
+                die_with_error("Race condition binding dirfd");
+
+              close(op->fd);
+              op->fd = -1;
+            }
+
           break;
 
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
@@ -1818,6 +1844,30 @@ parse_args_recurse (int          *argcp,
           op->dest = argv[2];
           if (strcmp(arg, "--dev-bind-try") == 0)
             op->flags = ALLOW_NOTEXIST;
+
+          argv += 2;
+          argc -= 2;
+        }
+      else if (strcmp (arg, "--bind-fd") == 0 ||
+               strcmp (arg, "--ro-bind-fd") == 0)
+        {
+          int src_fd;
+          char *endptr;
+
+          if (argc < 3)
+            die ("--bind-fd takes two arguments");
+
+          src_fd = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0 || src_fd < 0)
+            die ("Invalid fd: %s", argv[1]);
+
+          if (strcmp(arg, "--ro-bind-fd") == 0)
+            op = setup_op_new (SETUP_RO_BIND_MOUNT);
+          else
+            op = setup_op_new (SETUP_BIND_MOUNT);
+          op->source = xasprintf ("/proc/self/fd/%d", src_fd);
+          op->fd = src_fd;
+          op->dest = argv[2];
 
           argv += 2;
           argc -= 2;
