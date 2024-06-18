@@ -147,7 +147,7 @@ typedef enum {
 
 typedef enum {
   NO_CREATE_DEST = (1 << 0),
-  ALLOW_NOTEXIST = (2 << 0),
+  ALLOW_NOTEXIST = (1 << 1),
 } SetupOpFlag;
 
 typedef struct _SetupOp SetupOp;
