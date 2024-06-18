@@ -565,4 +565,10 @@ $RUN --argv0 right sh -c 'echo $0' > stdout
 assert_file_has_content stdout right
 ok "argv0 manipulation"
 
+echo "foobar" > file-data
+$RUN --proc /proc --dev /dev --bind / / --bind-fd 100 /tmp cat /tmp/file-data 100< . > stdout
+assert_file_has_content stdout foobar
+
+ok "bind-fd"
+
 done_testing
