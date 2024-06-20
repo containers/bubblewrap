@@ -200,6 +200,37 @@ test_has_path_prefix (void)
     }
 }
 
+static void
+test_string_builder (void)
+{
+  StringBuilder sb = {0};
+
+  strappend (&sb, "aaa");
+  g_assert_cmpstr (sb.str, ==, "aaa");
+  strappend (&sb, "bbb");
+  g_assert_cmpstr (sb.str, ==, "aaabbb");
+  strappendf (&sb, "c%dc%s", 9, "x");
+  g_assert_cmpstr (sb.str, ==, "aaabbbc9cx");
+  strappend_escape_for_mount_options (&sb, "/path :,\\");
+  g_assert_cmpstr (sb.str, ==, "aaabbbc9cx/path \\:\\,\\\\");
+  strappend (&sb, "zzz");
+  g_assert_cmpstr (sb.str, ==, "aaabbbc9cx/path \\:\\,\\\\zzz");
+
+  free (sb.str);
+  sb = (StringBuilder){0};
+
+  strappend_escape_for_mount_options (&sb, "aaa");
+  g_assert_cmpstr (sb.str, ==, "aaa");
+
+  free (sb.str);
+  sb = (StringBuilder){0};
+
+  strappend_escape_for_mount_options (&sb, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  g_assert_cmpstr (sb.str, ==, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+
+  free (sb.str);
+}
+
 int
 main (int argc UNUSED,
       char **argv UNUSED)
@@ -210,6 +241,7 @@ main (int argc UNUSED,
   test_strconcat3 ();
   test_has_prefix ();
   test_has_path_prefix ();
+  test_string_builder ();
   printf ("1..%u\n", test_number);
   return 0;
 }
