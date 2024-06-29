@@ -27,6 +27,7 @@ _bwrap_args=(
 
     # Please sort alphabetically (in LC_ALL=C order) by option name
     '--add-seccomp-fd[Load and use seccomp rules from FD]: :_guard "[0-9]#" "file descriptor to read seccomp rules from"'
+    '--allow-userns[Allow further use of user namespaces inside sandbox]'
     '--assert-userns-disabled[Fail unless further use of user namespace inside sandbox is disabled]'
     '--args[Parse NUL-separated args from FD]: :_guard "[0-9]#" "file descriptor with NUL-separated arguments"'
     '--argv0[Set argv0 to the value VALUE before running the program]:value:'
@@ -39,6 +40,7 @@ _bwrap_args=(
     '--chdir[Change directory to DIR]:working directory for sandbox: _files -/'
     '--chmod[Set permissions]: :_guard "[0-7]#" "permissions in octal":path to set permissions:_files'
     '--clearenv[Unset all environment variables]'
+    '--compat[Set compatability level (negative value means latest)]:compatability level:'
     '--dev-bind-try[Equal to --dev-bind but ignores non-existent SRC]:source:_files:destination:_files'
     '--dev-bind[Bind mount the host path SRC on DEST, allowing device access]:source:_files:destination:_files'
     '--dev[Mount new dev on DEST]:mount point for /dev:_files -/'
@@ -54,6 +56,7 @@ _bwrap_args=(
     '--lock-file[Take a lock on DEST while sandbox is running]:lock file:_files'
     '--mqueue[Mount new mqueue on DEST]:mount point for mqueue:_files -/'
     '--new-session[Create a new terminal session]'
+    "--no-new-session[Don't create a new terminal session]"
     '--perms[Set permissions for next action argument]: :_guard "[0-7]#" "permissions in octal": :->after_perms'
     '--pidns[Use this user namespace (as parent namespace if using --unshare-pid)]: :'
     '--proc[Mount new procfs on DEST]:mount point for procfs:_files -/'
