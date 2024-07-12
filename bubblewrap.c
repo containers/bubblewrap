@@ -987,14 +987,6 @@ drop_privs (bool keep_requested_caps,
     die_with_error ("can't set dumpable");
 }
 
-static char *
-get_newroot_path (const char *path)
-{
-  while (*path == '/')
-    path++;
-  return strconcat ("/newroot/", path);
-}
-
 static void
 write_uid_gid_map (uid_t sandbox_uid,
                    uid_t parent_uid,
