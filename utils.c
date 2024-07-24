@@ -34,10 +34,11 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
-__attribute__((format(printf, 1, 0))) static void
-warnv (const char *format,
-       va_list args,
-       const char *detail)
+__attribute__((format(printf, 2, 0))) static void
+bwrap_logv (int severity,
+            const char *format,
+            va_list args,
+            const char *detail)
 {
   fprintf (stderr, "bwrap: ");
   vfprintf (stderr, format, args);
@@ -49,12 +50,13 @@ warnv (const char *format,
 }
 
 void
-warn (const char *format, ...)
+bwrap_log (int severity,
+           const char *format, ...)
 {
   va_list args;
 
   va_start (args, format);
-  warnv (format, args, NULL);
+  bwrap_logv (severity, format, args, NULL);
   va_end (args);
 }
 
@@ -67,7 +69,7 @@ die_with_error (const char *format, ...)
   errsv = errno;
 
   va_start (args, format);
-  warnv (format, args, strerror (errsv));
+  bwrap_logv (LOG_ERR, format, args, strerror (errsv));
   va_end (args);
 
   exit (1);
@@ -82,7 +84,7 @@ die_with_mount_error (const char *format, ...)
   errsv = errno;
 
   va_start (args, format);
-  warnv (format, args, mount_strerror (errsv));
+  bwrap_logv (LOG_ERR, format, args, mount_strerror (errsv));
   va_end (args);
 
   exit (1);
@@ -94,7 +96,7 @@ die (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args, NULL);
+  bwrap_logv (LOG_ERR, format, args, NULL);
   va_end (args);
 
   exit (1);
