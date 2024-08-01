@@ -53,6 +53,8 @@ typedef int bool;
 #define PR_SET_CHILD_SUBREAPER 36
 #endif
 
+extern bool bwrap_level_prefix;
+
 void  bwrap_log (int severity,
                  const char *format,
                  ...) __attribute__((format (printf, 2, 3)));

@@ -34,12 +34,17 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
+bool bwrap_level_prefix = FALSE;
+
 __attribute__((format(printf, 2, 0))) static void
 bwrap_logv (int severity,
             const char *format,
             va_list args,
             const char *detail)
 {
+  if (bwrap_level_prefix)
+    fprintf (stderr, "<%d>", severity);
+
   fprintf (stderr, "bwrap: ");
   vfprintf (stderr, format, args);
 

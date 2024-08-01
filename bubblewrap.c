@@ -311,6 +311,7 @@ usage (int ecode, FILE *out)
            "    --version                    Print version\n"
            "    --args FD                    Parse NUL-separated args from FD\n"
            "    --argv0 VALUE                Set argv[0] to the value VALUE before running the program\n"
+           "    --level-prefix               Prepend e.g. <3> to diagnostic messages\n"
            "    --unshare-all                Unshare every namespace we support by default\n"
            "    --share-net                  Retain the network namespace (can only combine with --unshare-all)\n"
            "    --unshare-user               Create new user namespace (may be automatically implied if not setuid)\n"
@@ -1777,6 +1778,10 @@ parse_args_recurse (int          *argcp,
           opt_argv0 = argv[1];
           argv++;
           argc--;
+        }
+      else if (strcmp (arg, "--level-prefix") == 0)
+        {
+          bwrap_level_prefix = TRUE;
         }
       else if (strcmp (arg, "--unshare-all") == 0)
         {
