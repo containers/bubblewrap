@@ -3264,7 +3264,7 @@ main (int    argc,
          used for one or more of these reasons:
 
          * The 1st level namespace has a different uid/gid than the
-           requested due to requirements of beeing root in the first
+           requested due to requirements of being root in the first
            level due for mounting devpts (opt_needs_devpts).
 
          * To disable user namespaces we set max_user_namespaces and then
