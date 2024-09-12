@@ -182,7 +182,7 @@ D-Bus communication.
 
 - Some applications deploy their own sandboxing mechanisms, and these can be
 restricted by the constraints imposed by bubblewrap's sandboxing.
-For example, some web browsers which configure their child proccesses via
+For example, some web browsers which configure their child processes via
 seccomp to not have access to the filesystem. If you limit the syscalls and
 don't allow the seccomp syscall, a browser cannot apply these restrictions.
 Similarly, if these rules were compiled into a file that is not available in
