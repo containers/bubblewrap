@@ -311,6 +311,7 @@ usage (int ecode, FILE *out)
            "    --version                    Print version\n"
            "    --args FD                    Parse NUL-separated args from FD\n"
            "    --argv0 VALUE                Set argv[0] to the value VALUE before running the program\n"
+           "    --level-prefix               Prepend e.g. <3> to diagnostic messages\n"
            "    --unshare-all                Unshare every namespace we support by default\n"
            "    --share-net                  Retain the network namespace (can only combine with --unshare-all)\n"
            "    --unshare-user               Create new user namespace (may be automatically implied if not setuid)\n"
@@ -1778,6 +1779,10 @@ parse_args_recurse (int          *argcp,
           argv++;
           argc--;
         }
+      else if (strcmp (arg, "--level-prefix") == 0)
+        {
+          bwrap_level_prefix = TRUE;
+        }
       else if (strcmp (arg, "--unshare-all") == 0)
         {
           /* Keep this in order with the older (legacy) --unshare arguments,
@@ -2841,7 +2846,7 @@ main (int    argc,
   if (argc <= 0)
     usage (EXIT_FAILURE, stderr);
 
-  __debug__ (("Creating root mount point\n"));
+  debug ("Creating root mount point");
 
   if (opt_sandbox_uid == (uid_t)-1)
     opt_sandbox_uid = real_uid;
@@ -2877,7 +2882,7 @@ main (int    argc,
    * access ourselves. */
   base_path = "/tmp";
 
-  __debug__ (("creating new namespace\n"));
+  debug ("creating new namespace");
 
   if (opt_unshare_pid && !opt_as_pid_1)
     {
@@ -3354,7 +3359,7 @@ main (int    argc,
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
 
-  __debug__ (("forking for child\n"));
+  debug ("forking for child");
 
   if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
     {
@@ -3392,7 +3397,7 @@ main (int    argc,
         }
     }
 
-  __debug__ (("launch executable %s\n", argv[0]));
+  debug ("launch executable %s", argv[0]);
 
   if (proc_fd != -1)
     close (proc_fd);

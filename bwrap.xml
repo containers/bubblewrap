@@ -96,6 +96,26 @@
       <term><option>--argv0 <arg choice="plain">VALUE</arg></option></term>
       <listitem><para>Set argv[0] to the value <arg choice="plain">VALUE</arg> before running the program</para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--level-prefix</option></term>
+      <listitem>
+        <para>
+          Prefix each line of diagnostic output with a numeric severity
+          level enclosed in angle brackets.
+          The severity levels used are based on the constants used by
+          <citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum></citerefentry>:
+          for example, <literal>&lt;4&gt;</literal> indicates a warning,
+          because <literal>LOG_WARNING</literal> has numeric value 4.
+          Numbers smaller than 4 indicate fatal errors, and numbers larger
+          than 4 indicate informational messages.
+          These prefixes can be parsed by tools compatible with
+          <literal>logger --prio-prefix</literal> (see
+          <citerefentry><refentrytitle>logger</refentrytitle><manvolnum>1</manvolnum></citerefentry>)
+          or <literal>systemd-cat --level-prefix=1</literal> (see
+          <citerefentry><refentrytitle>systemd-cat</refentrytitle><manvolnum>1</manvolnum></citerefentry>).
+        </para>
+      </listitem>
+    </varlistentry>
   </variablelist>
   <para>Options related to kernel namespaces:</para>
   <variablelist>

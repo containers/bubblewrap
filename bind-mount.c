@@ -560,6 +560,9 @@ die_with_bind_result (bind_mount_result res,
   bool want_errno = TRUE;
   char *message;
 
+  if (bwrap_level_prefix)
+    fprintf (stderr, "<%d>", LOG_ERR);
+
   fprintf (stderr, "bwrap: ");
 
   va_start (args, format);

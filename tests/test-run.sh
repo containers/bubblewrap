@@ -571,4 +571,12 @@ assert_file_has_content stdout foobar
 
 ok "bind-fd"
 
+$RUN --chdir / --chdir / true > stdout 2>&1
+assert_file_has_content stdout '^bwrap: Only the last --chdir option will take effect$'
+ok "warning logged for redundant --chdir"
+
+$RUN --level-prefix --chdir / --chdir / true > stdout 2>&1
+assert_file_has_content stdout '^<4>bwrap: Only the last --chdir option will take effect$'
+ok "--level-prefix"
+
 done_testing
