@@ -3161,8 +3161,21 @@ main (int    argc,
   if (mkdir ("oldroot", 0755))
     die_with_error ("Creating oldroot failed");
 
+#define ROOT_MODE_CHROOT 0
+#define ROOT_MODE_PIVOT 1
+
+  int root_mode = ROOT_MODE_PIVOT;
   if (pivot_root (base_path, "oldroot"))
-    die_with_error ("pivot_root");
+    {
+      warn ("pivot_root() failed, falling back to chroot() with limitations");
+      root_mode = ROOT_MODE_CHROOT;
+
+      if (mount ("/", "oldroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+        die_with_error ("setting up newroot bind");
+
+      if (chroot (base_path))
+        die_with_error ("chroot");
+    }
 
   if (chdir ("/") != 0)
     die_with_error ("chdir / (base path)");
@@ -3233,30 +3246,32 @@ main (int    argc,
    * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
    * that we need a temporary place to store it before we can unmount it.
    */
-  { cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
-    if (oldrootfd < 0)
-      die_with_error ("can't open /");
-    if (chdir ("/newroot") != 0)
-      die_with_error ("chdir /newroot");
-    /* While the documentation claims that put_old must be underneath
-     * new_root, it is perfectly fine to use the same directory as the
-     * kernel checks only if old_root is accessible from new_root.
-     *
-     * Both runc and LXC are using this "alternative" method for
-     * setting up the root of the container:
-     *
-     * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
-     * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
-     */
-    if (pivot_root (".", ".") != 0)
-      die_with_error ("pivot_root(/newroot)");
-    if (fchdir (oldrootfd) < 0)
-      die_with_error ("fchdir to oldroot");
-    if (umount2 (".", MNT_DETACH) < 0)
-      die_with_error ("umount old root");
-    if (chdir ("/") != 0)
-      die_with_error ("chdir /");
-  }
+  if (root_mode == ROOT_MODE_PIVOT)
+    {
+      cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
+      if (oldrootfd < 0)
+        die_with_error ("can't open /");
+      if (chdir ("/newroot") != 0)
+        die_with_error ("chdir /newroot");
+      /* While the documentation claims that put_old must be underneath
+       * new_root, it is perfectly fine to use the same directory as the
+       * kernel checks only if old_root is accessible from new_root.
+       *
+       * Both runc and LXC are using this "alternative" method for
+       * setting up the root of the container:
+       *
+       * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
+       * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
+       */
+      if (pivot_root (".", ".") != 0)
+        die_with_error ("pivot_root(/newroot)");
+      if (fchdir (oldrootfd) < 0)
+        die_with_error ("fchdir to oldroot");
+      if (umount2 (".", MNT_DETACH) < 0)
+        die_with_error ("umount old root");
+      if (chdir ("/") != 0)
+        die_with_error ("chdir /");
+    }
 
   if (opt_userns2_fd > 0 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
     die_with_error ("Setting userns2 failed");
@@ -3290,15 +3305,19 @@ main (int    argc,
             die_with_error ("sysctl user.max_user_namespaces = 1");
         }
 
-      if (unshare (CLONE_NEWUSER))
-        die_with_error ("unshare user ns");
+      if (root_mode == ROOT_MODE_PIVOT)
+        {
+          if (unshare (CLONE_NEWUSER))
+            die_with_error ("unshare user ns");
+        }
 
       /* We're in a new user namespace, we got back the bounding set, clear it again */
       drop_cap_bounding_set (FALSE);
 
-      write_uid_gid_map (opt_sandbox_uid, ns_uid,
-                         opt_sandbox_gid, ns_gid,
-                         -1, FALSE, FALSE);
+      if (root_mode == ROOT_MODE_PIVOT)
+        write_uid_gid_map (opt_sandbox_uid, ns_uid,
+                           opt_sandbox_gid, ns_gid,
+                           -1, FALSE, FALSE);
     }
 
   if (opt_disable_userns || opt_assert_userns_disabled)
@@ -3308,6 +3327,17 @@ main (int    argc,
 
       if (res == 0)
         die ("creation of new user namespaces was not disabled as requested");
+    }
+
+  if (root_mode == ROOT_MODE_CHROOT)
+    {
+      /* Now make /newroot the real root */
+      if (chdir ("/newroot") != 0)
+        die_with_error ("chdir newroot");
+      if (chroot ("/newroot") != 0)
+        die_with_error ("chroot /newroot");
+      if (chdir ("/") != 0)
+        die_with_error ("chdir /");
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
