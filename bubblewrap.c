@@ -59,6 +59,8 @@
  * 2^64 - 2^12. */
 #define MAX_TMPFS_BYTES ((size_t) (SIZE_MAX >> 1))
 
+#define LATEST_COMPAT_LEVEL 1
+
 /* Globals to avoid having to use getuid(), since the uid/gid changes during runtime */
 static uid_t real_uid;
 static gid_t real_gid;
@@ -76,6 +78,7 @@ static const char *opt_argv0 = NULL;
 static const char *opt_chdir_path = NULL;
 static bool opt_assert_userns_disabled = FALSE;
 static bool opt_disable_userns = FALSE;
+static bool opt_disable_userns_set = FALSE;
 static bool opt_unshare_user = FALSE;
 static bool opt_unshare_user_try = FALSE;
 static bool opt_unshare_pid = FALSE;
@@ -86,6 +89,7 @@ static bool opt_unshare_cgroup = FALSE;
 static bool opt_unshare_cgroup_try = FALSE;
 static bool opt_needs_devpts = FALSE;
 static bool opt_new_session = FALSE;
+static bool opt_new_session_set = FALSE;
 static bool opt_die_with_parent = FALSE;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
@@ -100,6 +104,7 @@ static char *opt_args_data = NULL;  /* owned */
 static int opt_userns_fd = -1;
 static int opt_userns2_fd = -1;
 static int opt_pidns_fd = -1;
+static int opt_compat_level = 0;
 static int next_perms = -1;
 static size_t next_size_arg = 0;
 
@@ -309,6 +314,7 @@ usage (int ecode, FILE *out)
   fprintf (out,
            "    --help                       Print this help\n"
            "    --version                    Print version\n"
+           "    --compat                     Set compatability level (negative value means latest)\n"
            "    --args FD                    Parse NUL-separated args from FD\n"
            "    --argv0 VALUE                Set argv[0] to the value VALUE before running the program\n"
            "    --level-prefix               Prepend e.g. <3> to diagnostic messages\n"
@@ -324,7 +330,7 @@ usage (int ecode, FILE *out)
            "    --unshare-cgroup-try         Create new cgroup namespace if possible else continue by skipping it\n"
            "    --userns FD                  Use this user namespace (cannot combine with --unshare-user)\n"
            "    --userns2 FD                 After setup switch to this user namespace, only useful with --userns\n"
-           "    --disable-userns             Disable further use of user namespaces inside sandbox\n"
+           "%s" /* --(disable/allow)-userns */
            "    --assert-userns-disabled     Fail unless further use of user namespace inside sandbox is disabled\n"
            "    --pidns FD                   Use this pid namespace (as parent namespace if using --unshare-pid)\n"
            "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
@@ -362,15 +368,20 @@ usage (int ecode, FILE *out)
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --json-status-fd FD          Write container status to FD as multiple JSON documents\n"
-           "    --new-session                Create a new terminal session\n"
+           "%s" /* -(-no)-new-session */
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
            "    --cap-add CAP                Add cap CAP when running as privileged user\n"
            "    --cap-drop CAP               Drop cap CAP when running as privileged user\n"
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
-           "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
-          );
+           "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n",
+             opt_compat_level == 0 ?
+           "    --disable-userns             Disable further use of user namespaces inside sandbox\n" :
+           "    --allow-userns               Allow further use of user namespaces inside sandbox\n",
+             opt_compat_level == 0 ?
+           "    --new-session                Create a new terminal session\n" :
+           "    --no-new-session             Don't create a new terminal session\n");
   exit (ecode);
 }
 
@@ -1691,17 +1702,42 @@ parse_args_recurse (int          *argcp,
   if (*total_parsed_argc_p > MAX_ARGS)
     die ("Exceeded maximum number of arguments %u", MAX_ARGS);
 
+  bool print_help = FALSE;
   while (argc > 0)
     {
       const char *arg = argv[0];
 
       if (strcmp (arg, "--help") == 0)
         {
-          usage (EXIT_SUCCESS, stdout);
+          /* Defer printing help as it now varies depending on the compat level. */
+          print_help = TRUE;
         }
       else if (strcmp (arg, "--version") == 0)
         {
           print_version_and_exit ();
+        }
+      else if (strcmp (arg, "--compat") == 0)
+        {
+          int the_compat_level;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--compat takes an argument");
+
+          the_compat_level = strtol (argv[1], &endptr, 10);
+          if (argv[1][0] == 0 || endptr[0] != 0)
+            die ("Invalid compat level: %s", argv[1]);
+
+          if (the_compat_level > LATEST_COMPAT_LEVEL)
+            die ("Compat level %d is not suported by this version (latest supported is %d)", the_compat_level, LATEST_COMPAT_LEVEL);
+
+          if (the_compat_level < 0)
+            the_compat_level = LATEST_COMPAT_LEVEL;
+
+          opt_compat_level = the_compat_level;
+
+          argv += 1;
+          argc -= 1;
         }
       else if (strcmp (arg, "--args") == 0)
         {
@@ -1844,13 +1880,20 @@ parse_args_recurse (int          *argcp,
           argv++;
           argc--;
         }
-      else if (strcmp (arg, "--disable-userns") == 0)
+      else if (opt_compat_level == 0 && strcmp (arg, "--disable-userns") == 0)
         {
           opt_disable_userns = TRUE;
+          opt_disable_userns_set = TRUE;
         }
       else if (strcmp (arg, "--assert-userns-disabled") == 0)
         {
           opt_assert_userns_disabled = TRUE;
+          opt_disable_userns_set = TRUE;
+        }
+      else if (opt_compat_level > 0 && strcmp (arg, "--allow-userns") == 0)
+        {
+          opt_disable_userns = FALSE;
+          opt_disable_userns_set = TRUE;
         }
       else if (strcmp (arg, "--remount-ro") == 0)
         {
@@ -2059,7 +2102,10 @@ parse_args_recurse (int          *argcp,
           if (next_perms >= 0)
             op->perms = next_perms;
           else
-            op->perms = 0666;
+            if (opt_compat_level == 0)
+              op->perms = 0666;
+            else
+              op->perms = 0644;
 
           next_perms = -1;
           argv += 2;
@@ -2255,7 +2301,12 @@ parse_args_recurse (int          *argcp,
             die ("--seccomp cannot be combined with --add-seccomp-fd");
 
           if (opt_seccomp_fd != -1)
-            warn_only_last_option ("--seccomp");
+            {
+              if (opt_compat_level == 0)
+                warn_only_last_option ("--seccomp");
+              else
+                die ("More than one --seccomp options specified, use --add-seccomp-fd instead.");
+            }
 
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
@@ -2428,9 +2479,15 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
-      else if (strcmp (arg, "--new-session") == 0)
+      else if (opt_compat_level == 0 && strcmp (arg, "--new-session") == 0)
         {
           opt_new_session = TRUE;
+          opt_new_session_set = TRUE;
+        }
+      else if (opt_compat_level > 0 && strcmp (arg, "--no-new-session") == 0)
+        {
+          opt_new_session = FALSE;
+          opt_new_session_set = TRUE;
         }
       else if (strcmp (arg, "--die-with-parent") == 0)
         {
@@ -2604,6 +2661,15 @@ parse_args_recurse (int          *argcp,
       argv++;
       argc--;
     }
+
+  if (print_help)
+    usage (EXIT_SUCCESS, stdout);
+
+  if (opt_compat_level > 0 && opt_unshare_user && !opt_disable_userns_set)
+    opt_disable_userns = TRUE;
+
+  if (opt_compat_level > 0 && !opt_new_session_set)
+    opt_new_session = TRUE;
 
   *argcp = argc;
   *argvp = argv;

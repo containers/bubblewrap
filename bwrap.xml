@@ -85,6 +85,10 @@
       <listitem><para>Print version</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--compat <arg choice="plain">compatability level</arg></option></term>
+      <listitem><para>Set compatability level (negative value means latest)</para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--args <arg choice="plain">FD</arg></option></term>
       <listitem><para>
         Parse nul-separated arguments from the given file descriptor.
@@ -170,6 +174,15 @@
       <para>This is useful because sometimes bubblewrap itself creates nested user namespaces (to work around some kernel issues) and --userns2 can be used to enter these.</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--allow-userns</option></term>
+      <listitem><para>
+        Allow the process in the sandbox to create further user namespaces,
+        so that it can rearrange the filesystem namespace or do other more
+        complex namespace modification.
+        This option is only available in compatability level 1 or later.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--disable-userns</option></term>
       <listitem><para>
         Prevent the process in the sandbox from creating further user namespaces,
@@ -181,6 +194,7 @@
         in the outer namespace.
         This option requires <option>--unshare-user</option>, and doesn't work
         in the setuid version of bubblewrap.
+        This option is not available in compatability level 1 or later.
       </para></listitem>
     </varlistentry>
     <varlistentry>
@@ -489,11 +503,28 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--no-new-session</option></term>
+      <listitem><para>
+        Don't create a new terminal session for the sandbox (don't call
+        setsid()). This doesn't disconnect the sandbox from the controlling
+        terminal which means the sandbox can for instance inject input into
+        the terminal. This option is only available in compatability level 1
+        or later.
+        </para><para>
+        Note: In a general sandbox, if you use --no-new-session, it is
+        recommended to use seccomp to disallow the TIOCSTI ioctl, otherwise
+        the application can feed keyboard input to the terminal
+        which can e.g. lead to out-of-sandbox command execution
+        (see CVE-2017-5226).
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--new-session</option></term>
       <listitem><para>
 	Create a new terminal session for the sandbox (calls setsid()). This
         disconnects the sandbox from the controlling terminal which means
         the sandbox can't for instance inject input into the terminal.
+        This option is not available in compatability level 1 or later.
         </para><para>
         Note: In a general sandbox, if you don't use --new-session, it is
         recommended to use seccomp to disallow the TIOCSTI ioctl, otherwise
