@@ -77,7 +77,7 @@ Users
 This program can be shared by all container tools which perform
 non-root operation, such as:
 
- - [Flatpak](http://www.flatpak.org)
+ - [Flatpak](https://www.flatpak.org)
  - [rpm-ostree unprivileged](https://github.com/projectatomic/rpm-ostree/pull/209)
  - [bwrap-oci](https://github.com/projectatomic/bwrap-oci)
 
@@ -145,18 +145,18 @@ Any such directories you specify mounted `nodev` by default, and can be made rea
 
 Additionally you can use these kernel features:
 
-User namespaces ([CLONE_NEWUSER](http://linux.die.net/man/2/clone)): This hides all but the current uid and gid from the
+User namespaces ([CLONE_NEWUSER](https://linux.die.net/man/2/clone)): This hides all but the current uid and gid from the
 sandbox. You can also change what the value of uid/gid should be in the sandbox.
 
-IPC namespaces ([CLONE_NEWIPC](http://linux.die.net/man/2/clone)): The sandbox will get its own copy of all the
+IPC namespaces ([CLONE_NEWIPC](https://linux.die.net/man/2/clone)): The sandbox will get its own copy of all the
 different forms of IPCs, like SysV shared memory and semaphores.
 
-PID namespaces ([CLONE_NEWPID](http://linux.die.net/man/2/clone)): The sandbox will not see any processes outside the sandbox. Additionally, bubblewrap will run a trivial pid1 inside your container to handle the requirements of reaping children in the sandbox. This avoids what is known now as the [Docker pid 1 problem](https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/).
+PID namespaces ([CLONE_NEWPID](https://linux.die.net/man/2/clone)): The sandbox will not see any processes outside the sandbox. Additionally, bubblewrap will run a trivial pid1 inside your container to handle the requirements of reaping children in the sandbox. This avoids what is known now as the [Docker pid 1 problem](https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/).
 
 
-Network namespaces ([CLONE_NEWNET](http://linux.die.net/man/2/clone)): The sandbox will not see the network. Instead it will have its own network namespace with only a loopback device.
+Network namespaces ([CLONE_NEWNET](https://linux.die.net/man/2/clone)): The sandbox will not see the network. Instead it will have its own network namespace with only a loopback device.
 
-UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox will have its own hostname.
+UTS namespace ([CLONE_NEWUTS](https://linux.die.net/man/2/clone)): The sandbox will have its own hostname.
 
 Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
 
