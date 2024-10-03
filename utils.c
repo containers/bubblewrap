@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
+#include <sys/param.h>
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
 #endif
@@ -948,5 +949,108 @@ mount_strerror (int errsv)
 
       default:
         return strerror (errsv);
+    }
+}
+
+static size_t
+xadd (size_t a, size_t b)
+{
+  size_t result;
+  if (__builtin_add_overflow (a, b, &result))
+    die_oom ();
+  return result;
+}
+
+static size_t
+xmul (size_t a, size_t b)
+{
+  size_t result;
+  if (__builtin_mul_overflow (a, b, &result))
+    die_oom ();
+  return result;
+}
+
+void
+strappend (StringBuilder *dest, const char *src)
+{
+  size_t len = strlen (src);
+  size_t new_offset = xadd (dest->offset, len);
+
+  if (new_offset >= dest->size)
+    {
+      dest->size = xmul (xadd (new_offset, 1), 2);
+      dest->str = xrealloc (dest->str, dest->size);
+    }
+
+  /* Preserves the invariant that dest->str is always null-terminated, even
+   * though the offset is positioned at the null byte for the next write.
+   */
+  strncpy (dest->str + dest->offset, src, len + 1);
+  dest->offset = new_offset;
+}
+
+__attribute__((format (printf, 2, 3)))
+void
+strappendf (StringBuilder *dest, const char *fmt, ...)
+{
+  va_list args;
+  int len;
+  size_t new_offset;
+
+  va_start (args, fmt);
+  len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+  va_end (args);
+  if (len < 0)
+    die_with_error ("vsnprintf");
+  new_offset = xadd (dest->offset, len);
+  if (new_offset >= dest->size)
+    {
+      dest->size = xmul (xadd (new_offset, 1), 2);
+      dest->str = xrealloc (dest->str, dest->size);
+      va_start (args, fmt);
+      len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+      va_end (args);
+      if (len < 0)
+        die_with_error ("vsnprintf");
+    }
+
+  dest->offset = new_offset;
+}
+
+void
+strappend_escape_for_mount_options (StringBuilder *dest, const char *src)
+{
+  bool unescaped = true;
+
+  for (;;)
+    {
+      if (dest->offset == dest->size)
+        {
+          dest->size = MAX (64, xmul (dest->size, 2));
+          dest->str = xrealloc (dest->str, dest->size);
+        }
+      switch (*src)
+        {
+        case '\0':
+          dest->str[dest->offset] = '\0';
+          return;
+
+        case '\\':
+        case ',':
+        case ':':
+          if (unescaped)
+            {
+              dest->str[dest->offset++] = '\\';
+              unescaped = false;
+              continue;
+            }
+          /* else fall through */
+
+        default:
+          dest->str[dest->offset++] = *src;
+          unescaped = true;
+          break;
+        }
+      src++;
     }
 }
