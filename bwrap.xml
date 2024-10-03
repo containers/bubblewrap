@@ -318,6 +318,86 @@
       <listitem><para>Remount the path <arg choice="plain">DEST</arg> as readonly.  It works only on the specified mount point, without changing any other mount point under the specified path</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--overlay-src <arg choice="plain">SRC</arg></option></term>
+      <listitem>
+        <para>
+          This option does nothing on its own, and must be followed by one of
+          the other <literal>overlay</literal> options. It specifies a host
+          path from which files should be read if they aren't present in a
+          higher layer.
+        </para>
+        <para>
+          This option can be used multiple times to provide multiple sources.
+          The sources are overlaid in the order given, with the first source on
+          the command line at the bottom of the stack: if a given path to be
+          read exists in more than one source, the file is read from the last
+          such source specified.
+        </para>
+        <para>
+          (For readers familiar with overlayfs, note that this is the
+          reverse of the order used by the kernel's <literal>lowerdir</literal>
+          mount option.)
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--overlay <arg choice="plain">RWSRC</arg> <arg choice="plain">WORKDIR</arg> <arg choice="plain">DEST</arg></option></term>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--tmp-overlay <arg choice="plain">DEST</arg></option></term>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--ro-overlay <arg choice="plain">DEST</arg></option></term>
+      <listitem>
+        <para>
+          Use overlayfs to mount the host paths specified by
+          <arg choice="plain">RWSRC</arg> and all immediately preceding
+          <option>--overlay-src</option> on <arg choice="plain">DEST</arg>.
+          <arg choice="plain">DEST</arg> will contain the union of all the files
+          in all the layers.
+        </para>
+        <para>
+          With <arg choice="plain">--overlay</arg> all writes will go to
+          <arg choice="plain">RWSRC</arg>. Reads will come preferentially from
+          <arg choice="plain">RWSRC</arg>, and then from any
+          <option>--overlay-src</option> paths.
+          <arg choice="plain">WORKDIR</arg> must be an empty directory on the
+          same filesystem as <arg choice="plain">RWSRC</arg>, and is used
+          internally by the kernel.
+        </para>
+        <para>
+          With <arg choice="plain">--tmp-overlay</arg> all writes will go to
+          the tmpfs that hosts the sandbox root, in a location not accessible
+          from either the host or the child process. Writes will therefore not
+          be persisted across multiple runs.
+        </para>
+        <para>
+          With <arg choice="plain">--ro-overlay</arg> the filesystem will be
+          mounted read-only. This option requires at least two
+          <option>--overlay-src</option> to precede it.
+        </para>
+        <para>
+          None of these options are available in the setuid version of
+          bubblewrap. Using <arg choice="plain">--ro-overlay</arg> or providing
+          more than one <option>--overlay-src</option> requires a Linux kernel
+          version of 4.0 or later.
+        </para>
+        <para>
+          Due to limitations of overlayfs, no host directory given via
+          <arg choice="plain">--overlay-src</arg> or
+          <arg choice="plain">--overlay</arg> may be an ancestor of another,
+          after resolving symlinks. Depending on version, the Linux kernel may
+          or may not enforce this, but if not then overlayfs's behavior is
+          undefined.
+        </para>
+        <para>
+          For more information see the Overlay Filesystem documentation in the
+          Linux kernel at
+          https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--proc <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Mount procfs on <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
