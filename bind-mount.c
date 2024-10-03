@@ -76,7 +76,7 @@ match_token (const char *token, const char *token_end, const char *str)
   if (token == token_end)
     return *str == 0;
 
-  return FALSE;
+  return false;
 }
 
 static unsigned long
@@ -281,12 +281,12 @@ parse_mountinfo (int  proc_fd,
         die ("Can't parse mountinfo line");
       rest = line + consumed;
 
-      rest = skip_token (rest, TRUE); /* mountroot */
+      rest = skip_token (rest, true); /* mountroot */
       mountpoint = rest;
-      rest = skip_token (rest, FALSE); /* mountpoint */
+      rest = skip_token (rest, false); /* mountpoint */
       mountpoint_end = rest++;
       options = rest;
-      rest = skip_token (rest, FALSE); /* vfs options */
+      rest = skip_token (rest, false); /* vfs options */
       options_end = rest;
 
       *mountpoint_end = 0;
@@ -324,7 +324,7 @@ parse_mountinfo (int  proc_fd,
       MountInfoLine *parent = by_id[this->parent_id];
       MountInfoLine **to_sibling;
       MountInfoLine *sibling;
-      bool covered = FALSE;
+      bool covered = false;
 
       if (!has_path_prefix (this->mountpoint, root_mount))
         continue;
@@ -333,7 +333,7 @@ parse_mountinfo (int  proc_fd,
         continue;
 
       if (strcmp (parent->mountpoint, this->mountpoint) == 0)
-        parent->covered = TRUE;
+        parent->covered = true;
 
       to_sibling = &parent->first_child;
       sibling = parent->first_child;
@@ -344,7 +344,7 @@ parse_mountinfo (int  proc_fd,
            * covered by the sibling, and we drop it. */
           if (has_path_prefix (this->mountpoint, sibling->mountpoint))
             {
-              covered = TRUE;
+              covered = true;
               break;
             }
 
@@ -499,7 +499,7 @@ bind_mount_result_to_string (bind_mount_result res,
                              bool *want_errno_p)
 {
   char *string = NULL;
-  bool want_errno = TRUE;
+  bool want_errno = true;
 
   switch (res)
     {
@@ -521,7 +521,7 @@ bind_mount_result_to_string (bind_mount_result res,
 
       case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
         string = xasprintf ("Unable to find \"%s\" in mount table", failing_path);
-        want_errno = FALSE;
+        want_errno = false;
         break;
 
       case BIND_MOUNT_ERROR_REMOUNT_DEST:
@@ -557,7 +557,7 @@ die_with_bind_result (bind_mount_result res,
                       ...)
 {
   va_list args;
-  bool want_errno = TRUE;
+  bool want_errno = true;
   char *message;
 
   if (bwrap_level_prefix)

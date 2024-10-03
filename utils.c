@@ -34,7 +34,7 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
-bool bwrap_level_prefix = FALSE;
+bool bwrap_level_prefix = false;
 
 __attribute__((format(printf, 2, 0))) static void
 bwrap_logv (int severity,
@@ -213,7 +213,7 @@ bool
 has_path_prefix (const char *str,
                  const char *prefix)
 {
-  while (TRUE)
+  while (true)
     {
       /* Skip consecutive slashes to reach next path
          element */
@@ -224,13 +224,13 @@ has_path_prefix (const char *str,
 
       /* No more prefix path elements? Done! */
       if (*prefix == 0)
-        return TRUE;
+        return true;
 
       /* Compare path element */
       while (*prefix != 0 && *prefix != '/')
         {
           if (*str != *prefix)
-            return FALSE;
+            return false;
           str++;
           prefix++;
         }
@@ -238,7 +238,7 @@ has_path_prefix (const char *str,
       /* Matched prefix path element,
          must be entire str path element */
       if (*str != '/' && *str != 0)
-        return FALSE;
+        return false;
     }
 }
 
@@ -246,7 +246,7 @@ bool
 path_equal (const char *path1,
             const char *path2)
 {
-  while (TRUE)
+  while (true)
     {
       /* Skip consecutive slashes to reach next path
          element */
@@ -263,14 +263,14 @@ path_equal (const char *path1,
       while (*path1 != 0 && *path1 != '/')
         {
           if (*path1 != *path2)
-            return FALSE;
+            return false;
           path1++;
           path2++;
         }
 
       /* Matched path1 path element, must be entire path element */
       if (*path2 != '/' && *path2 != 0)
-        return FALSE;
+        return false;
     }
 }
 
@@ -533,7 +533,7 @@ copy_file_data (int sfd,
   char buffer[BUFSIZE];
   ssize_t bytes_read;
 
-  while (TRUE)
+  while (true)
     {
       bytes_read = read (sfd, buffer, BUFSIZE);
       if (bytes_read == -1)
