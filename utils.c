@@ -451,7 +451,7 @@ write_to_fd (int         fd,
 
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int
-write_file_at (int         dirfd,
+write_file_at (int         dfd,
                const char *path,
                const char *content)
 {
@@ -459,7 +459,7 @@ write_file_at (int         dirfd,
   bool res;
   int errsv;
 
-  fd = TEMP_FAILURE_RETRY (openat (dirfd, path, O_RDWR | O_CLOEXEC, 0));
+  fd = TEMP_FAILURE_RETRY (openat (dfd, path, O_RDWR | O_CLOEXEC, 0));
   if (fd == -1)
     return -1;
 
@@ -639,14 +639,14 @@ load_file_data (int     fd,
 /* Sets errno on error (== NULL),
  * Always ensures terminating zero */
 char *
-load_file_at (int         dirfd,
+load_file_at (int         dfd,
               const char *path)
 {
   int fd;
   char *data;
   int errsv;
 
-  fd = TEMP_FAILURE_RETRY (openat (dirfd, path, O_CLOEXEC | O_RDONLY));
+  fd = TEMP_FAILURE_RETRY (openat (dfd, path, O_CLOEXEC | O_RDONLY));
   if (fd == -1)
     return NULL;
 
@@ -752,7 +752,7 @@ mkdir_with_parents (const char *pathname,
    read back with read_pid_from_socket(), and then the kernel has
    translated it between namespaces as needed. */
 void
-send_pid_on_socket (int socket)
+send_pid_on_socket (int sockfd)
 {
   char buf[1] = { 0 };
   struct msghdr msg = {};
@@ -777,7 +777,7 @@ send_pid_on_socket (int socket)
   cred->uid = geteuid ();
   cred->gid = getegid ();
 
-  if (TEMP_FAILURE_RETRY (sendmsg (socket, &msg, 0)) < 0)
+  if (TEMP_FAILURE_RETRY (sendmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't send pid");
 }
 
@@ -794,7 +794,7 @@ create_pid_socketpair (int sockets[2])
 }
 
 int
-read_pid_from_socket (int socket)
+read_pid_from_socket (int sockfd)
 {
   char recv_buf[1] = { 0 };
   struct msghdr msg = {};
@@ -808,7 +808,7 @@ read_pid_from_socket (int socket)
   msg.msg_control = control_buf_rcv;
   msg.msg_controllen = control_len_rcv;
 
-  if (TEMP_FAILURE_RETRY (recvmsg (socket, &msg, 0)) < 0)
+  if (TEMP_FAILURE_RETRY (recvmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't read pid from socket");
 
   if (msg.msg_controllen <= 0)
