@@ -53,8 +53,8 @@ rtnl_send_request (int              rtnl_fd,
   struct sockaddr_nl dst_addr = { AF_NETLINK, 0 };
   ssize_t sent;
 
-  sent = sendto (rtnl_fd, (void *) header, header->nlmsg_len, 0,
-                 (struct sockaddr *) &dst_addr, sizeof (dst_addr));
+  sent = TEMP_FAILURE_RETRY (sendto (rtnl_fd, (void *) header, header->nlmsg_len, 0,
+                                     (struct sockaddr *) &dst_addr, sizeof (dst_addr)));
   if (sent < 0)
     return -1;
 
@@ -71,7 +71,7 @@ rtnl_read_reply (int          rtnl_fd,
 
   while (1)
     {
-      received = recv (rtnl_fd, buffer, sizeof (buffer), 0);
+      received = TEMP_FAILURE_RETRY (recv (rtnl_fd, buffer, sizeof (buffer), 0));
       if (received < 0)
         return -1;
 
