@@ -44,15 +44,6 @@
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
 #endif
 
-#ifndef TEMP_FAILURE_RETRY
-#define TEMP_FAILURE_RETRY(expression) \
-  (__extension__                                                              \
-    ({ long int __result;                                                     \
-       do __result = (long int) (expression);                                 \
-       while (__result == -1L && errno == EINTR);                             \
-       __result; }))
-#endif
-
 /* We limit the size of a tmpfs to half the architecture's address space,
  * to avoid hitting arbitrary limits in the kernel.
  * For example, on at least one x86_64 machine, the actual limit seems to be
