@@ -170,15 +170,15 @@ test_has_path_prefix (void)
     bool expected;
   } tests[] =
   {
-    { "/run/host/usr", "/run/host", TRUE },
-    { "/run/host/usr", "/run/host/", TRUE },
-    { "/run/host", "/run/host", TRUE },
-    { "////run///host////usr", "//run//host", TRUE },
-    { "////run///host////usr", "//run//host////", TRUE },
-    { "/run/hostage", "/run/host", FALSE },
+    { "/run/host/usr", "/run/host", true },
+    { "/run/host/usr", "/run/host/", true },
+    { "/run/host", "/run/host", true },
+    { "////run///host////usr", "//run//host", true },
+    { "////run///host////usr", "//run//host////", true },
+    { "/run/hostage", "/run/host", false },
     /* Any number of leading slashes is ignored, even zero */
-    { "foo/bar", "/foo", TRUE },
-    { "/foo/bar", "foo", TRUE },
+    { "foo/bar", "/foo", true },
+    { "/foo/bar", "foo", true },
   };
   size_t i;
 

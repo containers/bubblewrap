@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,10 +42,6 @@
 #define UNUSED __attribute__((__unused__))
 
 #define N_ELEMENTS(arr) (sizeof (arr) / sizeof ((arr)[0]))
-
-#define TRUE 1
-#define FALSE 0
-typedef int bool;
 
 #ifndef TEMP_FAILURE_RETRY
 #define TEMP_FAILURE_RETRY(expression) \

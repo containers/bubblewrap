@@ -65,19 +65,19 @@ static bool opt_as_pid_1;
 
 static const char *opt_argv0 = NULL;
 static const char *opt_chdir_path = NULL;
-static bool opt_assert_userns_disabled = FALSE;
-static bool opt_disable_userns = FALSE;
-static bool opt_unshare_user = FALSE;
-static bool opt_unshare_user_try = FALSE;
-static bool opt_unshare_pid = FALSE;
-static bool opt_unshare_ipc = FALSE;
-static bool opt_unshare_net = FALSE;
-static bool opt_unshare_uts = FALSE;
-static bool opt_unshare_cgroup = FALSE;
-static bool opt_unshare_cgroup_try = FALSE;
-static bool opt_needs_devpts = FALSE;
-static bool opt_new_session = FALSE;
-static bool opt_die_with_parent = FALSE;
+static bool opt_assert_userns_disabled = false;
+static bool opt_disable_userns = false;
+static bool opt_unshare_user = false;
+static bool opt_unshare_user_try = false;
+static bool opt_unshare_pid = false;
+static bool opt_unshare_ipc = false;
+static bool opt_unshare_net = false;
+static bool opt_unshare_uts = false;
+static bool opt_unshare_cgroup = false;
+static bool opt_unshare_cgroup_try = false;
+static bool opt_needs_devpts = false;
+static bool opt_new_session = false;
+static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
 static int opt_sync_fd = -1;
@@ -468,7 +468,7 @@ report_child_exit_status (int exitc, int setup_finished_fd)
     return;
 
   output = xasprintf ("{ \"exit-code\": %i }\n", exitc);
-  dump_info (opt_json_status_fd, output, FALSE);
+  dump_info (opt_json_status_fd, output, false);
   close (opt_json_status_fd);
   opt_json_status_fd = -1;
   close (setup_finished_fd);
@@ -613,7 +613,7 @@ do_init (int event_fd, pid_t initial_pid)
 
   seccomp_programs_apply ();
 
-  while (TRUE)
+  while (true)
     {
       pid_t child;
       int status;
@@ -757,16 +757,16 @@ prctl_caps (uint32_t *caps, bool do_cap_bounding, bool do_set_ambient)
    */
   for (cap = 0; cap <= CAP_LAST_CAP; cap++)
     {
-      bool keep = FALSE;
+      bool keep = false;
       if (cap < 32)
         {
           if (CAP_TO_MASK_0 (cap) & caps[0])
-            keep = TRUE;
+            keep = true;
         }
       else
         {
           if (CAP_TO_MASK_1 (cap) & caps[1])
-            keep = TRUE;
+            keep = true;
         }
 
       if (keep && do_set_ambient)
@@ -795,11 +795,11 @@ static void
 drop_cap_bounding_set (bool drop_all)
 {
   if (!drop_all)
-    prctl_caps (requested_caps, TRUE, FALSE);
+    prctl_caps (requested_caps, true, false);
   else
     {
       uint32_t no_caps[2] = {0, 0};
-      prctl_caps (no_caps, TRUE, FALSE);
+      prctl_caps (no_caps, true, false);
     }
 }
 
@@ -808,13 +808,13 @@ set_ambient_capabilities (void)
 {
   if (is_privileged)
     return;
-  prctl_caps (requested_caps, FALSE, TRUE);
+  prctl_caps (requested_caps, false, true);
 }
 
 /* This acquires the privileges that the bwrap will need it to work.
  * If bwrap is not setuid, then this does nothing, and it relies on
  * unprivileged user namespaces to be used. This case is
- * "is_privileged = FALSE".
+ * "is_privileged = false".
  *
  * If bwrap is setuid, then we do things in phases.
  * The first part is run as euid 0, but with fsuid as the real user.
@@ -838,7 +838,7 @@ acquire_privs (void)
       if (euid != 0)
         die ("Unexpected setuid user %d, should be 0", euid);
 
-      is_privileged = TRUE;
+      is_privileged = true;
       /* We want to keep running as euid=0 until at the clone()
        * operation because doing so will make the user namespace be
        * owned by root, which makes it not ptrace:able by the user as
@@ -859,7 +859,7 @@ acquire_privs (void)
         die ("Unable to set fsuid (was %d)", (int)new_fsuid);
 
       /* We never need capabilities after execve(), so lets drop everything from the bounding set */
-      drop_cap_bounding_set (TRUE);
+      drop_cap_bounding_set (true);
 
       /* Keep only the required capabilities for setup */
       set_required_caps ();
@@ -896,7 +896,7 @@ switch_to_user_with_privs (void)
 {
   /* If we're in a new user namespace, we got back the bounding set, clear it again */
   if (opt_unshare_user || opt_userns_fd != -1)
-    drop_cap_bounding_set (FALSE);
+    drop_cap_bounding_set (false);
 
   /* If we switched to a new user namespace it may allow other uids/gids, so switch to the target one */
   if (opt_userns_fd != -1)
@@ -1203,7 +1203,7 @@ setup_newroot (bool unshare_pid,
             parent_mode &= ~0005U;
 
           dest = get_newroot_path (op->dest);
-          if (mkdir_with_parents (dest, parent_mode, FALSE) != 0)
+          if (mkdir_with_parents (dest, parent_mode, false) != 0)
             die_with_error ("Can't mkdir parents for %s", op->dest);
         }
 
@@ -1753,7 +1753,7 @@ parse_args_recurse (int          *argcp,
             }
 
           data_argv_copy = data_argv; /* Don't change data_argv, we need to free it */
-          parse_args_recurse (&data_argc, &data_argv_copy, TRUE, total_parsed_argc_p);
+          parse_args_recurse (&data_argc, &data_argv_copy, true, total_parsed_argc_p);
 
           argv += 1;
           argc -= 1;
@@ -1772,7 +1772,7 @@ parse_args_recurse (int          *argcp,
         }
       else if (strcmp (arg, "--level-prefix") == 0)
         {
-          bwrap_level_prefix = TRUE;
+          bwrap_level_prefix = true;
         }
       else if (strcmp (arg, "--unshare-all") == 0)
         {
@@ -1782,45 +1782,45 @@ parse_args_recurse (int          *argcp,
            */
           opt_unshare_user_try = opt_unshare_ipc = opt_unshare_pid =
             opt_unshare_uts = opt_unshare_cgroup_try =
-            opt_unshare_net = TRUE;
+            opt_unshare_net = true;
         }
       /* Begin here the older individual --unshare variants */
       else if (strcmp (arg, "--unshare-user") == 0)
         {
-          opt_unshare_user = TRUE;
+          opt_unshare_user = true;
         }
       else if (strcmp (arg, "--unshare-user-try") == 0)
         {
-          opt_unshare_user_try = TRUE;
+          opt_unshare_user_try = true;
         }
       else if (strcmp (arg, "--unshare-ipc") == 0)
         {
-          opt_unshare_ipc = TRUE;
+          opt_unshare_ipc = true;
         }
       else if (strcmp (arg, "--unshare-pid") == 0)
         {
-          opt_unshare_pid = TRUE;
+          opt_unshare_pid = true;
         }
       else if (strcmp (arg, "--unshare-net") == 0)
         {
-          opt_unshare_net = TRUE;
+          opt_unshare_net = true;
         }
       else if (strcmp (arg, "--unshare-uts") == 0)
         {
-          opt_unshare_uts = TRUE;
+          opt_unshare_uts = true;
         }
       else if (strcmp (arg, "--unshare-cgroup") == 0)
         {
-          opt_unshare_cgroup = TRUE;
+          opt_unshare_cgroup = true;
         }
       else if (strcmp (arg, "--unshare-cgroup-try") == 0)
         {
-          opt_unshare_cgroup_try = TRUE;
+          opt_unshare_cgroup_try = true;
         }
       /* Begin here the newer --share variants */
       else if (strcmp (arg, "--share-net") == 0)
         {
-          opt_unshare_net = FALSE;
+          opt_unshare_net = false;
         }
       /* End --share variants, other arguments begin */
       else if (strcmp (arg, "--chdir") == 0)
@@ -1837,11 +1837,11 @@ parse_args_recurse (int          *argcp,
         }
       else if (strcmp (arg, "--disable-userns") == 0)
         {
-          opt_disable_userns = TRUE;
+          opt_disable_userns = true;
         }
       else if (strcmp (arg, "--assert-userns-disabled") == 0)
         {
-          opt_assert_userns_disabled = TRUE;
+          opt_assert_userns_disabled = true;
         }
       else if (strcmp (arg, "--remount-ro") == 0)
         {
@@ -1971,7 +1971,7 @@ parse_args_recurse (int          *argcp,
 
           op = setup_op_new (SETUP_MOUNT_DEV);
           op->dest = argv[1];
-          opt_needs_devpts = TRUE;
+          opt_needs_devpts = true;
 
           argv += 1;
           argc -= 1;
@@ -2421,15 +2421,15 @@ parse_args_recurse (int          *argcp,
         }
       else if (strcmp (arg, "--new-session") == 0)
         {
-          opt_new_session = TRUE;
+          opt_new_session = true;
         }
       else if (strcmp (arg, "--die-with-parent") == 0)
         {
-          opt_die_with_parent = TRUE;
+          opt_die_with_parent = true;
         }
       else if (strcmp (arg, "--as-pid-1") == 0)
         {
-          opt_as_pid_1 = TRUE;
+          opt_as_pid_1 = true;
         }
       else if (strcmp (arg, "--cap-add") == 0)
         {
@@ -2437,7 +2437,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--cap-add takes an argument");
 
-          opt_cap_add_or_drop_used = TRUE;
+          opt_cap_add_or_drop_used = true;
 
           if (strcasecmp (argv[1], "ALL") == 0)
             {
@@ -2463,7 +2463,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--cap-drop takes an argument");
 
-          opt_cap_add_or_drop_used = TRUE;
+          opt_cap_add_or_drop_used = true;
 
           if (strcasecmp (argv[1], "ALL") == 0)
             {
@@ -2606,7 +2606,7 @@ parse_args (int          *argcp,
 {
   int total_parsed_argc = *argcp;
 
-  parse_args_recurse (argcp, argvp, FALSE, &total_parsed_argc);
+  parse_args_recurse (argcp, argvp, false, &total_parsed_argc);
 }
 
 static void
@@ -2652,7 +2652,7 @@ namespace_ids_read (pid_t  pid)
       int r;
 
       /* if we don't unshare this ns, ignore it */
-      if (do_unshare && *do_unshare == FALSE)
+      if (do_unshare && *do_unshare == false)
         continue;
 
       r = fstatat (ns_fd, info->name, &st, 0);
@@ -2687,7 +2687,7 @@ namespace_ids_write (int    fd,
       output = xasprintf (",%s\"%s-namespace\": %ju",
                           indent, info->name, nsid);
 
-      dump_info (fd, output, TRUE);
+      dump_info (fd, output, true);
     }
 }
 
@@ -2795,18 +2795,18 @@ main (int    argc,
   /* We have to do this if we weren't installed setuid (and we're not
    * root), so let's just DWIM */
   if (!is_privileged && getuid () != 0 && opt_userns_fd == -1)
-    opt_unshare_user = TRUE;
+    opt_unshare_user = true;
 
 #ifdef ENABLE_REQUIRE_USERNS
   /* In this build option, we require userns. */
   if (is_privileged && getuid () != 0 && opt_userns_fd == -1)
-    opt_unshare_user = TRUE;
+    opt_unshare_user = true;
 #endif
 
   if (opt_unshare_user_try &&
       stat ("/proc/self/ns/user", &sbuf) == 0)
     {
-      bool disabled = FALSE;
+      bool disabled = false;
 
       /* RHEL7 has a kernel module parameter that lets you enable user namespaces */
       if (stat ("/sys/module/user_namespace/parameters/enable", &sbuf) == 0)
@@ -2814,7 +2814,7 @@ main (int    argc,
           cleanup_free char *enable = NULL;
           enable = load_file_at (AT_FDCWD, "/sys/module/user_namespace/parameters/enable");
           if (enable != NULL && enable[0] == 'N')
-            disabled = TRUE;
+            disabled = true;
         }
 
       /* Check for max_user_namespaces */
@@ -2823,15 +2823,15 @@ main (int    argc,
           cleanup_free char *max_user_ns = NULL;
           max_user_ns = load_file_at (AT_FDCWD, "/proc/sys/user/max_user_namespaces");
           if (max_user_ns != NULL && strcmp(max_user_ns, "0\n") == 0)
-            disabled = TRUE;
+            disabled = true;
         }
 
       /* Debian lets you disable *unprivileged* user namespaces. However this is not
-         a problem if we're privileged, and if we're not opt_unshare_user is TRUE
+         a problem if we're privileged, and if we're not opt_unshare_user is true
          already, and there is not much we can do, its just a non-working setup. */
 
       if (!disabled)
-        opt_unshare_user = TRUE;
+        opt_unshare_user = true;
     }
 
   if (argc <= 0)
@@ -2989,7 +2989,7 @@ main (int    argc,
            */
           write_uid_gid_map (ns_uid, real_uid,
                              ns_gid, real_gid,
-                             pid, TRUE, opt_needs_devpts);
+                             pid, true, opt_needs_devpts);
         }
 
       /* Initial launched process, wait for pid 1 or exec:ed command to exit */
@@ -2998,7 +2998,7 @@ main (int    argc,
         die_with_error ("Setting userns2 failed");
 
       /* We don't need any privileges in the launcher, drop them immediately. */
-      drop_privs (FALSE, FALSE);
+      drop_privs (false, false);
 
       /* Optionally bind our lifecycle to that of the parent */
       handle_die_with_parent ();
@@ -3006,17 +3006,17 @@ main (int    argc,
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i", pid);
-          dump_info (opt_info_fd, output, TRUE);
-          namespace_ids_write (opt_info_fd, FALSE);
-          dump_info (opt_info_fd, "\n}\n", TRUE);
+          dump_info (opt_info_fd, output, true);
+          namespace_ids_write (opt_info_fd, false);
+          dump_info (opt_info_fd, "\n}\n", true);
           close (opt_info_fd);
         }
       if (opt_json_status_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{ \"child-pid\": %i", pid);
-          dump_info (opt_json_status_fd, output, TRUE);
-          namespace_ids_write (opt_json_status_fd, TRUE);
-          dump_info (opt_json_status_fd, " }\n", TRUE);
+          dump_info (opt_json_status_fd, output, true);
+          namespace_ids_write (opt_json_status_fd, true);
+          dump_info (opt_json_status_fd, " }\n", true);
         }
 
       if (opt_userns_block_fd != -1)
@@ -3112,7 +3112,7 @@ main (int    argc,
 
       write_uid_gid_map (ns_uid, real_uid,
                          ns_gid, real_gid,
-                         -1, TRUE, FALSE);
+                         -1, true, false);
     }
 
   old_umask = umask (0);
@@ -3173,7 +3173,7 @@ main (int    argc,
       if (child == 0)
         {
           /* Unprivileged setup process */
-          drop_privs (FALSE, TRUE);
+          drop_privs (false, true);
           close (privsep_sockets[0]);
           setup_newroot (opt_unshare_pid, privsep_sockets[1]);
           exit (0);
@@ -3285,11 +3285,11 @@ main (int    argc,
         die_with_error ("unshare user ns");
 
       /* We're in a new user namespace, we got back the bounding set, clear it again */
-      drop_cap_bounding_set (FALSE);
+      drop_cap_bounding_set (false);
 
       write_uid_gid_map (opt_sandbox_uid, ns_uid,
                          opt_sandbox_gid, ns_gid,
-                         -1, FALSE, FALSE);
+                         -1, false, false);
     }
 
   if (opt_disable_userns || opt_assert_userns_disabled)
@@ -3302,7 +3302,7 @@ main (int    argc,
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
-  drop_privs (!is_privileged, TRUE);
+  drop_privs (!is_privileged, true);
 
   if (opt_block_fd != -1)
     {
@@ -3366,7 +3366,7 @@ main (int    argc,
 
       if (pid != 0)
         {
-          drop_all_caps (FALSE);
+          drop_all_caps (false);
 
           /* Close fds in pid 1, except stdio and optionally event_fd
              (for syncing pid 2 lifetime with monitor_child) and
