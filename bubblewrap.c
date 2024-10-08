@@ -44,15 +44,6 @@
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
 #endif
 
-#ifndef TEMP_FAILURE_RETRY
-#define TEMP_FAILURE_RETRY(expression) \
-  (__extension__                                                              \
-    ({ long int __result;                                                     \
-       do __result = (long int) (expression);                                 \
-       while (__result == -1L && errno == EINTR);                             \
-       __result; }))
-#endif
-
 /* We limit the size of a tmpfs to half the architecture's address space,
  * to avoid hitting arbitrary limits in the kernel.
  * For example, on at least one x86_64 machine, the actual limit seems to be
@@ -599,7 +590,7 @@ do_init (int event_fd, pid_t initial_pid)
 
   for (lock = lock_files; lock != NULL; lock = lock->next)
     {
-      int fd = open (lock->path, O_RDONLY | O_CLOEXEC);
+      int fd = TEMP_FAILURE_RETRY (open (lock->path, O_RDONLY | O_CLOEXEC));
       if (fd == -1)
         die_with_error ("Unable to open lock file %s", lock->path);
 
@@ -610,7 +601,7 @@ do_init (int event_fd, pid_t initial_pid)
         .l_len = 0
       };
 
-      if (fcntl (fd, F_SETLK, &l) < 0)
+      if (TEMP_FAILURE_RETRY (fcntl (fd, F_SETLK, &l)) < 0)
         die_with_error ("Unable to lock file %s", lock->path);
 
       /* Keep fd open to hang on to lock */
@@ -627,7 +618,7 @@ do_init (int event_fd, pid_t initial_pid)
       pid_t child;
       int status;
 
-      child = wait (&status);
+      child = TEMP_FAILURE_RETRY (wait (&status));
       if (child == initial_pid)
         {
           initial_exit_status = propagate_exit_status (status);
@@ -638,7 +629,7 @@ do_init (int event_fd, pid_t initial_pid)
               int res UNUSED;
 
               val = initial_exit_status + 1;
-              res = write (event_fd, &val, 8);
+              res = TEMP_FAILURE_RETRY (write (event_fd, &val, 8));
               /* Ignore res, if e.g. the parent died and closed event_fd
                  we don't want to error out here */
             }
@@ -1062,10 +1053,10 @@ privileged_op (int         privileged_op_socket,
       if (arg2 != NULL)
         strcpy ((char *) buffer + arg2_offset, arg2);
 
-      if (write (privileged_op_socket, buffer, buffer_size) != (ssize_t)buffer_size)
+      if (TEMP_FAILURE_RETRY (write (privileged_op_socket, buffer, buffer_size)) != (ssize_t)buffer_size)
         die ("Can't write to privileged_op_socket");
 
-      if (read (privileged_op_socket, buffer, 1) != 1)
+      if (TEMP_FAILURE_RETRY (read (privileged_op_socket, buffer, 1)) != 1)
         die ("Can't read from privileged_op_socket");
 
       return;
@@ -2649,7 +2640,7 @@ namespace_ids_read (pid_t  pid)
   NsInfo *info;
 
   dir = xasprintf ("%d/ns", pid);
-  ns_fd = openat (proc_fd, dir, O_PATH);
+  ns_fd = TEMP_FAILURE_RETRY (openat (proc_fd, dir, O_PATH));
 
   if (ns_fd < 0)
     die_with_error ("open /proc/%s/ns failed", dir);
@@ -2870,7 +2861,7 @@ main (int    argc,
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
-  proc_fd = open ("/proc", O_PATH);
+  proc_fd = TEMP_FAILURE_RETRY (open ("/proc", O_PATH));
   if (proc_fd == -1)
     die_with_error ("Can't open /proc");
 
@@ -3037,7 +3028,7 @@ main (int    argc,
 
       /* Let child run now that the uid maps are set up */
       val = 1;
-      res = write (child_wait_fd, &val, 8);
+      res = TEMP_FAILURE_RETRY (write (child_wait_fd, &val, 8));
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
@@ -3204,12 +3195,12 @@ main (int    argc,
               op = read_priv_sec_op (unpriv_socket, buffer, sizeof (buffer),
                                      &flags, &perms, &size_arg, &arg1, &arg2);
               privileged_op (-1, op, flags, perms, size_arg, arg1, arg2);
-              if (write (unpriv_socket, buffer, 1) != 1)
+              if (TEMP_FAILURE_RETRY (write (unpriv_socket, buffer, 1)) != 1)
                 die ("Can't write to op_socket");
             }
           while (op != PRIV_SEP_OP_DONE);
 
-          waitpid (child, &status, 0);
+          TEMP_FAILURE_RETRY (waitpid (child, &status, 0));
           /* Continue post setup */
         }
     }
@@ -3233,7 +3224,7 @@ main (int    argc,
    * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
    * that we need a temporary place to store it before we can unmount it.
    */
-  { cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
+  { cleanup_fd int oldrootfd = TEMP_FAILURE_RETRY (open ("/", O_DIRECTORY | O_RDONLY));
     if (oldrootfd < 0)
       die_with_error ("can't open /");
     if (chdir ("/newroot") != 0)
@@ -3281,7 +3272,7 @@ main (int    argc,
         {
           cleanup_fd int sysctl_fd = -1;
 
-          sysctl_fd = openat (proc_fd, "sys/user/max_user_namespaces", O_WRONLY);
+          sysctl_fd = TEMP_FAILURE_RETRY (openat (proc_fd, "sys/user/max_user_namespaces", O_WRONLY));
 
           if (sysctl_fd < 0)
             die_with_error ("cannot open /proc/sys/user/max_user_namespaces");

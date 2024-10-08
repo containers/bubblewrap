@@ -405,7 +405,7 @@ bind_mount (int           proc_fd,
   if (resolved_dest == NULL)
     return BIND_MOUNT_ERROR_REALPATH_DEST;
 
-  dest_fd = open (resolved_dest, O_PATH | O_CLOEXEC);
+  dest_fd = TEMP_FAILURE_RETRY (open (resolved_dest, O_PATH | O_CLOEXEC));
   if (dest_fd < 0)
     {
       if (failing_path != NULL)

@@ -377,7 +377,7 @@ fdwalk (int proc_fd, int (*cb)(void *data,
   int res = 0;
   DIR *d;
 
-  dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
+  dfd = TEMP_FAILURE_RETRY (openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY));
   if (dfd == -1)
     return res;
 
@@ -459,7 +459,7 @@ write_file_at (int         dirfd,
   bool res;
   int errsv;
 
-  fd = openat (dirfd, path, O_RDWR | O_CLOEXEC, 0);
+  fd = TEMP_FAILURE_RETRY (openat (dirfd, path, O_RDWR | O_CLOEXEC, 0));
   if (fd == -1)
     return -1;
 
@@ -484,7 +484,7 @@ create_file (const char *path,
   int res;
   int errsv;
 
-  fd = creat (path, mode);
+  fd = TEMP_FAILURE_RETRY (creat (path, mode));
   if (fd == -1)
     return -1;
 
@@ -565,11 +565,11 @@ copy_file (const char *src_path,
   int res;
   int errsv;
 
-  sfd = open (src_path, O_CLOEXEC | O_RDONLY);
+  sfd = TEMP_FAILURE_RETRY (open (src_path, O_CLOEXEC | O_RDONLY));
   if (sfd == -1)
     return -1;
 
-  dfd = creat (dst_path, mode);
+  dfd = TEMP_FAILURE_RETRY (creat (dst_path, mode));
   if (dfd == -1)
     {
       errsv = errno;
@@ -646,7 +646,7 @@ load_file_at (int         dirfd,
   char *data;
   int errsv;
 
-  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
+  fd = TEMP_FAILURE_RETRY (openat (dirfd, path, O_CLOEXEC | O_RDONLY));
   if (fd == -1)
     return NULL;
 
@@ -777,7 +777,7 @@ send_pid_on_socket (int socket)
   cred->uid = geteuid ();
   cred->gid = getegid ();
 
-  if (sendmsg (socket, &msg, 0) < 0)
+  if (TEMP_FAILURE_RETRY (sendmsg (socket, &msg, 0)) < 0)
     die_with_error ("Can't send pid");
 }
 
@@ -808,7 +808,7 @@ read_pid_from_socket (int socket)
   msg.msg_control = control_buf_rcv;
   msg.msg_controllen = control_len_rcv;
 
-  if (recvmsg (socket, &msg, 0) < 0)
+  if (TEMP_FAILURE_RETRY (recvmsg (socket, &msg, 0)) < 0)
     die_with_error ("Can't read pid from socket");
 
   if (msg.msg_controllen <= 0)
