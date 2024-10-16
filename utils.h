@@ -198,3 +198,20 @@ steal_pointer (void *pp)
 /* type safety */
 #define steal_pointer(pp) \
   (0 ? (*(pp)) : (steal_pointer) (pp))
+
+typedef struct _StringBuilder StringBuilder;
+
+struct _StringBuilder
+{
+  char * str;
+  size_t size;
+  size_t offset;
+};
+
+void strappend (StringBuilder *dest,
+                const char    *src);
+void strappendf (StringBuilder *dest,
+                 const char    *fmt,
+                 ...);
+void strappend_escape_for_mount_options (StringBuilder *dest,
+                                         const char    *src);
