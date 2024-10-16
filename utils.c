@@ -952,6 +952,10 @@ mount_strerror (int errsv)
     }
 }
 
+/*
+ * Return a + b if it would not overflow.
+ * Die with an "out of memory" error if it would.
+ */
 static size_t
 xadd (size_t a, size_t b)
 {
@@ -961,6 +965,10 @@ xadd (size_t a, size_t b)
   return result;
 }
 
+/*
+ * Return a * b if it would not overflow.
+ * Die with an "out of memory" error if it would.
+ */
 static size_t
 xmul (size_t a, size_t b)
 {
