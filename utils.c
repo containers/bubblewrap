@@ -761,7 +761,7 @@ send_pid_on_socket (int sockfd)
   const ssize_t control_len_snd = CMSG_SPACE(sizeof(struct ucred));
   char control_buf_snd[control_len_snd];
   struct cmsghdr *cmsg;
-  struct ucred *cred;
+  struct ucred cred;
 
   msg.msg_iov = &iov;
   msg.msg_iovlen = 1;
@@ -772,11 +772,11 @@ send_pid_on_socket (int sockfd)
   cmsg->cmsg_level = SOL_SOCKET;
   cmsg->cmsg_type = SCM_CREDENTIALS;
   cmsg->cmsg_len = CMSG_LEN(sizeof(struct ucred));
-  cred = (struct ucred *)CMSG_DATA(cmsg);
 
-  cred->pid = getpid ();
-  cred->uid = geteuid ();
-  cred->gid = getegid ();
+  cred.pid = getpid ();
+  cred.uid = geteuid ();
+  cred.gid = getegid ();
+  memcpy (CMSG_DATA (cmsg), &cred, sizeof (cred));
 
   if (TEMP_FAILURE_RETRY (sendmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't send pid");
@@ -822,8 +822,10 @@ read_pid_from_socket (int sockfd)
           cmsg->cmsg_type == SCM_CREDENTIALS &&
           payload_len == sizeof(struct ucred))
         {
-          struct ucred *cred = (struct ucred *)CMSG_DATA(cmsg);
-          return cred->pid;
+          struct ucred cred;
+
+          memcpy (&cred, CMSG_DATA (cmsg), sizeof (cred));
+          return cred.pid;
         }
     }
   die ("No pid returned on socket");
