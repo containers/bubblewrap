@@ -759,7 +759,7 @@ send_pid_on_socket (int sockfd)
   struct msghdr msg = {};
   struct iovec iov = { buf, sizeof (buf) };
   const ssize_t control_len_snd = CMSG_SPACE(sizeof(struct ucred));
-  char control_buf_snd[control_len_snd];
+  _Alignas(struct cmsghdr) char control_buf_snd[control_len_snd];
   struct cmsghdr *cmsg;
   struct ucred cred;
 
@@ -801,7 +801,7 @@ read_pid_from_socket (int sockfd)
   struct msghdr msg = {};
   struct iovec iov = { recv_buf, sizeof (recv_buf) };
   const ssize_t control_len_rcv = CMSG_SPACE(sizeof(struct ucred));
-  char control_buf_rcv[control_len_rcv];
+  _Alignas(struct cmsghdr) char control_buf_rcv[control_len_rcv];
   struct cmsghdr* cmsg;
 
   msg.msg_iov = &iov;
