@@ -959,10 +959,17 @@ mount_strerror (int errsv)
 static size_t
 xadd (size_t a, size_t b)
 {
+#if defined(__GNUC__) && __GNUC__ >= 5
   size_t result;
   if (__builtin_add_overflow (a, b, &result))
     die_oom ();
   return result;
+#else
+  if (a > SIZE_MAX - b)
+    die_oom ();
+
+  return a + b;
+#endif
 }
 
 /*
@@ -972,10 +979,17 @@ xadd (size_t a, size_t b)
 static size_t
 xmul (size_t a, size_t b)
 {
+#if defined(__GNUC__) && __GNUC__ >= 5
   size_t result;
   if (__builtin_mul_overflow (a, b, &result))
     die_oom ();
   return result;
+#else
+  if (b != 0 && a > SIZE_MAX / b)
+    die_oom ();
+
+  return a * b;
+#endif
 }
 
 void
