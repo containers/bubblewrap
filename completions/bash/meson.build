@@ -13,7 +13,6 @@ if bash_completion_dir == ''
         default_value: '',
         pkgconfig: 'completionsdir',
         pkgconfig_define: [
-          'prefix', get_option('prefix'),
           'datadir', get_option('prefix') / get_option('datadir'),
         ],
       )
