@@ -3148,7 +3148,7 @@ main (int    argc,
       if (intermediate_pids_sockets[PIPE_READ_END] != -1)
         {
           pid = read_pid_from_socket (intermediate_pids_sockets[PIPE_READ_END]);
-          close (intermediate_pids_sockets[PIPE_READ_END]);
+          cleanup_fdp (&intermediate_pids_sockets[PIPE_READ_END]);
         }
 
       /* Discover namespace ids before we drop privileges */
@@ -3234,7 +3234,7 @@ main (int    argc,
 
       /* We're back, either in a child or grandchild, so message the actual pid to the monitor */
       send_pid_on_socket (intermediate_pids_sockets[PIPE_WRITE_END]);
-      close (intermediate_pids_sockets[PIPE_WRITE_END]);
+      cleanup_fdp (&intermediate_pids_sockets[PIPE_WRITE_END]);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
