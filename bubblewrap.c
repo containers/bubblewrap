@@ -268,8 +268,7 @@ seccomp_program_new (int *fd)
   if (data == NULL)
     die_with_error ("Can't read seccomp data");
 
-  close (*fd);
-  *fd = -1;
+  cleanup_fdp (fd);
 
   if (len % 8 != 0)
     die ("Invalid seccomp data, must be multiple of 8");
@@ -481,8 +480,7 @@ report_child_exit_status (int exitc, int setup_finished_fd)
 
   output = xasprintf ("{ \"exit-code\": %i }\n", exitc);
   dump_info (opt_json_status_fd, output, false);
-  close (opt_json_status_fd);
-  opt_json_status_fd = -1;
+  cleanup_fdp (&opt_json_status_fd);
   close (setup_finished_fd);
 }
 
@@ -657,13 +655,7 @@ do_init (int event_fd, pid_t initial_pid)
 
   /* Close FDs. */
   for (lock = lock_files; lock != NULL; lock = lock->next)
-    {
-      if (lock->fd >= 0)
-        {
-          close (lock->fd);
-          lock->fd = -1;
-        }
-    }
+    cleanup_fdp (&lock->fd);
 
   return initial_exit_status;
 }
@@ -1505,8 +1497,7 @@ setup_newroot (bool unshare_pid,
             if (copy_file_data (op->fd, dest_fd) != 0)
               die_with_error ("Can't write data to file %s", op->dest);
 
-            close (op->fd);
-            op->fd = -1;
+            cleanup_fdp (&op->fd);
           }
           break;
 
@@ -1531,8 +1522,7 @@ setup_newroot (bool unshare_pid,
             if (copy_file_data (op->fd, dest_fd) != 0)
               die_with_error ("Can't write data to file %s", op->dest);
 
-            close (op->fd);
-            op->fd = -1;
+            cleanup_fdp (&op->fd);
 
             assert (dest != NULL);
 
@@ -1598,13 +1588,7 @@ close_ops_fd (void)
   SetupOp *op;
 
   for (op = ops; op != NULL; op = op->next)
-    {
-      if (op->fd != -1)
-        {
-          (void) close (op->fd);
-          op->fd = -1;
-        }
-    }
+    cleanup_fdp (&op->fd);
 }
 
 /* We need to resolve relative symlinks in the sandbox before we
@@ -1820,7 +1804,7 @@ parse_args_recurse (int          *argcp,
           opt_args_data = load_file_data (the_fd, &data_len);
           if (opt_args_data == NULL)
             die_with_error ("Can't read --args data");
-          (void) close (the_fd);
+          cleanup_fdp (&the_fd);
 
           data_end = opt_args_data + data_len;
           data_argc = 0;
@@ -3186,7 +3170,7 @@ main (int    argc,
           dump_info (opt_info_fd, output, true);
           namespace_ids_write (opt_info_fd, false);
           dump_info (opt_info_fd, "\n}\n", true);
-          close (opt_info_fd);
+          cleanup_fdp (&opt_info_fd);
         }
       if (opt_json_status_fd != -1)
         {
@@ -3200,14 +3184,14 @@ main (int    argc,
         {
           char b[1];
           (void) TEMP_FAILURE_RETRY (read (opt_userns_block_fd, b, 1));
-          close (opt_userns_block_fd);
+          cleanup_fdp (&opt_userns_block_fd);
         }
 
       /* Let child run now that the uid maps are set up */
       val = 1;
       res = TEMP_FAILURE_RETRY (write (child_wait_fd, &val, 8));
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
-      close (child_wait_fd);
+      cleanup_fdp (&child_wait_fd);
 
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
@@ -3251,15 +3235,12 @@ main (int    argc,
    * sandboxed process from outside the sandbox either.
    */
 
-  if (opt_info_fd != -1)
-    close (opt_info_fd);
-
-  if (opt_json_status_fd != -1)
-    close (opt_json_status_fd);
+  cleanup_fdp (&opt_info_fd);
+  cleanup_fdp (&opt_json_status_fd);
 
   /* Wait for the parent to init uid/gid maps and drop caps */
   res = read (child_wait_fd, &val, 8);
-  close (child_wait_fd);
+  cleanup_fdp (&child_wait_fd);
 
   /* At this point we can completely drop root uid, but retain the
    * required permitted caps. This allow us to do full setup as
@@ -3498,7 +3479,7 @@ main (int    argc,
     {
       char b[1];
       (void) TEMP_FAILURE_RETRY (read (opt_block_fd, b, 1));
-      close (opt_block_fd);
+      cleanup_fdp (&opt_block_fd);
     }
 
   if (opt_seccomp_fd != -1)
@@ -3580,16 +3561,12 @@ main (int    argc,
 
   debug ("launch executable %s", argv[0]);
 
-  if (proc_fd != -1)
-    close (proc_fd);
+  cleanup_fdp (&proc_fd);
 
   /* If we are using --as-pid-1 leak the sync fd into the sandbox.
      --sync-fd will still work unless the container process doesn't close this file.  */
   if (!opt_as_pid_1)
-    {
-      if (opt_sync_fd != -1)
-        close (opt_sync_fd);
-    }
+    cleanup_fdp (&opt_sync_fd);
 
   /* We want sigchild in the child */
   unblock_sigchild ();
