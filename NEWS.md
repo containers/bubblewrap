@@ -5,8 +5,12 @@ Released: not yet
 
 Dependencies:
 
-  * Remove the Autotools build system. Meson is now required at build-time.
-    (#625, Hugo Osvaldo Barrera)
+  * Remove the Autotools build system. Meson ≥ 0.49.0 is now required
+    at build-time. (#625, Hugo Osvaldo Barrera)
+
+  * For users of bash-completion, bash-completion ≥ 2.10 is recommended.
+    With older bash-completion, bubblewrap might install completions
+    outside its `${prefix}` unless overridden with `-Dbash_completion_dir=…`.
 
 Enhancements:
 
@@ -31,6 +35,8 @@ Bug fixes:
   * Update URLs in documentation to https (#566, @TotalCaesar659)
 
   * Improve tests' compatibility with busybox (#627, @Sertonix)
+
+  * Improve compatibility with Meson < 1.3.0 (#664, Simon McVittie)
 
 Internal changes:
 
