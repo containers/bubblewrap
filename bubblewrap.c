@@ -3367,8 +3367,8 @@ main (int    argc,
         {
           /* Unprivileged setup process */
           drop_privs (false, true);
-          close (privsep_sockets[PIPE_READ_END]);
-          setup_newroot (opt_unshare_pid, privsep_sockets[PIPE_WRITE_END]);
+          cleanup_fdp (&privsep_sockets[PIPE_READ_END]);
+          setup_newroot (opt_unshare_pid, steal_fd (&privsep_sockets[PIPE_WRITE_END]));
           exit (0);
         }
       else
@@ -3380,8 +3380,8 @@ main (int    argc,
           const char *arg1, *arg2;
           cleanup_fd int unpriv_socket = -1;
 
-          unpriv_socket = privsep_sockets[PIPE_READ_END];
-          close (privsep_sockets[PIPE_WRITE_END]);
+          unpriv_socket = steal_fd (&privsep_sockets[PIPE_READ_END]);
+          cleanup_fdp (&privsep_sockets[PIPE_WRITE_END]);
 
           do
             {
