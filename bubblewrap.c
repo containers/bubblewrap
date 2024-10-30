@@ -3353,6 +3353,9 @@ main (int    argc,
       pid_t child;
       int privsep_sockets[2];
 
+      /* We send multi-byte requests into PIPE_WRITE_END and read them from
+       * PIPE_READ_END, with a 1-byte reply to each request flowing in the
+       * opposite direction. */
       if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, privsep_sockets) != 0)
         die_with_error ("Can't create privsep socket");
 
@@ -3364,8 +3367,8 @@ main (int    argc,
         {
           /* Unprivileged setup process */
           drop_privs (false, true);
-          close (privsep_sockets[0]);
-          setup_newroot (opt_unshare_pid, privsep_sockets[1]);
+          close (privsep_sockets[PIPE_READ_END]);
+          setup_newroot (opt_unshare_pid, privsep_sockets[PIPE_WRITE_END]);
           exit (0);
         }
       else
@@ -3377,8 +3380,8 @@ main (int    argc,
           const char *arg1, *arg2;
           cleanup_fd int unpriv_socket = -1;
 
-          unpriv_socket = privsep_sockets[0];
-          close (privsep_sockets[1]);
+          unpriv_socket = privsep_sockets[PIPE_READ_END];
+          close (privsep_sockets[PIPE_WRITE_END]);
 
           do
             {
