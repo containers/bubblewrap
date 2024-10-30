@@ -782,6 +782,12 @@ send_pid_on_socket (int sockfd)
     die_with_error ("Can't send pid");
 }
 
+/*
+ * Create a socket pair such that if one process calls
+ * send_pid_on_socket(sockets[PIPE_WRITE_END]),
+ * another process will be able to call
+ * read_pid_from_socket(sockets[PIPE_READ_END]).
+ */
 void
 create_pid_socketpair (int sockets[2])
 {
@@ -790,7 +796,7 @@ create_pid_socketpair (int sockets[2])
   if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sockets) != 0)
     die_with_error ("Can't create intermediate pids socket");
 
-  if (setsockopt (sockets[0], SOL_SOCKET, SO_PASSCRED, &enable, sizeof (enable)) < 0)
+  if (setsockopt (sockets[PIPE_READ_END], SOL_SOCKET, SO_PASSCRED, &enable, sizeof (enable)) < 0)
     die_with_error ("Can't set SO_PASSCRED");
 }
 
