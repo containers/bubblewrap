@@ -1,7 +1,7 @@
 bubblewrap 0.11.0
 =================
 
-Released: not yet
+Released: 2024-10-30
 
 Dependencies:
 
