@@ -78,6 +78,7 @@ static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
 static bool opt_new_session = false;
 static bool opt_die_with_parent = false;
+static bool opt_unsafe_new_privileges = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
 static int opt_sync_fd = -1;
@@ -373,6 +374,7 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --unsafe-new-privileges      Allow executables to gain new privileges (for example via setuid)"
           );
   exit (ecode);
 }
@@ -2742,6 +2744,10 @@ parse_args_recurse (int          *argcp,
           argc -= 1;
           break;
         }
+      else if (strcmp (arg, "--unsafe-new-privileges") == 0)
+        {
+          opt_unsafe_new_privileges = true;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -2905,8 +2911,9 @@ main (int    argc,
   acquire_privs ();
 
   /* Never gain any more privs during exec */
-  if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
-    die_with_error ("prctl(PR_SET_NO_NEW_PRIVS) failed");
+  if (is_privileged)
+    if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
+      die_with_error ("prctl(PR_SET_NO_NEW_PRIVS) failed");
 
   /* The initial code is run with high permissions
      (i.e. CAP_SYS_ADMIN), so take lots of care. */
@@ -2925,6 +2932,11 @@ main (int    argc,
     usage (EXIT_FAILURE, stderr);
 
   parse_args (&argc, (const char ***) &argv);
+
+  /* Never gain any more privs during exec */
+  if (!is_privileged && !opt_unsafe_new_privileges)
+    if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
+      die_with_error ("prctl(PR_SET_NO_NEW_PRIVS) failed");
 
   /* suck the args into a cleanup_free variable to control their lifecycle */
   args_data = opt_args_data;
