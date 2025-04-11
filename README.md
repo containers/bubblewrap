@@ -208,7 +208,7 @@ and the myriad ways in which system administrators may configure a
 system.  The bubblewrap approach is to only retain a few specific
 Linux capabilities such as `CAP_SYS_ADMIN`, but to always access the
 filesystem as the invoking uid.  This entirely closes
-[TOCTTOU attacks](https://cwe.mitre.org/data/definitions/367.html) and
+[TOCTOU attacks](https://cwe.mitre.org/data/definitions/367.html) and
 such.
 
 Related project comparison: Sandstorm.io
