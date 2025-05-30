@@ -36,9 +36,20 @@ out=$(
         sleep 0.1
         kill -USR1 $!
    )
-   
 if [ "$out" = USR1 ]; then
     ok "Successfully forwarded signals with --forward-signals"
+else
+    false
+fi
+
+out=$(
+        $RUN --forward-signals --unshare-pid \
+                "$sh_path" -c 'trap "echo USR1; exit" USR1; sleep 0.5' &
+        sleep 0.1
+        kill -USR1 $!
+   )
+if [ "$out" = USR1 ]; then
+    ok "Successfully forwarded signals with --forward-signals and --unshare-pid"
 else
     false
 fi
