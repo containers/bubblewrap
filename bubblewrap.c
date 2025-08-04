@@ -78,6 +78,7 @@ static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
 static bool opt_new_session = false;
 static bool opt_die_with_parent = false;
+static bool opt_forward_signals = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
 static int opt_sync_fd = -1;
@@ -373,6 +374,7 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --forward-signals            Forward various commonly used signals to the child process.\n"
           );
   exit (ecode);
 }
@@ -385,6 +387,33 @@ handle_die_with_parent (void)
 {
   if (opt_die_with_parent && prctl (PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0)
     die_with_error ("prctl");
+}
+
+static int forwarded_signals[] =
+{
+  SIGINT,
+  SIGTERM,
+  SIGCONT,
+  SIGHUP,
+  SIGQUIT,
+  SIGUSR1,
+  SIGUSR2,
+  SIGWINCH,
+};
+
+static void
+block_forwarded_signals (sigset_t *prevmask)
+{
+  sigset_t mask;
+  size_t i;
+
+  sigemptyset (&mask);
+
+  for (i = 0; i < N_ELEMENTS (forwarded_signals); i++)
+    sigaddset (&mask, forwarded_signals[i]);
+
+  if (sigprocmask (SIG_BLOCK, &mask, prevmask) == -1)
+    die_with_error ("sigprocmask");
 }
 
 static void
@@ -493,7 +522,7 @@ report_child_exit_status (int exitc, int setup_finished_fd)
  * pid 1 via a signalfd for SIGCHLD, and exit with an error in this case.
  * This is to catch e.g. problems during setup. */
 static int
-monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
+monitor_child (int event_fd, pid_t child_pid, pid_t exec_pid, int setup_finished_fd)
 {
   int res;
   uint64_t val;
@@ -508,6 +537,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   int exitc;
   pid_t died_pid;
   int died_status;
+  size_t i;
 
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
@@ -522,6 +552,9 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
+
+  for (i = 0; i < N_ELEMENTS (forwarded_signals); i++)
+    sigaddset (&mask, forwarded_signals[i]);
 
   signal_fd = signalfd (-1, &mask, SFD_CLOEXEC | SFD_NONBLOCK);
   if (signal_fd == -1)
@@ -561,11 +594,20 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
         }
 
       /* We need to read the signal_fd, or it will keep polling as read,
-       * however we ignore the details as we get them from waitpid
+       * however we ignore the details for SIGCHLD as we get them from waitpid
        * below anyway */
       s = read (signal_fd, &fdsi, sizeof (struct signalfd_siginfo));
       if (s == -1 && errno != EINTR && errno != EAGAIN)
         die_with_error ("read signalfd");
+
+      /* Propagate signal to executable so that it will take the correct
+       * action. This avoids the parent terminating, leaving an orphan. */
+      if (fdsi.ssi_signo != SIGCHLD)
+        {
+          s = kill (exec_pid, fdsi.ssi_signo);
+          if (s != 0 && s != ESRCH)
+            die_with_error("kill child");
+        }
 
       /* We may actually get several sigchld compressed into one
          SIGCHLD, so we have to handle all of them. */
@@ -2742,6 +2784,10 @@ parse_args_recurse (int          *argcp,
           argc -= 1;
           break;
         }
+      else if (strcmp (arg, "--forward-signals") == 0)
+        {
+          opt_forward_signals = true;
+        }
       else if (*arg == '-')
         {
           die ("Unknown option %s", arg);
@@ -2876,6 +2922,7 @@ main (int    argc,
   int clone_flags;
   char *old_cwd = NULL;
   pid_t pid;
+  pid_t exec_pid = -1;
   int event_fd = -1;
   int child_wait_fd = -1;
   int setup_finished_pipe[] = {-1, -1};
@@ -2887,8 +2934,11 @@ main (int    argc,
   int res UNUSED;
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
+  int executable_pids_sockets[2] = {-1, -1};
   const char *exec_path = NULL;
   int i;
+  sigset_t sigmask_before_forwarding;
+  sigemptyset (&sigmask_before_forwarding);
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -3033,6 +3083,10 @@ main (int    argc,
   if (opt_as_pid_1 && !opt_unshare_pid)
     die ("Specifying --as-pid-1 requires --unshare-pid");
 
+  /* Because pid 1 ignores signals without handlers (cf pid_namespaces(7)) */
+  if (opt_as_pid_1 && opt_forward_signals)
+    die ("Specifying --as-pid-1 and --forward-signals is not permitted");
+
   if (opt_as_pid_1 && lock_files != NULL)
     die ("Specifying --as-pid-1 and --lock-file is not permitted");
 
@@ -3061,6 +3115,16 @@ main (int    argc,
 
   /* We block sigchild here so that we can use signalfd in the monitor. */
   block_sigchild ();
+
+  /* We block other signals here to avoid leaving an orphan. */
+  if (opt_forward_signals)
+    {
+      block_forwarded_signals (&sigmask_before_forwarding);
+      /* We need to get the final executable pid, not just the child's, to forward signals to it */
+      if (opt_unshare_pid)
+          create_pid_socketpair (executable_pids_sockets);
+    }
+
 
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
@@ -3209,8 +3273,24 @@ main (int    argc,
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
-      return monitor_child (event_fd, pid, setup_finished_pipe[0]);
+      if (executable_pids_sockets[0] != -1)
+        {
+          close (executable_pids_sockets[1]);
+          exec_pid = read_pid_from_socket (executable_pids_sockets[0]);
+          close (executable_pids_sockets[0]);
+        }
+      else
+        exec_pid = pid;
+
+      return monitor_child (event_fd, pid, exec_pid, setup_finished_pipe[0]);
     }
+
+  /* Restore the state of sigmask from before the blocking. */
+  if (opt_forward_signals)
+  {
+    if (sigprocmask (SIG_SETMASK, &sigmask_before_forwarding, NULL) != 0)
+      die_with_error ("sigprocmask");
+  }
 
   if (opt_pidns_fd > 0)
     {
@@ -3564,12 +3644,14 @@ main (int    argc,
              process).
              Any other fds will been passed on to the child though. */
           {
-            int dont_close[3];
+            int dont_close[4];
             int j = 0;
             if (event_fd != -1)
               dont_close[j++] = event_fd;
             if (opt_sync_fd != -1)
               dont_close[j++] = opt_sync_fd;
+            if (executable_pids_sockets[1] != -1)
+              dont_close[j++] = executable_pids_sockets[1];
             dont_close[j++] = -1;
             fdwalk (proc_fd, close_extra_fds, dont_close);
           }
@@ -3589,6 +3671,12 @@ main (int    argc,
     {
       if (opt_sync_fd != -1)
         close (opt_sync_fd);
+    }
+  /* Send the final executable pid to the monitor for signal forwarding */
+  if (executable_pids_sockets[1] != -1)
+    {
+      send_pid_on_socket (executable_pids_sockets[1]);
+      close (executable_pids_sockets[1]);
     }
 
   /* We want sigchild in the child */
