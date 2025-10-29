@@ -739,18 +739,6 @@ drop_all_caps (bool keep_requested_caps)
     }
 }
 
-static bool
-has_caps (void)
-{
-  struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
-  struct __user_cap_data_struct data[2] = { { 0 } };
-
-  if (capget (&hdr, data)  < 0)
-    die_with_error ("capget failed");
-
-  return data[0].permitted != 0 || data[1].permitted != 0;
-}
-
 /* Most of the code here is used both to add caps to the ambient capabilities
  * and drop caps from the bounding set.  Handle both cases here and add
  * drop_cap_bounding_set/set_ambient_capabilities wrappers to facilitate its usage.
@@ -875,13 +863,6 @@ acquire_privs (void)
 
       /* Keep only the required capabilities for setup */
       set_required_caps ();
-    }
-  else if (real_uid != 0 && has_caps ())
-    {
-      /* We have some capabilities in the non-setuid case, which should not happen.
-         Probably caused by the binary being setcap instead of setuid which we
-         don't support anymore */
-      die ("Unexpected capabilities but not setuid, old file caps config?");
     }
   else if (real_uid == 0)
     {
