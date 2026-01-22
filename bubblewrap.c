@@ -2889,6 +2889,7 @@ main (int    argc,
   int intermediate_pids_sockets[2] = {-1, -1};
   const char *exec_path = NULL;
   int i;
+  struct sigaction sa = {};
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2897,6 +2898,12 @@ main (int    argc,
    */
   if (argc == 2 && (strcmp (argv[1], "--version") == 0))
     print_version_and_exit ();
+
+  /* Reset SIGCHILD to SIG_DFL allowing signalfd working propertly
+   * if the parent process had set SIGCHLD to SIG_IGN. */
+  sigemptyset (&sa.sa_mask);
+  sa.sa_handler = SIG_DFL;
+  sigaction (SIGCHLD, &sa, NULL);
 
   real_uid = getuid ();
   real_gid = getgid ();
