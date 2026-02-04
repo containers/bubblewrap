@@ -617,6 +617,27 @@
         command line.  Please be careful to the order they are specified.
       </para></listitem>
     </varlistentry>
+    <varlistentry>
+      <term><option>--scope-abstract-af-unix</option></term>
+      <listitem><para>
+        Scope access to abstract <citerefentry><refentrytitle>unix</refentrytitle><manvolnum>7</manvolnum></citerefentry> sockets.
+
+        This option will prevent the newly created sandbox from connecting to abstract AF_UNIX sockets
+        created outside the sandbox,
+        for example the X11 socket <literal>@/tmp/.X11-unix/X0</literal>,
+        even if the network namespace is the same.
+
+        This has the same behaviour as LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET: see
+        <citerefentry><refentrytitle>landlock</refentrytitle><manvolnum>7</manvolnum></citerefentry> for details.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--scope-abstract-af-unix-try</option></term>
+      <listitem><para>
+        Try to do the same as <option>--scope-abstract-af-unix</option>,
+        but if that isn't possible, continue without that restriction.
+      </para></listitem>
+    </varlistentry>
   </variablelist>
 </refsect1>
 
