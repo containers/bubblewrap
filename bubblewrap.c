@@ -130,6 +130,7 @@ typedef enum {
   SETUP_OVERLAY_SRC,
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
+  SETUP_MOUNT_SYS,
   SETUP_MOUNT_TMPFS,
   SETUP_MOUNT_MQUEUE,
   SETUP_MAKE_DIR,
@@ -175,6 +176,7 @@ enum {
   PRIV_SEP_OP_BIND_MOUNT,
   PRIV_SEP_OP_OVERLAY_MOUNT,
   PRIV_SEP_OP_PROC_MOUNT,
+  PRIV_SEP_OP_SYS_MOUNT,
   PRIV_SEP_OP_TMPFS_MOUNT,
   PRIV_SEP_OP_DEVPTS_MOUNT,
   PRIV_SEP_OP_MQUEUE_MOUNT,
@@ -352,6 +354,7 @@ usage (int ecode, FILE *out)
            "    --file-label LABEL           File label for temporary sandbox content\n"
            "    --proc DEST                  Mount new procfs on DEST\n"
            "    --dev DEST                   Mount new dev on DEST\n"
+           "    --sys DEST                   Mount new sysfs on DEST\n"
            "    --tmpfs DEST                 Mount new tmpfs on DEST\n"
            "    --mqueue DEST                Mount new mqueue on DEST\n"
            "    --dir DEST                   Create dir at DEST\n"
@@ -1122,6 +1125,11 @@ privileged_op (int         privileged_op_socket,
         die_with_mount_error ("Can't mount proc on %s", arg1);
       break;
 
+    case PRIV_SEP_OP_SYS_MOUNT:
+      if (mount ("sysfs", arg1, "sysfs", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+        die_with_mount_error ("Can't mount sys on %s", arg1);
+      break;
+
     case PRIV_SEP_OP_TMPFS_MOUNT:
       {
         cleanup_free char *mode = NULL;
@@ -1191,6 +1199,7 @@ setup_newroot (bool unshare_pid,
 {
   SetupOp *op;
   int tmp_overlay_idx = 0;
+  struct stat sbuf;
 
   for (op = ops; op != NULL; op = op->next)
     {
@@ -1443,6 +1452,36 @@ setup_newroot (bool unshare_pid,
 
           break;
 
+        case SETUP_MOUNT_SYS:
+          if (ensure_dir (dest, 0755) != 0)
+            die_with_error ("Can't mkdir %s", op->dest);
+
+          if (unshare_pid || opt_pidns_fd != -1)
+            {
+              /* Our own sysfs */
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_SYS_MOUNT, 0, 0, 0,
+                             dest, NULL);
+
+              /* In case the host utilizes SELinux, /sys/fs/selinux should be shared with the sandbox */
+              char *selinux_src_dir = "oldroot/sys/fs/selinux";
+              cleanup_free char *selinux_dest_dir = strconcat (dest, "/fs/selinux");
+              if (stat (selinux_src_dir, &sbuf) == 0 && stat (selinux_dest_dir, &sbuf) == 0)
+                {
+                  privileged_op (privileged_op_socket,
+                                 PRIV_SEP_OP_BIND_MOUNT, 0, 0, 0,
+                                 selinux_src_dir, selinux_dest_dir);
+                }
+            }
+          else
+            {
+              /* Use system sysfs, as we share pid namespace anyway */
+              privileged_op (privileged_op_socket,
+                             PRIV_SEP_OP_BIND_MOUNT, 0, 0, 0,
+                             "oldroot/sys", dest);
+            }
+          break;
+
         case SETUP_MOUNT_TMPFS:
           assert (dest != NULL);
           assert (op->perms >= 0);
@@ -1642,6 +1681,7 @@ resolve_symlinks_in_ops (void)
         case SETUP_TMP_OVERLAY_MOUNT:
         case SETUP_MOUNT_PROC:
         case SETUP_MOUNT_DEV:
+        case SETUP_MOUNT_SYS:
         case SETUP_MOUNT_TMPFS:
         case SETUP_MOUNT_MQUEUE:
         case SETUP_MAKE_DIR:
@@ -2098,6 +2138,17 @@ parse_args_recurse (int          *argcp,
             die ("--proc takes an argument");
 
           op = setup_op_new (SETUP_MOUNT_PROC);
+          op->dest = argv[1];
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--sys") == 0)
+        {
+          if (argc < 2)
+            die ("--sys takes an argument");
+
+          op = setup_op_new (SETUP_MOUNT_SYS);
           op->dest = argv[1];
 
           argv += 1;
