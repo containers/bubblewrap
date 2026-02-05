@@ -469,7 +469,7 @@ write_file_at (int         dfd,
     res = write_to_fd (fd, content, strlen (content));
 
   errsv = errno;
-  close (fd);
+  cleanup_fdp (&fd);
   errno = errsv;
 
   return res;
@@ -494,7 +494,7 @@ create_file (const char *path,
     res = write_to_fd (fd, content, strlen (content));
 
   errsv = errno;
-  close (fd);
+  cleanup_fdp (&fd);
   errno = errsv;
 
   return res;
@@ -574,7 +574,7 @@ copy_file (const char *src_path,
   if (dfd == -1)
     {
       errsv = errno;
-      close (sfd);
+      cleanup_fdp (&sfd);
       errno = errsv;
       return -1;
     }
@@ -582,8 +582,8 @@ copy_file (const char *src_path,
   res = copy_file_data (sfd, dfd);
 
   errsv = errno;
-  close (sfd);
-  close (dfd);
+  cleanup_fdp (&sfd);
+  cleanup_fdp (&dfd);
   errno = errsv;
 
   return res;
@@ -654,7 +654,7 @@ load_file_at (int         dfd,
   data = load_file_data (fd, NULL);
 
   errsv = errno;
-  close (fd);
+  cleanup_fdp (&fd);
   errno = errsv;
 
   return data;
