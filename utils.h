@@ -199,6 +199,17 @@ steal_pointer (void *pp)
 #define steal_pointer(pp) \
   (0 ? (*(pp)) : (steal_pointer) (pp))
 
+static inline int
+steal_fd (int *fdp)
+{
+  int fd;
+
+  fd = *fdp;
+  *fdp = -1;
+
+  return fd;
+}
+
 typedef struct _StringBuilder StringBuilder;
 
 struct _StringBuilder
