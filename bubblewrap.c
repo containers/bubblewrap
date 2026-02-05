@@ -3150,12 +3150,12 @@ main (int    argc,
   if (pid != 0)
     {
       /* Parent, outside sandbox, privileged (initially) */
+      cleanup_fdp (&intermediate_pids_sockets[PIPE_WRITE_END]);
 
-      if (intermediate_pids_sockets[0] != -1)
+      if (intermediate_pids_sockets[PIPE_READ_END] != -1)
         {
-          close (intermediate_pids_sockets[1]);
-          pid = read_pid_from_socket (intermediate_pids_sockets[0]);
-          close (intermediate_pids_sockets[0]);
+          pid = read_pid_from_socket (intermediate_pids_sockets[PIPE_READ_END]);
+          cleanup_fdp (&intermediate_pids_sockets[PIPE_READ_END]);
         }
 
       /* Discover namespace ids before we drop privileges */
@@ -3219,6 +3219,8 @@ main (int    argc,
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
 
+  cleanup_fdp (&intermediate_pids_sockets[PIPE_READ_END]);
+
   if (opt_pidns_fd > 0)
     {
       if (setns (opt_pidns_fd, CLONE_NEWPID) != 0)
@@ -3238,10 +3240,8 @@ main (int    argc,
         }
 
       /* We're back, either in a child or grandchild, so message the actual pid to the monitor */
-
-      close (intermediate_pids_sockets[0]);
-      send_pid_on_socket (intermediate_pids_sockets[1]);
-      close (intermediate_pids_sockets[1]);
+      send_pid_on_socket (intermediate_pids_sockets[PIPE_WRITE_END]);
+      cleanup_fdp (&intermediate_pids_sockets[PIPE_WRITE_END]);
     }
 
   /* Child, in sandbox, privileged in the parent or in the user namespace (if --unshare-user).
