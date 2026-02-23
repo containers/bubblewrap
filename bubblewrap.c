@@ -383,8 +383,21 @@ usage (int ecode, FILE *out)
 static void
 handle_die_with_parent (void)
 {
-  if (opt_die_with_parent && prctl (PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0)
+  pid_t ppid;
+
+  if (!opt_die_with_parent)
+    return;
+
+  ppid = getppid ();
+  if (prctl (PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0) != 0)
     die_with_error ("prctl");
+
+  /* Close the race where our parent exits before PR_SET_PDEATHSIG takes effect. */
+  if (getppid () != ppid)
+    {
+      (void) kill (getpid (), SIGKILL);
+      _exit (1);
+    }
 }
 
 static void
