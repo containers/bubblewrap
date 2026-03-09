@@ -2878,6 +2878,7 @@ main (int    argc,
   pid_t pid;
   int event_fd = -1;
   int child_wait_fd = -1;
+  int pgid_wait_fd = -1;
   int setup_finished_pipe[] = {-1, -1};
   const char *new_cwd;
   uid_t ns_uid;
@@ -3102,6 +3103,12 @@ main (int    argc,
   if (child_wait_fd == -1)
     die_with_error ("eventfd()");
 
+  if (isatty (0)) {
+    pgid_wait_fd = eventfd (0, EFD_CLOEXEC);
+    if (pgid_wait_fd == -1)
+      die_with_error ("eventfd()");
+  }
+
   /* Track whether pre-exec setup finished if we're reporting process exit */
   if (opt_json_status_fd != -1)
     {
@@ -3149,6 +3156,21 @@ main (int    argc,
 
   if (pid != 0)
     {
+      if (pgid_wait_fd != -1)
+        {
+          pid_t pgrp;
+
+          /* wait for child call to setpgrp */
+          res = read (pgid_wait_fd, &val, 8);
+          close (pgid_wait_fd);
+
+          pgrp = getpgid (pid);
+          if (tcsetpgrp (0, pgrp) == -1)
+            {
+              die_with_error ("Setting terminal foreground process group failed");
+            }
+        }
+
       /* Parent, outside sandbox, privileged (initially) */
 
       if (intermediate_pids_sockets[0] != -1)
@@ -3217,6 +3239,15 @@ main (int    argc,
       close (child_wait_fd);
 
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
+    }
+
+  if (pgid_wait_fd != -1)
+    {
+      setpgrp ();
+
+      val = 1;
+      TEMP_FAILURE_RETRY (write (pgid_wait_fd, &val, 8));
+      close (pgid_wait_fd);
     }
 
   if (opt_pidns_fd > 0)
