@@ -583,6 +583,14 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--ignore-keyboard-signals</option></term>
+      <listitem><para>
+      Ignore SIGINT and SIGQUIT while waiting for the command to terminate, like what
+      <citerefentry><refentrytitle>system</refentrytitle><manvolnum>3</manvolnum></citerefentry>
+      does.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--die-with-parent</option></term>
       <listitem><para>
     Ensures child process (COMMAND) dies when bwrap's parent dies. Kills (SIGKILL)
