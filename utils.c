@@ -513,7 +513,7 @@ ensure_file (const char *path,
      We're trying to set up a mount point for a non-directory, so any
      non-directory, non-symlink is acceptable - it doesn't necessarily
      have to be a regular file. */
-  if (stat (path, &buf) ==  0 &&
+  if (lstat (path, &buf) ==  0 &&
       !S_ISDIR (buf.st_mode) &&
       !S_ISLNK (buf.st_mode))
     return 0;
