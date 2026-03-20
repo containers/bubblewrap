@@ -1,3 +1,23 @@
+bubblewrap 0.11.1
+=================
+
+Released: not yet
+
+Bug fixes:
+
+  * Reset disposition of `SIGCHLD`, restoring normal subprocess management
+    if bwrap was run from a process that was ignoring that signal,
+    such as Erlang or volumeicon (#705, Joel Pelaez Jorge)
+
+  * Fix grammar in an error message (#694, J. Neuschäfer)
+
+  * Fix a broken link in the documentation (#729, Aaron Brooks)
+
+Internal changes:
+
+  * Enable user namespaces in Github Actions configuration, fixing a CI
+    regression with newer Ubuntu (#728, Joel Pelaez Jorge)
+
 bubblewrap 0.11.0
 =================
 
