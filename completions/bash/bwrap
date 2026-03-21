@@ -63,6 +63,7 @@ _bwrap() {
 		--size
 		--symlink
 		--sync-fd
+		--sys
 		--tmp-overlay
 		--uid
 		--unsetenv

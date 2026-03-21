@@ -406,6 +406,10 @@
       <listitem><para>Mount new devtmpfs on <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--sys <arg choice="plain">DEST</arg></option></term>
+      <listitem><para>Mount sysfs on <arg choice="plain">DEST</arg></para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--tmpfs <arg choice="plain">DEST</arg></option></term>
       <listitem>
         <para>Mount new tmpfs on <arg choice="plain">DEST</arg>.
