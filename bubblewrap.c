@@ -742,13 +742,31 @@ drop_all_caps (bool keep_requested_caps)
 static bool
 has_caps (void)
 {
+  unsigned long cap;
   struct __user_cap_header_struct hdr = { _LINUX_CAPABILITY_VERSION_3, 0 };
   struct __user_cap_data_struct data[2] = { { 0 } };
 
   if (capget (&hdr, data)  < 0)
     die_with_error ("capget failed");
 
+#ifdef PR_CAP_AMBIENT
+  for (cap = 0; cap <= CAP_LAST_CAP; cap++)
+    {
+      int is_permitted = (cap < 32) ? (CAP_TO_MASK_0 (cap) & data[0].permitted) : (CAP_TO_MASK_1 (cap) & data[1].permitted);
+
+      if (is_permitted)
+        {
+          int res = prctl (PR_CAP_AMBIENT, PR_CAP_AMBIENT_IS_SET, cap, 0, 0);
+          if (res == -1 || !res) /* assume non-ambient if prctl fails */
+            return 1;
+        }
+    }
+
+  /* all capabilities were ambient if we reached here */
+  return 0;
+#else
   return data[0].permitted != 0 || data[1].permitted != 0;
+#endif
 }
 
 /* Most of the code here is used both to add caps to the ambient capabilities
