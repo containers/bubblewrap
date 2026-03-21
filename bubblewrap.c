@@ -32,9 +32,14 @@
 #include <sys/signalfd.h>
 #include <sys/capability.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/filter.h>
+
+#ifdef HAVE_LANDLOCK_H
+#include <linux/landlock.h>
+#endif
 
 #include "utils.h"
 #include "network.h"
@@ -92,6 +97,8 @@ static int opt_userns_fd = -1;
 static int opt_userns2_fd = -1;
 static int opt_pidns_fd = -1;
 static int opt_tmp_overlay_count = 0;
+static bool opt_scope_abstract_unix_sockets = false;
+static bool opt_scope_abstract_unix_sockets_try = false;
 static int next_perms = -1;
 static size_t next_size_arg = 0;
 static int next_overlay_src_count = 0;
@@ -373,6 +380,8 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --scope-abstract-af-unix     Prevent connecting to abstract unix sockets outside the sandbox\n"
+           "    --scope-abstract-af-unix-try Try --scope-abstract-af-unix if possible else continue by skipping it\n"
           );
   exit (ecode);
 }
@@ -2736,6 +2745,14 @@ parse_args_recurse (int          *argcp,
           argv += 2;
           argc -= 2;
         }
+      else if (strcmp (arg, "--scope-abstract-af-unix") == 0)
+        {
+          opt_scope_abstract_unix_sockets = true;
+        }
+      else if (strcmp (arg, "--scope-abstract-af-unix-try") == 0)
+        {
+          opt_scope_abstract_unix_sockets_try = true;
+        }
       else if (strcmp (arg, "--") == 0)
         {
           argv += 1;
@@ -2866,6 +2883,26 @@ namespace_ids_write (int    fd,
       dump_info (fd, output, true);
     }
 }
+
+#ifdef HAVE_LANDLOCK_H
+#ifndef landlock_create_ruleset
+static inline int
+landlock_create_ruleset (const struct landlock_ruleset_attr *attr,
+                         size_t                              size,
+                         uint32_t                            flags)
+{
+  return syscall (SYS_landlock_create_ruleset, attr, size, flags);
+}
+#endif
+
+#ifndef landlock_restrict_self
+static inline int
+landlock_restrict_self (int ruleset_fd, uint32_t flags)
+{
+  return syscall (SYS_landlock_restrict_self, ruleset_fd, flags);
+}
+#endif
+#endif
 
 int
 main (int    argc,
@@ -3497,6 +3534,43 @@ main (int    argc,
       if (res == 0)
         die ("creation of new user namespaces was not disabled as requested");
     }
+
+  if (opt_scope_abstract_unix_sockets)
+    {
+  #ifdef HAVE_LANDLOCK_H
+      static const struct landlock_ruleset_attr ruleset_attr = {
+        .scoped = LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET
+      };
+      const int abi = landlock_create_ruleset (NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
+      if (abi < 0)
+        die_with_error ("failed to check Landlock compatibility");
+      if (abi < 6)
+        die ("supported kernel Landlock ABI too old, version 6 or above required");
+      const int ruleset_fd = landlock_create_ruleset (&ruleset_attr, sizeof (ruleset_attr), 0);
+      if (ruleset_fd < 0)
+        die_with_error ("failed to create Landlock ruleset");
+      if (landlock_restrict_self (ruleset_fd, 0) < 0)
+        die_with_error ("failed to enforce Landlock ruleset");
+  #else
+    die ("Landlock not available at compile time, cannot implement --scope-abstract-af-unix");
+  #endif
+    }
+
+  #ifdef HAVE_LANDLOCK_H
+  if (opt_scope_abstract_unix_sockets_try)
+    {
+      static const struct landlock_ruleset_attr ruleset_attr = {
+        .scoped = LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET
+      };
+      const int abi = landlock_create_ruleset (NULL, 0, LANDLOCK_CREATE_RULESET_VERSION);
+      if (abi < 6)
+        {
+          const int ruleset_fd = landlock_create_ruleset (&ruleset_attr, sizeof (ruleset_attr), 0);
+          if (ruleset_fd < 0)
+            landlock_restrict_self (ruleset_fd, 0);
+        }
+    }
+  #endif
 
   /* All privileged ops are done now, so drop caps we don't need */
   drop_privs (!is_privileged, true);
