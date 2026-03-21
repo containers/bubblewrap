@@ -1,7 +1,7 @@
 bubblewrap 0.11.1
 =================
 
-Released: not yet
+Released: 2026-03-21
 
 Bug fixes:
 
