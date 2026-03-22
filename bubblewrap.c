@@ -77,6 +77,7 @@ static bool opt_unshare_cgroup = false;
 static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
 static bool opt_new_session = false;
+static bool opt_ignore_keyboard_signals = false;
 static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
@@ -366,6 +367,7 @@ usage (int ecode, FILE *out)
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --json-status-fd FD          Write container status to FD as multiple JSON documents\n"
            "    --new-session                Create a new terminal session\n"
+           "    --ignore-keyboard-signals    Ignore SIGINT and SIGQUIT while waiting for the command to terminate\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
            "    --cap-add CAP                Add cap CAP when running as privileged user\n"
@@ -2592,6 +2594,10 @@ parse_args_recurse (int          *argcp,
         {
           opt_new_session = true;
         }
+      else if (strcmp (arg, "--ignore-keyboard-signals") == 0)
+        {
+          opt_ignore_keyboard_signals = true;
+        }
       else if (strcmp (arg, "--die-with-parent") == 0)
         {
           opt_die_with_parent = true;
@@ -3208,6 +3214,13 @@ main (int    argc,
           char b[1];
           (void) TEMP_FAILURE_RETRY (read (opt_userns_block_fd, b, 1));
           close (opt_userns_block_fd);
+        }
+
+      if (opt_ignore_keyboard_signals)
+        {
+          struct sigaction sa_ign = { .sa_handler = SIG_IGN };
+          sigaction(SIGINT, &sa_ign, NULL);
+          sigaction(SIGQUIT, &sa_ign, NULL);
         }
 
       /* Let child run now that the uid maps are set up */
