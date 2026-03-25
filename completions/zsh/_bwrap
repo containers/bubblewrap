@@ -60,6 +60,8 @@ _bwrap_args=(
     '--remount-ro[Remount DEST as readonly; does not recursively remount]:mount point to remount read-only:_files'
     '--ro-bind-try[Equal to --ro-bind but ignores non-existent SRC]:source:_files:destination:_files'
     '--ro-bind[Bind mount the host path SRC readonly on DEST]:source:_files:destination:_files'
+    '--scope-abstract-af-unix[Prevent connecting to abstract unix sockets outside the sandbox]'
+    '--scope-abstract-af-unix-try[Try --scope-abstract-af-unix if possible else continue by skipping it]'
     '--seccomp[Load and use seccomp rules from FD]: :_guard "[0-9]#" "file descriptor to read seccomp rules from"'
     '--setenv[Set an environment variable]:variable to set:_parameters -g "*export*":value of variable: :'
     '--size[Set size in bytes for next action argument]: :->after_size'
