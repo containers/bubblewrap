@@ -2899,7 +2899,7 @@ main (int    argc,
   if (argc == 2 && (strcmp (argv[1], "--version") == 0))
     print_version_and_exit ();
 
-  /* Reset SIGCHILD to SIG_DFL allowing signalfd working propertly
+  /* Reset SIGCHILD to SIG_DFL allowing signalfd working properly
    * if the parent process had set SIGCHLD to SIG_IGN. */
   sigemptyset (&sa.sa_mask);
   sa.sa_handler = SIG_DFL;
@@ -3457,7 +3457,7 @@ main (int    argc,
          used for one or more of these reasons:
 
          * The 1st level namespace has a different uid/gid than the
-           requested due to requirements of beeing root in the first
+           requested due to requirements of being root in the first
            level due for mounting devpts (opt_needs_devpts).
 
          * To disable user namespaces we set max_user_namespaces and then
