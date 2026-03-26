@@ -325,8 +325,8 @@ usage (int ecode, FILE *out)
            "    --disable-userns             Disable further use of user namespaces inside sandbox\n"
            "    --assert-userns-disabled     Fail unless further use of user namespace inside sandbox is disabled\n"
            "    --pidns FD                   Use this pid namespace (as parent namespace if using --unshare-pid)\n"
-           "    --uid UID                    Custom uid in the sandbox (requires --unshare-user or --userns)\n"
-           "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
+           "    --uid UID                    Custom uid in the sandbox (requires root, --unshare-user or --userns)\n"
+           "    --gid GID                    Custom gid in the sandbox (requires root, --unshare-user or --userns)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
            "    --chdir DIR                  Change directory to DIR\n"
            "    --clearenv                   Unset all environment variables\n"
@@ -3028,11 +3028,11 @@ main (int    argc,
   if (opt_sandbox_gid == (gid_t)-1)
     opt_sandbox_gid = real_gid;
 
-  if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_uid != real_uid)
-    die ("Specifying --uid requires --unshare-user or --userns");
+  if (real_uid != 0 && !opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_uid != real_uid)
+    die ("Specifying --uid requires root, --unshare-user or --userns");
 
-  if (!opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_gid != real_gid)
-    die ("Specifying --gid requires --unshare-user or --userns");
+  if (real_uid != 0 && !opt_unshare_user && opt_userns_fd == -1 && opt_sandbox_gid != real_gid)
+    die ("Specifying --gid requires root, --unshare-user or --userns");
 
   if (!opt_unshare_uts && opt_sandbox_hostname != NULL)
     die ("Specifying --hostname requires --unshare-uts");
@@ -3497,6 +3497,18 @@ main (int    argc,
       if (res == 0)
         die ("creation of new user namespaces was not disabled as requested");
     }
+
+  if (real_uid == 0 && !opt_unshare_user && opt_userns_fd == -1 && (opt_sandbox_uid != real_uid || opt_sandbox_gid != real_gid)) {
+    /* Tell kernel not clear capabilities when later dropping root uid */
+    if (prctl (PR_SET_KEEPCAPS, 1, 0, 0, 0) < 0)
+      die_with_error ("prctl(PR_SET_KEEPCAPS) failed");
+
+    if (opt_sandbox_gid != real_gid && setgid (opt_sandbox_gid) < 0)
+      die_with_error ("unable to switch to gid %d", opt_sandbox_gid);
+
+    if (opt_sandbox_uid != real_uid && setuid (opt_sandbox_uid) < 0)
+      die_with_error ("unable to switch to uid %d", opt_sandbox_uid);
+  }
 
   /* All privileged ops are done now, so drop caps we don't need */
   drop_privs (!is_privileged, true);
