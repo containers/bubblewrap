@@ -87,15 +87,6 @@ if selinux_dep.found()
   endif
 endif
 
-if get_option('require_userns')
-  cdata.set('ENABLE_REQUIRE_USERNS', 1)
-endif
-
-if get_option('support_setuid')
-  cdata.set('ENABLE_SUPPORT_SETUID', 1)
-  warning('running bubblewrap setuid is deprecated and risky. Most recent operating systems support unprivileged user namespaces and we recommend using that. Support for this will be removed in the next version.')
-endif
-
 configure_file(
   output : 'config.h',
   configuration : cdata,
