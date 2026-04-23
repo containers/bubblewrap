@@ -169,28 +169,6 @@ struct _LockFile
   LockFile   *next;
 };
 
-enum {
-  PRIV_SEP_OP_DONE,
-  PRIV_SEP_OP_BIND_MOUNT,
-  PRIV_SEP_OP_OVERLAY_MOUNT,
-  PRIV_SEP_OP_PROC_MOUNT,
-  PRIV_SEP_OP_TMPFS_MOUNT,
-  PRIV_SEP_OP_DEVPTS_MOUNT,
-  PRIV_SEP_OP_MQUEUE_MOUNT,
-  PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE,
-  PRIV_SEP_OP_SET_HOSTNAME,
-};
-
-typedef struct
-{
-  uint32_t op;
-  uint32_t flags;
-  uint32_t perms;
-  size_t   size_arg;
-  uint32_t arg1_offset;
-  uint32_t arg2_offset;
-} PrivSepOp;
-
 /*
  * DEFINE_LINKED_LIST:
  * @Type: A struct with a `Type *next` member
@@ -924,176 +902,48 @@ write_uid_gid_map (uid_t sandbox_uid,
 }
 
 static void
-privileged_op (int         privileged_op_socket,
-               uint32_t    op,
-               uint32_t    flags,
-               uint32_t    perms,
-               size_t      size_arg,
-               const char *arg1,
-               const char *arg2)
+setup_op_bind_mount (bind_option_t options,
+                     const char *src,
+                     const char *dest)
 {
   bind_mount_result bind_result;
   char *failing_path = NULL;
 
-  if (privileged_op_socket != -1)
-    {
-      uint32_t buffer[2048];  /* 8k, but is int32 to guarantee nice alignment */
-      PrivSepOp *op_buffer = (PrivSepOp *) buffer;
-      size_t buffer_size = sizeof (PrivSepOp);
-      uint32_t arg1_offset = 0, arg2_offset = 0;
+  /* We always bind directories recursively, otherwise this would let us
+     access files that are otherwise covered on the host */
+  bind_result = bind_mount (proc_fd, src, dest, BIND_RECURSIVE | options, &failing_path);
 
-      /* We're unprivileged, send this request to the privileged part */
+  if (bind_result != BIND_MOUNT_SUCCESS)
+    die_with_bind_result (bind_result, errno, failing_path,
+                          "Can't bind mount %s on %s", src, dest);
 
-      if (arg1 != NULL)
-        {
-          arg1_offset = buffer_size;
-          buffer_size += strlen (arg1) + 1;
-        }
-      if (arg2 != NULL)
-        {
-          arg2_offset = buffer_size;
-          buffer_size += strlen (arg2) + 1;
-        }
-
-      if (buffer_size >= sizeof (buffer))
-        die ("privilege separation operation to large");
-
-      op_buffer->op = op;
-      op_buffer->flags = flags;
-      op_buffer->perms = perms;
-      op_buffer->size_arg = size_arg;
-      op_buffer->arg1_offset = arg1_offset;
-      op_buffer->arg2_offset = arg2_offset;
-      if (arg1 != NULL)
-        strcpy ((char *) buffer + arg1_offset, arg1);
-      if (arg2 != NULL)
-        strcpy ((char *) buffer + arg2_offset, arg2);
-
-      if (TEMP_FAILURE_RETRY (write (privileged_op_socket, buffer, buffer_size)) != (ssize_t)buffer_size)
-        die ("Can't write to privileged_op_socket");
-
-      if (TEMP_FAILURE_RETRY (read (privileged_op_socket, buffer, 1)) != 1)
-        die ("Can't read from privileged_op_socket");
-
-      return;
-    }
-
-  /*
-   * This runs a privileged request for the unprivileged setup
-   * code. Note that since the setup code is unprivileged it is not as
-   * trusted, so we need to verify that all requests only affect the
-   * child namespace as set up by the privileged parts of the setup,
-   * and that all the code is very careful about handling input.
-   *
-   * This means:
-   *  * Bind mounts are safe, since we always use filesystem namespace. They
-   *     must be recursive though, as otherwise you can use a non-recursive bind
-   *     mount to access an otherwise over-mounted mountpoint.
-   *  * Mounting proc, tmpfs, mqueue, devpts in the child namespace is assumed to
-   *    be safe.
-   *  * Remounting RO (even non-recursive) is safe because it decreases privileges.
-   *  * sethostname() is safe only if we set up a UTS namespace
-   */
-  switch (op)
-    {
-    case PRIV_SEP_OP_DONE:
-      break;
-
-    case PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE:
-      bind_result = bind_mount (proc_fd, NULL, arg2, BIND_READONLY, &failing_path);
-
-      if (bind_result != BIND_MOUNT_SUCCESS)
-        die_with_bind_result (bind_result, errno, failing_path,
-                              "Can't remount readonly on %s", arg2);
-
-      assert (failing_path == NULL);    /* otherwise we would have died */
-      break;
-
-    case PRIV_SEP_OP_BIND_MOUNT:
-      /* We always bind directories recursively, otherwise this would let us
-         access files that are otherwise covered on the host */
-      bind_result = bind_mount (proc_fd, arg1, arg2, BIND_RECURSIVE | flags, &failing_path);
-
-      if (bind_result != BIND_MOUNT_SUCCESS)
-        die_with_bind_result (bind_result, errno, failing_path,
-                              "Can't bind mount %s on %s", arg1, arg2);
-
-      assert (failing_path == NULL);    /* otherwise we would have died */
-      break;
-
-    case PRIV_SEP_OP_PROC_MOUNT:
-      if (mount ("proc", arg1, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
-        die_with_mount_error ("Can't mount proc on %s", arg1);
-      break;
-
-    case PRIV_SEP_OP_TMPFS_MOUNT:
-      {
-        cleanup_free char *mode = NULL;
-
-        /* This check should be unnecessary since we checked this when parsing
-         * the --size option as well. However, better be safe than sorry. */
-        if (size_arg > MAX_TMPFS_BYTES)
-          die_with_error ("Specified tmpfs size too large (%zu > %zu)", size_arg, MAX_TMPFS_BYTES);
-
-        if (size_arg != 0)
-          mode = xasprintf ("mode=%#o,size=%zu", perms, size_arg);
-        else
-          mode = xasprintf ("mode=%#o", perms);
-
-        cleanup_free char *opt = label_mount (mode, opt_file_label);
-        if (mount ("tmpfs", arg1, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
-          die_with_mount_error ("Can't mount tmpfs on %s", arg1);
-        break;
-      }
-
-    case PRIV_SEP_OP_DEVPTS_MOUNT:
-      if (mount ("devpts", arg1, "devpts", MS_NOSUID | MS_NOEXEC,
-                 "newinstance,ptmxmode=0666,mode=620") != 0)
-        die_with_mount_error ("Can't mount devpts on %s", arg1);
-      break;
-
-    case PRIV_SEP_OP_MQUEUE_MOUNT:
-      if (mount ("mqueue", arg1, "mqueue", 0, NULL) != 0)
-        die_with_mount_error ("Can't mount mqueue on %s", arg1);
-      break;
-
-    case PRIV_SEP_OP_OVERLAY_MOUNT:
-      if (mount ("overlay", arg2, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, arg1) != 0)
-        {
-          /* The standard message for ELOOP, "Too many levels of symbolic
-           * links", is not helpful here. */
-          if (errno == ELOOP)
-            die ("Can't make overlay mount on %s with options %s: "
-                "Overlay directories may not overlap",
-                arg2, arg1);
-          die_with_mount_error ("Can't make overlay mount on %s with options %s",
-                                arg2, arg1);
-        }
-      break;
-
-    case PRIV_SEP_OP_SET_HOSTNAME:
-      /* This is checked at the start, but lets verify it here in case
-         something manages to send hacked priv-sep operation requests. */
-      if (!opt_unshare_uts)
-        die ("Refusing to set hostname in original namespace");
-      if (arg1 == NULL)
-        die ("Hostname argument is NULL");
-      if (sethostname (arg1, strlen(arg1)) != 0)
-        die_with_error ("Can't set hostname to %s", arg1);
-      break;
-
-    default:
-      die ("Unexpected privileged op %d", op);
-    }
+  assert (failing_path == NULL);    /* otherwise we would have died */
 }
 
-/* This is run unprivileged in the child namespace but can request
- * some privileged operations (also in the child namespace) via the
- * privileged_op_socket.
- */
 static void
-setup_newroot (bool unshare_pid,
-               int  privileged_op_socket)
+setup_op_tmpfs_mount (uint32_t    perms,
+                      size_t      size,
+                      const char *dest)
+{
+  cleanup_free char *mode = NULL;
+
+  /* This check should be unnecessary since we checked this when parsing
+   * the --size option as well. However, better be safe than sorry. */
+  if (size > MAX_TMPFS_BYTES)
+    die_with_error ("Specified tmpfs size too large (%zu > %zu)", size, MAX_TMPFS_BYTES);
+
+  if (size != 0)
+    mode = xasprintf ("mode=%#o,size=%zu", perms, size);
+  else
+    mode = xasprintf ("mode=%#o", perms);
+
+  cleanup_free char *opt = label_mount (mode, opt_file_label);
+  if (mount ("tmpfs", dest, "tmpfs", MS_NOSUID | MS_NODEV, opt) != 0)
+    die_with_mount_error ("Can't mount tmpfs on %s", dest);
+}
+
+static void
+setup_newroot (bool unshare_pid)
 {
   SetupOp *op;
   int tmp_overlay_idx = 0;
@@ -1153,11 +1003,9 @@ setup_newroot (bool unshare_pid,
           else if (ensure_file (dest, 0444) != 0)
             die_with_error ("Can't create file at %s", op->dest);
 
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_BIND_MOUNT,
-                         (op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
-                         (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
-                         0, 0, source, dest);
+          setup_op_bind_mount ((op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
+                               (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
+                               source, dest);
 
           if (op->fd >= 0)
             {
@@ -1219,15 +1067,35 @@ setup_newroot (bool unshare_pid,
 
             strappend (&sb, ",userxattr");
 
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_OVERLAY_MOUNT, 0, 0, 0, sb.str, dest);
+            if (mount ("overlay", dest, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
+              {
+                /* The standard message for ELOOP, "Too many levels of symbolic
+                 * links", is not helpful here. */
+                if (errno == ELOOP)
+                  die ("Can't make overlay mount on %s with options %s: "
+                       "Overlay directories may not overlap",
+                       dest, sb.str);
+                die_with_mount_error ("Can't make overlay mount on %s with options %s",
+                                      dest, sb.str);
+              }
+
             free (sb.str);
           }
           break;
 
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_REMOUNT_RO_NO_RECURSIVE, 0, 0, 0, NULL, dest);
+          {
+            char *failing_path = NULL;
+            bind_mount_result bind_result;
+
+            bind_result = bind_mount (proc_fd, NULL, dest, BIND_READONLY, &failing_path);
+
+            if (bind_result != BIND_MOUNT_SUCCESS)
+              die_with_bind_result (bind_result, errno, failing_path,
+                                    "Can't remount readonly on %s", dest);
+
+            assert (failing_path == NULL);    /* otherwise we would have died */
+          }
           break;
 
         case SETUP_MOUNT_PROC:
@@ -1237,16 +1105,13 @@ setup_newroot (bool unshare_pid,
           if (unshare_pid || opt_pidns_fd != -1)
             {
               /* Our own procfs */
-              privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_PROC_MOUNT, 0, 0, 0,
-                             dest, NULL);
+              if (mount ("proc", dest, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+                die_with_mount_error ("Can't mount proc on %s", dest);
             }
           else
             {
               /* Use system procfs, as we share pid namespace anyway */
-              privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, 0, 0, 0,
-                             "oldroot/proc", dest);
+              setup_op_bind_mount (0, "oldroot/proc", dest);
             }
 
           /* There are a bunch of weird old subdirs of /proc that could potentially be
@@ -1266,9 +1131,7 @@ setup_newroot (bool unshare_pid,
                   die_with_error ("Can't access %s", subdir);
                 }
 
-              privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, BIND_READONLY, 0, 0,
-                             subdir, subdir);
+              setup_op_bind_mount (BIND_READONLY, subdir, subdir);
             }
 
           break;
@@ -1277,9 +1140,7 @@ setup_newroot (bool unshare_pid,
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_TMPFS_MOUNT, 0, 0755, 0,
-                         dest, NULL);
+          setup_op_tmpfs_mount (0755, 0, dest);
 
           static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
           for (i = 0; i < N_ELEMENTS (devnodes); i++)
@@ -1288,9 +1149,7 @@ setup_newroot (bool unshare_pid,
               cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
               if (create_file (node_dest, 0444, NULL) != 0)
                 die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
-              privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES, 0, 0,
-                             node_src, node_dest);
+              setup_op_bind_mount (BIND_DEVICES, node_src, node_dest);
             }
 
           static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
@@ -1322,8 +1181,10 @@ setup_newroot (bool unshare_pid,
 
             if (mkdir (pts, 0755) == -1)
               die_with_error ("Can't create %s/devpts", op->dest);
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_DEVPTS_MOUNT, 0, 0, 0, pts, NULL);
+
+            if (mount ("devpts", pts, "devpts", MS_NOSUID | MS_NOEXEC,
+                       "newinstance,ptmxmode=0666,mode=620") != 0)
+              die_with_mount_error ("Can't mount devpts on %s", pts);
 
             if (symlink ("pts/ptmx", ptmx) != 0)
               die_with_error ("Can't make symlink at %s/ptmx", op->dest);
@@ -1342,9 +1203,7 @@ setup_newroot (bool unshare_pid,
               if (create_file (dest_console, 0444, NULL) != 0)
                 die_with_error ("creating %s/console", op->dest);
 
-              privileged_op (privileged_op_socket,
-                             PRIV_SEP_OP_BIND_MOUNT, BIND_DEVICES, 0, 0,
-                             src_tty_dev, dest_console);
+              setup_op_bind_mount (BIND_DEVICES, src_tty_dev, dest_console);
             }
 
           break;
@@ -1357,18 +1216,15 @@ setup_newroot (bool unshare_pid,
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_TMPFS_MOUNT, 0, op->perms, op->size,
-                         dest, NULL);
+          setup_op_tmpfs_mount (op->perms, op->size, dest);
           break;
 
         case SETUP_MOUNT_MQUEUE:
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_MQUEUE_MOUNT, 0, 0, 0,
-                         dest, NULL);
+          if (mount ("mqueue", dest, "mqueue", 0, NULL) != 0)
+            die_with_mount_error ("Can't mount mqueue on %s", dest);
           break;
 
         case SETUP_MAKE_DIR:
@@ -1445,10 +1301,8 @@ setup_newroot (bool unshare_pid,
             if (ensure_file (dest, 0444) != 0)
               die_with_error ("Can't create file at %s", op->dest);
 
-            privileged_op (privileged_op_socket,
-                           PRIV_SEP_OP_BIND_MOUNT,
-                           (op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
-                           0, 0, tempfile, dest);
+            setup_op_bind_mount ((op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
+                                 tempfile, dest);
 
             /* Remove the file so we're sure the app can't get to it in any other way.
                Its outside the container chroot, so it shouldn't be possible, but lets
@@ -1483,9 +1337,10 @@ setup_newroot (bool unshare_pid,
 
         case SETUP_SET_HOSTNAME:
           assert (op->dest != NULL);  /* guaranteed by the constructor */
-          privileged_op (privileged_op_socket,
-                         PRIV_SEP_OP_SET_HOSTNAME, 0, 0, 0,
-                         op->dest, NULL);
+          if (op->dest == NULL)
+            die ("Hostname argument is NULL");
+          if (sethostname (op->dest, strlen(op->dest)) != 0)
+            die_with_error ("Can't set hostname to %s", op->dest);
           break;
 
         case SETUP_OVERLAY_SRC:  /* handled by SETUP_OVERLAY_MOUNT */
@@ -1493,8 +1348,6 @@ setup_newroot (bool unshare_pid,
           die ("Unexpected type %d", op->type);
         }
     }
-  privileged_op (privileged_op_socket,
-                 PRIV_SEP_OP_DONE, 0, 0, 0, NULL, NULL);
 }
 
 /* Do not leak file descriptors already used by setup_newroot () */
@@ -3150,7 +3003,7 @@ main (int    argc,
   if (chdir ("/") != 0)
     die_with_error ("chdir / (base path)");
 
-  setup_newroot (opt_unshare_pid, -1);
+  setup_newroot (opt_unshare_pid);
 
   close_ops_fd ();
 
