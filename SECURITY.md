@@ -4,23 +4,15 @@ The bubblewrap Project follows the [Security and Disclosure Information Policy](
 
 ### System security
 
-If bubblewrap is setuid root, then the goal is that it does not allow
-a malicious local user to do anything that would not have been possible
-on a kernel that allows unprivileged users to create new user namespaces.
-For example, [CVE-2020-5291](https://github.com/containers/bubblewrap/security/advisories/GHSA-j2qp-rvxj-43vj)
-was treated as a security vulnerability in bubblewrap.
+bubblewrap is not a security boundary between the user and the OS,
+because anything bubblewrap could do, a malicious user could equally
+well do by writing their own tool equivalent to bubblewrap.
 
-If bubblewrap is not setuid root, then it is not a security boundary
-between the user and the OS, because anything bubblewrap could do, a
-malicious user could equally well do by writing their own tool equivalent
-to bubblewrap.
-
-Since 0.11.2, unless compiled with the `-Dsupport_setuid=true` option,
-setuid root support is disabled. In this mode bubblewrap will refuse
-to operate if the binary has been made setuid. For binaries built like
-this it is safe to ignore any bubblewrap CVEs that are described as
-affecting setuid mode only. This is the recommended way to package
-bubblewrap.
+Older versions of bubblewrap were optionally setuid root. This is a
+system security risk. See
+https://github.com/containers/bubblewrap/blob/v0.11.2/SECURITY.md#system-security
+for discussion of this historical configuration. Newer versions of
+bubblewrap refuse to operate if the binary has been made setuid.
 
 ### Sandbox security
 

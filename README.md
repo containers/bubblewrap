@@ -17,19 +17,9 @@ There is an feature in the Linux kernel called
 which allows unprivileged users to use container features. Bubblewrap uses these to
 build the sandbox, allowing any user to use the tool.
 
-Historically, not all Linux distributions supported (at least by
-default) unprivileged user namespaces, so bubblewrap supports a second
-mode of operation when the binary is setuid root. In that setup
-bubblewrap could be viewed as setuid implementation of a *subset* of
-user namespaces. However, not all features of bubblewrap work in
-this mode.
-
-However, setuid mode is deprecated, as most recent Linux distributions
-support unprivileged user namespaces, and setuid binaries carry
-significant risks. By default, bubblewrap binaries refuse to work if
-setuid, and you must build explicitly with ` -Dsupport_setuid=true` to
-enable it to work. Later versions of bubblewrap aims to completely
-remove this support.
+Historically, bubblewrap also supported a setuid mode for systems where
+unprivileged user namespaces were not supported. However, this has been
+removed.
 
 The original bubblewrap code existed before user namespaces - it inherits code from
 [xdg-app helper](https://cgit.freedesktop.org/xdg-app/xdg-app/tree/common/xdg-app-helper.c?id=4c3bf179e2e4a2a298cd1db1d045adaf3f564532)
