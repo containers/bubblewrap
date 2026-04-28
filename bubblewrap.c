@@ -94,6 +94,7 @@ static int opt_tmp_overlay_count = 0;
 static int next_perms = -1;
 static size_t next_size_arg = 0;
 static int next_overlay_src_count = 0;
+static bool opt_not_a_security_boundary = false;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -350,6 +351,8 @@ usage (int ecode, FILE *out)
            "    --perms OCTAL                Set permissions of next argument (--bind-data, --file, etc.)\n"
            "    --size BYTES                 Set size of next argument (only for --tmpfs)\n"
            "    --chmod OCTAL PATH           Change permissions of PATH (must already exist)\n"
+           "    --not-a-security-boundary    Do not fail hard when some sandbox setup steps fail;\n"
+           "                                 use only when the sandbox is not a security boundary\n"
           );
   exit (ecode);
 }
@@ -1004,6 +1007,9 @@ setup_newroot (bool unshare_pid)
             die_with_error ("Can't create file at %s", op->dest);
 
           bind_option_t bind_flags = 0;
+
+          if (opt_not_a_security_boundary)
+            bind_flags |= BIND_FAIL_OPEN;
 
           if (op->type == SETUP_RO_BIND_MOUNT)
             bind_flags |= BIND_READONLY;
@@ -2432,6 +2438,10 @@ parse_args_recurse (int          *argcp,
 
           argv += 2;
           argc -= 2;
+        }
+      else if (strcmp (arg, "--not-a-security-boundary") == 0)
+        {
+          opt_not_a_security_boundary = true;
         }
       else if (strcmp (arg, "--") == 0)
         {

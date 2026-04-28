@@ -476,6 +476,15 @@ bind_mount (int           proc_fd,
                  be safe to ignore because its not something the user can access. */
               if (errno != EACCES)
                 {
+                  /* And if we don't need a security boundary, we can also
+                   * ignore other remount errors for submounts. */
+                  if (options & BIND_FAIL_OPEN)
+                    {
+                      warn ("Can't remount %s submount (%s), ignoring error",
+                            mount_tab[i].mountpoint, strerror (errno));
+                      continue;
+                    }
+
                   if (failing_path != NULL)
                     *failing_path = xstrdup (mount_tab[i].mountpoint);
 

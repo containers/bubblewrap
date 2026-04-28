@@ -25,6 +25,7 @@ typedef enum {
   BIND_READONLY = (1 << 0),
   BIND_DEVICES = (1 << 2),
   BIND_RECURSIVE = (1 << 3),
+  BIND_FAIL_OPEN = (1 << 4),
 } bind_option_t;
 
 typedef enum
