@@ -2674,8 +2674,8 @@ main (int    argc,
         }
 
       /* Debian lets you disable *unprivileged* user namespaces. However this is not
-         a problem if we're privileged, and if we're not opt_unshare_user is true
-         already, and there is not much we can do, its just a non-working setup. */
+         a problem if we're privileged, and if we're not then opt_unshare_user is true
+         already, and there is not much we can do, it's just a non-working setup. */
 
       if (!disabled)
         opt_unshare_user = true;
