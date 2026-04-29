@@ -42,7 +42,7 @@
 
 <refsect1><title>Description</title>
 <para>
-  <command>bwrap</command> is a unprivileged low-level sandboxing tool. You
+  <command>bwrap</command> is an unprivileged low-level sandboxing tool. You
   are unlikely to use it directly from the commandline, although that is possible.
 </para>
 <para>
