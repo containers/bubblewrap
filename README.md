@@ -12,7 +12,7 @@ on the host.
 User namespaces
 ---------------
 
-There is an feature in the Linux kernel called
+There is a feature in the Linux kernel called
 [user namespaces](https://www.google.com/search?q=user+namespaces+site%3Ahttps%3A%2F%2Flwn.net)
 which allows unprivileged users to use container features. Bubblewrap uses these to
 build the sandbox, allowing any user to use the tool.
