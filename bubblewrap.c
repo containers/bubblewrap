@@ -2635,16 +2635,16 @@ main (int    argc,
     die ("--userns-block-fd requires --info-fd");
 
   if (opt_userns_fd != -1 && opt_unshare_user)
-    die ("--userns not compatible --unshare-user");
+    die ("--userns is not compatible with --unshare-user");
 
   if (opt_userns_fd != -1 && opt_unshare_user_try)
-    die ("--userns not compatible --unshare-user-try");
+    die ("--userns is not compatible with --unshare-user-try");
 
   if (opt_disable_userns && !opt_unshare_user)
     die ("--disable-userns requires --unshare-user");
 
   if (opt_disable_userns && opt_userns_block_fd != -1)
-    die ("--disable-userns is not compatible with  --userns-block-fd");
+    die ("--disable-userns is not compatible with --userns-block-fd");
 
   /* We have to do this if we we're not root, so let's just DWIM */
   if (getuid () != 0 && opt_userns_fd == -1)
