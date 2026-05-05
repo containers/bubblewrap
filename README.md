@@ -83,10 +83,11 @@ Installation
 bubblewrap is available in the package repositories of the most Linux distributions
 and can be installed from there.
 
-If you need to build bubblewrap from source, you can do this with meson:
+If you need to build bubblewrap from source, first make sure you
+have `lipcap-dev` installed, then use meson:
 
 ```sh
-meson _builddir
+meson setup _builddir
 meson compile -C _builddir
 meson test -C _builddir
 meson install -C _builddir
