@@ -234,7 +234,6 @@ parse_mountinfo (int  proc_fd,
   cleanup_free MountInfoLine *lines = NULL;
   cleanup_free MountInfoLine **by_id = NULL;
   cleanup_mount_tab MountTab mount_tab = NULL;
-  MountInfo *end_tab;
   int n_mounts;
   char *line;
   unsigned int i;
@@ -368,8 +367,7 @@ parse_mountinfo (int  proc_fd,
   n_mounts = count_mounts (&lines[root]);
   mount_tab = xcalloc (n_mounts + 1, sizeof (MountInfo));
 
-  end_tab = collect_mounts (&mount_tab[0], &lines[root]);
-  assert (end_tab == &mount_tab[n_mounts]);
+  assert (collect_mounts (&mount_tab[0], &lines[root]) == &mount_tab[n_mounts]);
 
   return steal_pointer (&mount_tab);
 }
