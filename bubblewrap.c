@@ -785,8 +785,10 @@ static void
 acquire_privs (void)
 {
   uid_t euid;
+  gid_t egid;
 
   euid = geteuid ();
+  egid = getegid ();
 
   /* Are we setuid ? */
   if (real_uid != euid)
@@ -815,6 +817,21 @@ acquire_privs (void)
 
       requested_caps[0] = data[0].effective;
       requested_caps[1] = data[1].effective;
+    }
+
+  if (real_gid != egid)
+    {
+      /* We are running as a setgid binary. This allows us to acquire the
+        permissions of the group without privileged operations, and we can
+        preserve those inside the unprivileged user namespace. We need to
+        make sure that real and effective gid match though. */
+      if (setresgid (egid, egid, egid) < 0)
+        die_with_error ("Unable to set real gid from effective gid");
+      real_gid = egid;
+
+      /* Privileges are consistent now, mark dumpable to allow access to /proc/self */
+      if (prctl (PR_SET_DUMPABLE, 1, 0, 0, 0) != 0)
+        die_with_error ("can't set dumpable after setgid");
     }
 
   /* Else, we try unprivileged user namespaces */
