@@ -57,6 +57,10 @@ if (
   ], language : 'c')
 endif
 
+if cc.check_header('linux/landlock.h')
+  add_project_arguments('-DHAVE_LANDLOCK_H', language : 'c')
+endif
+
 bash = find_program('bash', required : false)
 
 if get_option('python') == ''
