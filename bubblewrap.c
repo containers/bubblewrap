@@ -1003,9 +1003,15 @@ setup_newroot (bool unshare_pid)
           else if (ensure_file (dest, 0444) != 0)
             die_with_error ("Can't create file at %s", op->dest);
 
-          setup_op_bind_mount ((op->type == SETUP_RO_BIND_MOUNT ? BIND_READONLY : 0) |
-                               (op->type == SETUP_DEV_BIND_MOUNT ? BIND_DEVICES : 0),
-                               source, dest);
+          bind_option_t bind_flags = 0;
+
+          if (op->type == SETUP_RO_BIND_MOUNT)
+            bind_flags |= BIND_READONLY;
+
+          if (op->type == SETUP_DEV_BIND_MOUNT)
+            bind_flags |= BIND_DEVICES;
+
+          setup_op_bind_mount (bind_flags, source, dest);
 
           if (op->fd >= 0)
             {
