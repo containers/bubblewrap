@@ -1096,3 +1096,15 @@ strappend_escape_for_mount_options (StringBuilder *dest, const char *src)
       src++;
     }
 }
+
+int
+mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
+                       struct mount_attr *attr, size_t size)
+{
+#ifdef __NR_mount_setattr
+  return syscall (__NR_mount_setattr, dirfd, path, flags, attr, size);
+#else
+  errno = ENOSYS;
+  return -1;
+#endif
+}
