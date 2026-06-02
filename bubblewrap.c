@@ -2706,6 +2706,8 @@ parse_args_recurse (int          *argcp,
           const char *val = arg + strlen ("--debug-opt=");
           if (strcmp (val, "force-openat-fallback") == 0)
             opt_force_openat_fallback = true;
+          else if (strcmp (val, "force-mount-setattr-fallback") == 0)
+            opt_force_mount_setattr_fallback = true;
           else
             die ("Unknown --debug-opt value: %s", val);
         }

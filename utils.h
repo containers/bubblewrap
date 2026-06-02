@@ -158,6 +158,7 @@ int   label_exec (const char *exec_label);
 int   label_create_file (const char *file_label);
 
 extern bool opt_force_openat_fallback;
+extern bool opt_force_mount_setattr_fallback;
 
 int safe_openat (int dirfd,
                  const char *rootfs,
@@ -284,3 +285,32 @@ void strappendf (StringBuilder *dest,
                  ...);
 void strappend_escape_for_mount_options (StringBuilder *dest,
                                          const char    *src);
+
+#ifndef MOUNT_ATTR_RDONLY
+struct mount_attr
+{
+  __u64 attr_set;
+  __u64 attr_clr;
+  __u64 propagation;
+  __u64 userns_fd;
+};
+
+#define MOUNT_ATTR_RDONLY       0x00000001
+#define MOUNT_ATTR_NOSUID       0x00000002
+#define MOUNT_ATTR_NODEV        0x00000004
+#define MOUNT_ATTR_NOEXEC       0x00000008
+#define MOUNT_ATTR__ATIME       0x00000070
+#define MOUNT_ATTR_RELATIME     0x00000000
+#define MOUNT_ATTR_NOATIME      0x00000010
+#define MOUNT_ATTR_STRICTATIME  0x00000020
+#define MOUNT_ATTR_NODIRATIME   0x00000080
+#define MOUNT_ATTR_IDMAP        0x00100000
+#define MOUNT_ATTR_NOSYMFOLLOW  0x00200000
+#endif
+
+#ifndef AT_RECURSIVE
+#define AT_RECURSIVE  0x8000
+#endif
+
+int mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
+                           struct mount_attr *attr, size_t size);

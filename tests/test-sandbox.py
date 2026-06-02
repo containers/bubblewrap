@@ -308,6 +308,13 @@ class TestSandbox(unittest.TestCase):
 
     @in_sandbox()
     def test_ro_bind_root_is_recursive(self):
+        self._test_ro_bind_root_is_recursive()
+
+    @in_sandbox('--debug-opt=force-mount-setattr-fallback')
+    def test_ro_bind_root_is_recursive_fallback(self):
+        self._test_ro_bind_root_is_recursive()
+
+    def _test_ro_bind_root_is_recursive(self):
         """The base --ro-bind / / should apply read-only to sub-mounts."""
         skip_prefixes = ('/dev', '/proc', '/sys', '/tmp')
         for mountpoint in list_mounts():
