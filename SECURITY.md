@@ -1,41 +1,27 @@
-## Security and Disclosure Information Policy for the bubblewrap Project
+# Security Policy
 
-The bubblewrap Project follows the [Security and Disclosure Information Policy](https://github.com/containers/common/blob/HEAD/SECURITY.md) for the Containers Projects.
+## Security Scope
 
-### System security
+Bubblewrap is a low-level utility designed to run applications inside unprivileged sandboxes. It provides process isolation by creating mount, user, IPC, PID, network, UTS, and cgroup namespaces, and applying user-supplied seccomp filters.
 
-bubblewrap is not a security boundary between the user and the OS,
-because anything bubblewrap could do, a malicious user could equally
-well do by writing their own tool equivalent to bubblewrap.
+### What is in Scope
+- Privilege escalation vulnerabilities or host namespace breakout bugs inside `bwrap` itself.
+- Information leaks or descriptor leaks from `bwrap` to the sandboxed process.
 
-Older versions of bubblewrap were optionally setuid root. This is a
-system security risk. See
-https://github.com/containers/bubblewrap/blob/v0.11.2/SECURITY.md#system-security
-for discussion of this historical configuration. Newer versions of
-bubblewrap refuse to operate if the binary has been made setuid.
+### What is Out of Scope (Not Considered a Vulnerability)
+- **Caller Misuse / Argument Configuration**: Policy decisions and choice of arguments (e.g., mounting sensitive host paths like `/home` or `/sys` into the sandbox, or failing to use `--new-session` to prevent terminal injection). The calling application or script is responsible for its own security model.
+- **Upstream Wrapper Policy**: Insecure defaults or behavior in wrapper frameworks (e.g., Flatpak).
 
-### Sandbox security
+## Setuid Mode Deprecated
 
-bubblewrap is a toolkit for constructing sandbox environments.
-bubblewrap is not a complete, ready-made sandbox with a specific security
-policy.
+Support for executing bubblewrap as a setuid-root binary is **deprecated** as of release 0.11.2 (due to security concerns such as CVE-2026-41163) and is unsupported in recent releases.
 
-Some of bubblewrap's use-cases want a security boundary between the sandbox
-and the real system; other use-cases want the ability to change the layout of
-the filesystem for processes inside the sandbox, but do not aim to be a
-security boundary.
-As a result, the level of protection between the sandboxed processes and
-the host system is entirely determined by the arguments passed to
-bubblewrap.
+By default, recent releases are built with `-Dsupport_setuid=false`. Binaries built this way strictly refuse to run if they are setuid-root. Users must run bubblewrap on systems supporting unprivileged user namespaces.
 
-Whatever program constructs the command-line arguments for bubblewrap
-(often a larger framework like Flatpak, libgnome-desktop, sandwine
-or an ad-hoc script) is responsible for defining its own security model,
-and choosing appropriate bubblewrap command-line arguments to implement
-that security model.
+## Reporting a Vulnerability
 
-For example,
-[CVE-2017-5226](https://github.com/flatpak/flatpak/security/advisories/GHSA-7gfv-rvfx-h87x)
-(in which a Flatpak app could send input to a parent terminal using the
-`TIOCSTI` ioctl) is considered to be a Flatpak vulnerability, not a
-bubblewrap vulnerability.
+If you discover a security vulnerability in bubblewrap, please report it privately:
+
+- Submit a private report using **GitHub Private Vulnerability Reporting** on the [containers/bubblewrap repository](https://github.com/containers/bubblewrap/security/advisories/new).
+
+Please do not open public issues or pull requests to report security concerns.
