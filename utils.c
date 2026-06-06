@@ -515,7 +515,7 @@ ensure_file (const char *path,
      it and look at the target: again, any non-directory is good enough.
      We'll only get S_ISLNK if the path is a dangling symlink (target
      doesn't exist). */
-  if (stat (path, &buf) ==  0 &&
+  if (lstat (path, &buf) ==  0 &&
       !S_ISDIR (buf.st_mode) &&
       !S_ISLNK (buf.st_mode))
     return 0;
