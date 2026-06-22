@@ -82,6 +82,7 @@ void *xcalloc (size_t nmemb, size_t size);
 void *xrealloc (void  *ptr,
                 size_t size);
 char *xstrdup (const char *str);
+char *xstrndup(const char *str, size_t n);
 void  strfreev (char **str_array);
 void  xclearenv (void);
 void  xsetenv (const char *name,

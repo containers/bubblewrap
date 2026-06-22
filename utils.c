@@ -190,6 +190,20 @@ xstrdup (const char *str)
   return res;
 }
 
+char *
+xstrndup (const char *str, size_t n)
+{
+  char *res;
+
+  assert (str != NULL);
+
+  res = strndup (str, n);
+  if (res == NULL)
+    die_oom ();
+
+  return res;
+}
+
 void
 strfreev (char **str_array)
 {
