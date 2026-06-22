@@ -959,6 +959,12 @@ mount_strerror (int errsv)
     }
 }
 
+char *
+fd_to_proc_path (int fd)
+{
+  return xasprintf ("/proc/self/fd/%d", fd);
+}
+
 /*
  * Return a + b if it would not overflow.
  * Die with an "out of memory" error if it would.

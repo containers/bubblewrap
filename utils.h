@@ -137,6 +137,7 @@ int  read_pid_from_socket (int socket);
 char *get_oldroot_path (const char *path);
 char *get_newroot_path (const char *path);
 char *readlink_malloc (const char *pathname);
+char *fd_to_proc_path (int fd);
 
 /* syscall wrappers */
 int   raw_clone (unsigned long flags,
