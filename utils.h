@@ -183,6 +183,14 @@ cleanup_fdp (int *fdp)
 #define cleanup_fd __attribute__((cleanup (cleanup_fdp)))
 #define cleanup_strv __attribute__((cleanup (cleanup_strvp)))
 
+static inline int
+steal_fd (int *fdp)
+{
+  int fd = *fdp;
+  *fdp = -1;
+  return fd;
+}
+
 static inline void *
 steal_pointer (void *pp)
 {
