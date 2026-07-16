@@ -51,6 +51,7 @@ _bwrap() {
 		--hostname
 		--info-fd
 		--lock-file
+		--netns
 		--overlay
 		--overlay-src
 		--perms
