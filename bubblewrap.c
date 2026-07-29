@@ -3151,6 +3151,13 @@ main (int    argc,
       return monitor_child (event_fd, pid, setup_finished_pipe[0]);
     }
 
+  /* Reopen the /proc file descriptor from inside the namespace to avoid
+   * AppArmor complaining about the path being disconnected. */
+  close (proc_fd);
+  proc_fd = TEMP_FAILURE_RETRY (open ("/proc", O_PATH));
+  if (proc_fd == -1)
+    die_with_error ("Can't open /proc");
+
   if (opt_pidns_fd != -1)
     {
       if (setns (opt_pidns_fd, CLONE_NEWPID) != 0)
