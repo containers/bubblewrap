@@ -40,8 +40,7 @@ typedef enum
   BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
 } bind_mount_result;
 
-bind_mount_result bind_mount (int           proc_fd,
-                              const char   *src,
+bind_mount_result bind_mount (const char   *src,
                               const char   *dest,
                               bind_option_t options,
                               char        **failing_path);

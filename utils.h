@@ -60,6 +60,7 @@
 #endif
 
 extern bool bwrap_level_prefix;
+extern int proc_fd;
 
 void  bwrap_log (int severity,
                  const char *format,
@@ -102,10 +103,9 @@ bool  has_path_prefix (const char *str,
                        const char *prefix);
 bool  path_equal (const char *path1,
                   const char *path2);
-int   fdwalk (int                     proc_fd,
-              int                     (*cb)(void *data,
-                                  int fd),
-              void                   *data);
+int   fdwalk (int (*cb)(void *data,
+                        int fd),
+              void *data);
 char *load_file_data (int     fd,
                       size_t *size);
 char *load_file_at (int         dirfd,

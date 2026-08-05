@@ -57,7 +57,6 @@ static uid_t overflow_uid;
 static gid_t overflow_gid;
 static const char *argv0;
 static const char *host_tty_dev;
-static int proc_fd = -1;
 static const char *opt_exec_label = NULL;
 static const char *opt_file_label = NULL;
 static bool opt_as_pid_1;
@@ -498,7 +497,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   if (setup_finished_fd != -1)
     dont_close[j++] = setup_finished_fd;
   assert (j < sizeof(dont_close)/sizeof(*dont_close));
-  fdwalk (proc_fd, close_extra_fds, dont_close);
+  fdwalk (close_extra_fds, dont_close);
 
   sigemptyset (&mask);
   sigaddset (&mask, SIGCHLD);
@@ -914,7 +913,7 @@ setup_op_bind_mount (bind_option_t options,
 
   /* We always bind directories recursively, otherwise this would let us
      access files that are otherwise covered on the host */
-  bind_result = bind_mount (proc_fd, src, dest, BIND_RECURSIVE | options, &failing_path);
+  bind_result = bind_mount (src, dest, BIND_RECURSIVE | options, &failing_path);
 
   if (bind_result != BIND_MOUNT_SUCCESS)
     die_with_bind_result (bind_result, errno, failing_path,
@@ -1100,7 +1099,7 @@ setup_newroot (bool unshare_pid)
             char *failing_path = NULL;
             bind_mount_result bind_result;
 
-            bind_result = bind_mount (proc_fd, NULL, dest, BIND_READONLY, &failing_path);
+            bind_result = bind_mount (NULL, dest, BIND_READONLY, &failing_path);
 
             if (bind_result != BIND_MOUNT_SUCCESS)
               die_with_bind_result (bind_result, errno, failing_path,
@@ -3193,7 +3192,7 @@ main (int    argc,
             if (opt_sync_fd != -1)
               dont_close[j++] = opt_sync_fd;
             dont_close[j++] = -1;
-            fdwalk (proc_fd, close_extra_fds, dont_close);
+            fdwalk (close_extra_fds, dont_close);
           }
 
           return do_init (event_fd, pid);

@@ -36,6 +36,7 @@
 #endif
 
 bool bwrap_level_prefix = false;
+int proc_fd = -1;
 
 __attribute__((format(printf, 2, 0))) static void
 bwrap_logv (int severity,
@@ -383,8 +384,8 @@ xasprintf (const char *format,
 }
 
 int
-fdwalk (int proc_fd, int (*cb)(void *data,
-                               int   fd), void *data)
+fdwalk (int (*cb)(void *data,
+                  int   fd), void *data)
 {
   int open_max;
   int fd;

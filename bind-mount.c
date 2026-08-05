@@ -227,8 +227,7 @@ collect_mounts (MountInfo *info, MountInfoLine *line)
 }
 
 static MountTab
-parse_mountinfo (int  proc_fd,
-                 const char *root_mount)
+parse_mountinfo (const char *root_mount)
 {
   cleanup_free char *mountinfo = NULL;
   cleanup_free MountInfoLine *lines = NULL;
@@ -375,8 +374,7 @@ parse_mountinfo (int  proc_fd,
 }
 
 bind_mount_result
-bind_mount (int           proc_fd,
-            const char   *src,
+bind_mount (const char   *src,
             const char   *dest,
             bind_option_t options,
             char        **failing_path)
@@ -435,7 +433,7 @@ bind_mount (int           proc_fd,
       return BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD;
     }
 
-  mount_tab = parse_mountinfo (proc_fd, kernel_case_combination);
+  mount_tab = parse_mountinfo (kernel_case_combination);
   if (mount_tab[0].mountpoint == NULL)
     {
       if (failing_path != NULL)
