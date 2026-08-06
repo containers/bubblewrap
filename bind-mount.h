@@ -32,18 +32,22 @@ typedef enum
 {
   BIND_MOUNT_SUCCESS = 0,
   BIND_MOUNT_ERROR_MOUNT,
-  BIND_MOUNT_ERROR_REALPATH_DEST,
-  BIND_MOUNT_ERROR_REOPEN_DEST,
   BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
   BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
   BIND_MOUNT_ERROR_REMOUNT_DEST,
   BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
+  BIND_MOUNT_ERROR_OPEN_FD,
 } bind_mount_result;
 
 bind_mount_result bind_mount (const char   *src,
                               const char   *dest,
                               bind_option_t options,
                               char        **failing_path);
+
+bind_mount_result bind_mount_fd (int           src_fd,
+                                 int           dest_fd,
+                                 bind_option_t options,
+                                 char        **failing_path);
 
 void die_with_bind_result (bind_mount_result res,
                            int               saved_errno,

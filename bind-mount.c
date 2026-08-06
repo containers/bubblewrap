@@ -379,6 +379,35 @@ bind_mount (const char   *src,
             bind_option_t options,
             char        **failing_path)
 {
+  cleanup_fd int dest_fd =
+    TEMP_FAILURE_RETRY (open (dest, O_PATH | O_CLOEXEC));
+
+  if (dest_fd < 0)
+    {
+      if (failing_path != NULL)
+        *failing_path = xstrdup (dest);
+      return BIND_MOUNT_ERROR_OPEN_FD;
+    }
+
+  cleanup_fd int src_fd =
+    TEMP_FAILURE_RETRY (open (src, O_PATH | O_CLOEXEC));
+
+  if (src_fd < 0)
+    {
+      if (failing_path != NULL)
+        *failing_path = xstrdup (src);
+      return BIND_MOUNT_ERROR_OPEN_FD;
+    }
+
+  return bind_mount_fd (src_fd, dest_fd, options, failing_path);
+}
+
+bind_mount_result
+bind_mount_fd (int           src_fd,
+               int           dest_fd,
+               bind_option_t options,
+               char        **failing_path)
+{
   bool readonly = (options & BIND_READONLY) != 0;
   bool devices = (options & BIND_DEVICES) != 0;
   bool recursive = (options & BIND_RECURSIVE) != 0;
@@ -386,31 +415,9 @@ bind_mount (const char   *src,
   cleanup_mount_tab MountTab mount_tab = NULL;
   cleanup_free char *resolved_dest = NULL;
   cleanup_free char *dest_proc = NULL;
-  cleanup_free char *oldroot_dest_proc = NULL;
-  cleanup_free char *kernel_case_combination = NULL;
-  cleanup_fd int dest_fd = -1;
   int i;
 
-  if (src)
-    {
-      if (mount (src, dest, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
-        return BIND_MOUNT_ERROR_MOUNT;
-    }
-
-  /* The mount operation will resolve any symlinks in the destination
-     path, so to find it in the mount table we need to do that too. */
-  resolved_dest = realpath (dest, NULL);
-  if (resolved_dest == NULL)
-    return BIND_MOUNT_ERROR_REALPATH_DEST;
-
-  dest_fd = TEMP_FAILURE_RETRY (open (resolved_dest, O_PATH | O_CLOEXEC));
-  if (dest_fd < 0)
-    {
-      if (failing_path != NULL)
-        *failing_path = steal_pointer (&resolved_dest);
-
-      return BIND_MOUNT_ERROR_REOPEN_DEST;
-    }
+  dest_proc = fd_to_proc_path (dest_fd);
 
   /* If we are in a case-insensitive filesystem, mountinfo might contain a
    * different case combination of the path we requested to mount.
@@ -422,28 +429,39 @@ bind_mount (const char   *src,
    * instead of the provided @root_mount, so that we can compare the mountinfo
    * entries with the same case combination that the kernel is expected to
    * use. */
-  dest_proc = xasprintf ("/proc/self/fd/%d", dest_fd);
-  oldroot_dest_proc = get_oldroot_path (dest_proc);
-  kernel_case_combination = readlink_malloc (oldroot_dest_proc);
-  if (kernel_case_combination == NULL)
+  resolved_dest = readlink_malloc (dest_proc);
+  if (resolved_dest == NULL)
     {
       if (failing_path != NULL)
-        *failing_path = steal_pointer (&resolved_dest);
+        *failing_path = steal_pointer (&dest_proc);
 
       return BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD;
     }
 
-  mount_tab = parse_mountinfo (kernel_case_combination);
+  if (src_fd != -1)
+    {
+      cleanup_free char *src_proc = fd_to_proc_path (src_fd);
+
+      if (mount (src_proc, dest_proc, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
+        {
+          if (failing_path != NULL)
+            *failing_path = steal_pointer (&resolved_dest);
+
+          return BIND_MOUNT_ERROR_MOUNT;
+        }
+    }
+
+  mount_tab = parse_mountinfo (resolved_dest);
   if (mount_tab[0].mountpoint == NULL)
     {
       if (failing_path != NULL)
-        *failing_path = steal_pointer (&kernel_case_combination);
+        *failing_path = steal_pointer (&resolved_dest);
 
       errno = EINVAL;
       return BIND_MOUNT_ERROR_FIND_DEST_MOUNT;
     }
 
-  assert (path_equal (mount_tab[0].mountpoint, kernel_case_combination));
+  assert (path_equal (mount_tab[0].mountpoint, resolved_dest));
   current_flags = mount_tab[0].options;
   new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
   if (new_flags != current_flags &&
@@ -514,14 +532,6 @@ bind_mount_result_to_string (bind_mount_result res,
         string = xstrdup ("Unable to mount source on destination");
         break;
 
-      case BIND_MOUNT_ERROR_REALPATH_DEST:
-        string = xstrdup ("realpath(destination)");
-        break;
-
-      case BIND_MOUNT_ERROR_REOPEN_DEST:
-        string = xasprintf ("open(\"%s\", O_PATH)", failing_path);
-        break;
-
       case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
         string = xasprintf ("readlink(/proc/self/fd/N) for \"%s\"", failing_path);
         break;
@@ -538,6 +548,11 @@ bind_mount_result_to_string (bind_mount_result res,
 
       case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
         string = xasprintf ("Unable to apply mount flags: remount \"%s\"",
+                            failing_path);
+        break;
+
+      case BIND_MOUNT_ERROR_OPEN_FD:
+        string = xasprintf ("Unable to open destination O_PATH fd \"%s\"",
                             failing_path);
         break;
 
@@ -590,10 +605,9 @@ die_with_bind_result (bind_mount_result res,
             fprintf (stderr, ": %s", mount_strerror (saved_errno));
             break;
 
-          case BIND_MOUNT_ERROR_REALPATH_DEST:
-          case BIND_MOUNT_ERROR_REOPEN_DEST:
           case BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD:
           case BIND_MOUNT_ERROR_FIND_DEST_MOUNT:
+          case BIND_MOUNT_ERROR_OPEN_FD:
           case BIND_MOUNT_SUCCESS:
           default:
             fprintf (stderr, ": %s", strerror (saved_errno));
