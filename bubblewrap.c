@@ -3018,6 +3018,12 @@ main (int    argc,
   if (chdir ("/") != 0)
     die_with_error ("chdir / (base path)");
 
+  /* Bind-mount proc so /proc/self/fd/N paths work for fd-based mount() calls */
+  if (mkdir ("proc", 0755))
+    die_with_error ("Creating proc failed");
+  if (mount ("oldroot/proc", "proc", NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
+    die_with_mount_error ("mounting proc");
+
   setup_newroot (opt_unshare_pid);
 
   close_ops_fd ();
