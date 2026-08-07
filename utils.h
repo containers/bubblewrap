@@ -209,6 +209,41 @@ steal_pointer (void *pp)
 #define steal_pointer(pp) \
   (0 ? (*(pp)) : (steal_pointer) (pp))
 
+typedef struct {
+  int    *fds;
+  size_t  len;
+  size_t  alloc;
+} FdSet;
+
+static inline int
+fdset_add (FdSet *set, int fd)
+{
+  if (set->len == set->alloc)
+    {
+      set->alloc = set->alloc ? set->alloc * 2 : 4;
+      set->fds = xrealloc (set->fds, set->alloc * sizeof (int));
+    }
+  set->fds[set->len++] = fd;
+  return fd;
+}
+
+static inline void
+cleanup_fdsetp (FdSet *set)
+{
+  for (size_t i = 0; i < set->len; i++)
+    if (set->fds[i] >= 0)
+      close (set->fds[i]);
+  free (set->fds);
+}
+
+#define cleanup_fdset __attribute__((cleanup (cleanup_fdsetp)))
+
+static inline char *
+fdset_add_to_proc_path (FdSet *set, int fd)
+{
+  return fd_to_proc_path (fdset_add (set, fd));
+}
+
 typedef struct _StringBuilder StringBuilder;
 
 struct _StringBuilder
