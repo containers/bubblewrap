@@ -242,6 +242,23 @@ class TestSandbox(unittest.TestCase):
     def test_bind_over_existing_file(self):
         self.assertFileContent('/tmp/f', 'hello')
 
+    # ------ Destination is a symlink (should fail) ------
+
+    def test_bind_to_symlink_dest_fails(self):
+        result = run_bwrap('--dir', '/tmp/dir',
+                           '--symlink', 'dir', '/tmp/link',
+                           '--ro-bind', self.src.dir, '/tmp/link',
+                           'true')
+        self.assertBwrapFailed(result)
+        self.assertInStderr(b"Can't mount on symlink destination", result)
+
+    def test_bind_to_symlink_dest_fails_file(self):
+        result = run_bwrap('--symlink', 'dir', '/tmp/link',
+                           '--ro-bind', self.src.file, '/tmp/link',
+                           'true')
+        self.assertBwrapFailed(result)
+        self.assertInStderr(b"Can't mount on symlink destination", result)
+
     # ------ bind-fd / ro-bind-fd ------
 
     @in_sandbox('--ro-bind-fd', lambda self: OpenFd(self.src.file), '/tmp/f')
@@ -570,7 +587,7 @@ class TestSandbox(unittest.TestCase):
                            '--ro-bind', self.src.dir, '/tmp/f',
                            'true')
         self.assertBwrapFailed(result)
-        self.assertInStderr(b'Not a directory', result)
+        self.assertInStderr(b'not a directory', result)
 
     def test_bind_file_over_existing_dir(self):
         """Bind a file source over an existing directory dest."""
@@ -578,7 +595,7 @@ class TestSandbox(unittest.TestCase):
                            '--ro-bind', self.src.file, '/tmp/d',
                            'true')
         self.assertBwrapFailed(result)
-        self.assertInStderr(b"Is a directory", result)
+        self.assertInStderr(b"not a file", result)
 
     # ------ Edge cases: nonexistent source ------
 
@@ -597,6 +614,18 @@ class TestSandbox(unittest.TestCase):
         """tmpfs, then dir inside it, then bind inside that."""
         self.assertIsDir('/tmp/a/sub')
         self.assertFileContent('/tmp/a/sub/f', 'hello')
+
+    # ------ Edge cases: bind-fd dest is symlink ------
+
+    def test_bind_fd_to_symlink_dest_fails(self):
+        fd = os.open(self.src.dir, os.O_PATH)
+        result = run_bwrap('--dir', '/tmp/dir',
+                           '--symlink', 'dir', '/tmp/link',
+                           '--bind-fd', str(fd), '/tmp/link',
+                           'true', pass_fds=(fd,))
+        os.close(fd)
+        self.assertBwrapFailed(result)
+        self.assertInStderr(b"Can't mount on symlink destination", result)
 
     # ------ Edge cases: --file creates parents ------
 
@@ -624,6 +653,37 @@ class TestSandbox(unittest.TestCase):
     def test_bind_data_creates_parents(self):
         self.assertIsDir('/tmp/a/b')
         self.assertFileContent('/tmp/a/b/f', 'nested')
+
+    # ------ Symlink escape via /proc/self/fd ------
+
+    def _test_proc_symlink_escape(self, extra_bwrap_args):
+        """Verifies that a symlink pointing through /proc/self/fd
+        to an fd outside the sandbox cannot be used to escape the root."""
+        escape_target = os.path.join(self.tmp, 'escape_target')
+        os.makedirs(escape_target)
+
+        escape_fd = os.open(escape_target, os.O_PATH | os.O_DIRECTORY)
+        try:
+            result = run_bwrap(
+                *extra_bwrap_args,
+                '--dir', '/tmp/mnt',
+                '--symlink', f'/proc/self/fd/{escape_fd}', '/tmp/mnt/symlink',
+                '--dir', '/tmp/mnt/symlink/created',
+                'true',
+                pass_fds=(escape_fd,))
+
+            self.assertBwrapFailed(result)
+            self.assertFalse(os.path.exists(
+                os.path.join(escape_target, 'created')),
+                'directory was created outside sandbox via /proc/self/fd escape')
+        finally:
+            os.close(escape_fd)
+
+    def test_proc_symlink_escape_blocked(self):
+        self._test_proc_symlink_escape([])
+
+    def test_proc_symlink_escape_blocked_fallback(self):
+        self._test_proc_symlink_escape(['--debug-opt=force-openat-fallback'])
 
 
 if __name__ == '__main__':

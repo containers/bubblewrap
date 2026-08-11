@@ -681,11 +681,11 @@ load_file_at (int         dfd,
 
 /* Sets errno on error (< 0) */
 int
-get_file_mode (const char *pathname)
+get_file_mode (int fd)
 {
   struct stat buf;
 
-  if (stat (pathname, &buf) !=  0)
+  if (fstat (fd, &buf) !=  0)
     return -1;
 
   return buf.st_mode & S_IFMT;

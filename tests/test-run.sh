@@ -70,10 +70,6 @@ for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare
     else
         ok_skip "not sure what unreadable file to use"
     fi
-
-    # bind dest in symlink (https://github.com/projectatomic/bubblewrap/pull/119)
-    $RUN $ALT --dir /tmp/dir --symlink dir /tmp/link --bind /etc /tmp/link true
-    ok "can bind a destination over a symlink"
 done
 
 # Test symlink behaviour
