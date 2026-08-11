@@ -997,50 +997,51 @@ setup_newroot (bool unshare_pid)
         case SETUP_RO_BIND_MOUNT:
         case SETUP_DEV_BIND_MOUNT:
         case SETUP_BIND_MOUNT:
-          if (source_mode == S_IFDIR)
-            {
-              if (ensure_dir (dest, 0755) != 0)
-                die_with_error ("Can't mkdir %s", op->dest);
-            }
-          else if (ensure_file (dest, 0444) != 0)
-            die_with_error ("Can't create file at %s", op->dest);
+          {
+            if (source_mode == S_IFDIR)
+              {
+                if (ensure_dir (dest, 0755) != 0)
+                  die_with_error ("Can't mkdir %s", op->dest);
+              }
+            else if (ensure_file (dest, 0444) != 0)
+              die_with_error ("Can't create file at %s", op->dest);
 
-          bind_option_t bind_flags = 0;
+            bind_option_t bind_flags = 0;
 
-          if (opt_not_a_security_boundary)
-            bind_flags |= BIND_FAIL_OPEN;
+            if (opt_not_a_security_boundary)
+              bind_flags |= BIND_FAIL_OPEN;
 
-          if (op->type == SETUP_RO_BIND_MOUNT)
-            bind_flags |= BIND_READONLY;
+            if (op->type == SETUP_RO_BIND_MOUNT)
+              bind_flags |= BIND_READONLY;
 
-          if (op->type == SETUP_DEV_BIND_MOUNT)
-            bind_flags |= BIND_DEVICES;
+            if (op->type == SETUP_DEV_BIND_MOUNT)
+              bind_flags |= BIND_DEVICES;
 
-          setup_op_bind_mount (bind_flags, source, dest);
+            setup_op_bind_mount (bind_flags, source, dest);
 
-          if (op->fd >= 0)
-            {
-              struct stat fd_st, mount_st;
+            if (op->fd >= 0)
+              {
+                struct stat fd_st, mount_st;
 
-              /* When using bind-fd, there is a race condition between resolving the fd as a magic symlink
-               * and mounting it, where someone could replace what is at the symlink target. Ideally
-               * we would not even resolve the symlink and directly bind-mount from the fd, but unfortunately
-               * we can't do that, because its not permitted to bind mount a fd from another user namespace.
-               * So, we resolve, mount and then compare fstat+stat to detect the race. */
+                /* When using bind-fd, there is a race condition between resolving the fd as a magic symlink
+                 * and mounting it, where someone could replace what is at the symlink target. Ideally
+                 * we would not even resolve the symlink and directly bind-mount from the fd, but unfortunately
+                 * we can't do that, because its not permitted to bind mount a fd from another user namespace.
+                 * So, we resolve, mount and then compare fstat+stat to detect the race. */
 
-              if (fstat(op->fd, &fd_st) != 0)
-                die_with_error("Can't stat fd %d", op->fd);
-              if (lstat(dest, &mount_st) != 0)
-                die_with_error("Can't stat mount at %s", dest);
+                if (fstat(op->fd, &fd_st) != 0)
+                  die_with_error("Can't stat fd %d", op->fd);
+                if (lstat(dest, &mount_st) != 0)
+                  die_with_error("Can't stat mount at %s", dest);
 
-              if (fd_st.st_ino != mount_st.st_ino ||
-                  fd_st.st_dev != mount_st.st_dev)
-                die_with_error("Race condition binding dirfd");
+                if (fd_st.st_ino != mount_st.st_ino ||
+                    fd_st.st_dev != mount_st.st_dev)
+                  die_with_error("Race condition binding dirfd");
 
-              close(op->fd);
-              op->fd = -1;
-            }
-
+                close(op->fd);
+                op->fd = -1;
+              }
+          }
           break;
 
         case SETUP_OVERLAY_MOUNT:
@@ -1110,6 +1111,7 @@ setup_newroot (bool unshare_pid)
           break;
 
         case SETUP_MOUNT_PROC:
+          {
           if (ensure_dir (dest, 0755) != 0)
             die_with_error ("Can't mkdir %s", op->dest);
 
@@ -1144,123 +1146,130 @@ setup_newroot (bool unshare_pid)
 
               setup_op_bind_mount (BIND_READONLY, subdir, subdir);
             }
-
+          }
           break;
 
         case SETUP_MOUNT_DEV:
-          if (ensure_dir (dest, 0755) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
-
-          setup_op_tmpfs_mount (0755, 0, dest);
-
-          static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
-          for (i = 0; i < N_ELEMENTS (devnodes); i++)
-            {
-              cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
-              cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
-              if (create_file (node_dest, 0444, NULL) != 0)
-                die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
-              setup_op_bind_mount (BIND_DEVICES, node_src, node_dest);
-            }
-
-          static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
-          for (i = 0; i < N_ELEMENTS (stdionodes); i++)
-            {
-              cleanup_free char *target = xasprintf ("/proc/self/fd/%d", i);
-              cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
-              if (symlink (target, node_dest) < 0)
-                die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
-            }
-
-          /* /dev/fd and /dev/core - legacy, but both nspawn and docker do these */
-          { cleanup_free char *dev_fd = strconcat (dest, "/fd");
-            if (symlink ("/proc/self/fd", dev_fd) < 0)
-              die_with_error ("Can't create symlink %s", dev_fd);
-          }
-          { cleanup_free char *dev_core = strconcat (dest, "/core");
-            if (symlink ("/proc/kcore", dev_core) < 0)
-              die_with_error ("Can't create symlink %s", dev_core);
-          }
-
           {
-            cleanup_free char *pts = strconcat (dest, "/pts");
-            cleanup_free char *ptmx = strconcat (dest, "/ptmx");
-            cleanup_free char *shm = strconcat (dest, "/shm");
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
 
-            if (mkdir (shm, 0755) == -1)
-              die_with_error ("Can't create %s/shm", op->dest);
+            setup_op_tmpfs_mount (0755, 0, dest);
 
-            if (mkdir (pts, 0755) == -1)
-              die_with_error ("Can't create %s/devpts", op->dest);
+            static const char *const devnodes[] = { "null", "zero", "full", "random", "urandom", "tty" };
+            for (i = 0; i < N_ELEMENTS (devnodes); i++)
+              {
+                cleanup_free char *node_dest = strconcat3 (dest, "/", devnodes[i]);
+                cleanup_free char *node_src = strconcat ("/oldroot/dev/", devnodes[i]);
+                if (create_file (node_dest, 0444, NULL) != 0)
+                  die_with_error ("Can't create file %s/%s", op->dest, devnodes[i]);
+                setup_op_bind_mount (BIND_DEVICES, node_src, node_dest);
+              }
 
-            if (mount ("devpts", pts, "devpts", MS_NOSUID | MS_NOEXEC,
-                       "newinstance,ptmxmode=0666,mode=620") != 0)
-              die_with_mount_error ("Can't mount devpts on %s", pts);
+            static const char *const stdionodes[] = { "stdin", "stdout", "stderr" };
+            for (i = 0; i < N_ELEMENTS (stdionodes); i++)
+              {
+                cleanup_free char *target = xasprintf ("/proc/self/fd/%d", i);
+                cleanup_free char *node_dest = strconcat3 (dest, "/", stdionodes[i]);
+                if (symlink (target, node_dest) < 0)
+                  die_with_error ("Can't create symlink %s/%s", op->dest, stdionodes[i]);
+              }
 
-            if (symlink ("pts/ptmx", ptmx) != 0)
-              die_with_error ("Can't make symlink at %s/ptmx", op->dest);
-          }
-
-          /* If stdout is a tty, that means the sandbox can write to the
-             outside-sandbox tty. In that case we also create a /dev/console
-             that points to this tty device. This should not cause any more
-             access than we already have, and it makes ttyname() work in the
-             sandbox. */
-          if (host_tty_dev != NULL && *host_tty_dev != 0)
-            {
-              cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
-              cleanup_free char *dest_console = strconcat (dest, "/console");
-
-              if (create_file (dest_console, 0444, NULL) != 0)
-                die_with_error ("creating %s/console", op->dest);
-
-              setup_op_bind_mount (BIND_DEVICES, src_tty_dev, dest_console);
+            /* /dev/fd and /dev/core - legacy, but both nspawn and docker do these */
+            { cleanup_free char *dev_fd = strconcat (dest, "/fd");
+              if (symlink ("/proc/self/fd", dev_fd) < 0)
+                die_with_error ("Can't create symlink %s", dev_fd);
+            }
+            { cleanup_free char *dev_core = strconcat (dest, "/core");
+              if (symlink ("/proc/kcore", dev_core) < 0)
+                die_with_error ("Can't create symlink %s", dev_core);
             }
 
+            {
+              cleanup_free char *pts = strconcat (dest, "/pts");
+              cleanup_free char *ptmx = strconcat (dest, "/ptmx");
+              cleanup_free char *shm = strconcat (dest, "/shm");
+
+              if (mkdir (shm, 0755) == -1)
+                die_with_error ("Can't create %s/shm", op->dest);
+
+              if (mkdir (pts, 0755) == -1)
+                die_with_error ("Can't create %s/devpts", op->dest);
+
+              if (mount ("devpts", pts, "devpts", MS_NOSUID | MS_NOEXEC,
+                         "newinstance,ptmxmode=0666,mode=620") != 0)
+                die_with_mount_error ("Can't mount devpts on %s", pts);
+
+              if (symlink ("pts/ptmx", ptmx) != 0)
+                die_with_error ("Can't make symlink at %s/ptmx", op->dest);
+            }
+
+            /* If stdout is a tty, that means the sandbox can write to the
+               outside-sandbox tty. In that case we also create a /dev/console
+               that points to this tty device. This should not cause any more
+               access than we already have, and it makes ttyname() work in the
+               sandbox. */
+            if (host_tty_dev != NULL && *host_tty_dev != 0)
+              {
+                cleanup_free char *src_tty_dev = strconcat ("/oldroot", host_tty_dev);
+                cleanup_free char *dest_console = strconcat (dest, "/console");
+
+                if (create_file (dest_console, 0444, NULL) != 0)
+                  die_with_error ("creating %s/console", op->dest);
+
+                setup_op_bind_mount (BIND_DEVICES, src_tty_dev, dest_console);
+              }
+          }
           break;
 
         case SETUP_MOUNT_TMPFS:
-          assert (dest != NULL);
-          assert (op->perms >= 0);
-          assert (op->perms <= 07777);
+          {
+            assert (dest != NULL);
+            assert (op->perms >= 0);
+            assert (op->perms <= 07777);
 
-          if (ensure_dir (dest, 0755) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
 
-          setup_op_tmpfs_mount (op->perms, op->size, dest);
+            setup_op_tmpfs_mount (op->perms, op->size, dest);
+          }
           break;
 
         case SETUP_MOUNT_MQUEUE:
-          if (ensure_dir (dest, 0755) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
+          {
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
 
-          if (mount ("mqueue", dest, "mqueue", 0, NULL) != 0)
-            die_with_mount_error ("Can't mount mqueue on %s", dest);
+            if (mount ("mqueue", dest, "mqueue", 0, NULL) != 0)
+              die_with_mount_error ("Can't mount mqueue on %s", dest);
+          }
           break;
 
         case SETUP_MAKE_DIR:
-          assert (dest != NULL);
-          assert (op->perms >= 0);
-          assert (op->perms <= 07777);
+          {
+            assert (dest != NULL);
+            assert (op->perms >= 0);
+            assert (op->perms <= 07777);
 
-          if (ensure_dir (dest, op->perms) != 0)
-            die_with_error ("Can't mkdir %s", op->dest);
-
+            if (ensure_dir (dest, op->perms) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
+          }
           break;
 
         case SETUP_CHMOD:
-          assert (op->dest != NULL);
-          /* We used NO_CREATE_DEST so we have to use get_newroot_path()
-           * explicitly */
-          assert (dest == NULL);
-          dest = get_newroot_path (op->dest);
-          assert (dest != NULL);
-          assert (op->perms >= 0);
-          assert (op->perms <= 07777);
+          {
+            assert (op->dest != NULL);
+            /* We used NO_CREATE_DEST so we have to use get_newroot_path()
+             * explicitly */
+            assert (dest == NULL);
+            dest = get_newroot_path (op->dest);
+            assert (dest != NULL);
+            assert (op->perms >= 0);
+            assert (op->perms <= 07777);
 
-          if (chmod (dest, op->perms) != 0)
-            die_with_error ("Can't chmod %#o %s", op->perms, op->dest);
-
+            if (chmod (dest, op->perms) != 0)
+              die_with_error ("Can't chmod %#o %s", op->perms, op->dest);
+          }
           break;
 
         case SETUP_MAKE_FILE:
@@ -1323,35 +1332,39 @@ setup_newroot (bool unshare_pid)
           break;
 
         case SETUP_MAKE_SYMLINK:
-          assert (op->source != NULL);  /* guaranteed by the constructor */
-          if (symlink (op->source, dest) != 0)
-            {
-              if (errno == EEXIST)
-                {
-                  cleanup_free char *existing = readlink_malloc (dest);
-                  if (existing == NULL)
-                    {
-                      if (errno == EINVAL)
-                        die ("Can't make symlink at %s: destination exists and is not a symlink", op->dest);
-                      else
-                        die_with_error ("Can't make symlink at %s: destination exists, and cannot read symlink target", op->dest);
-                    }
+          {
+            assert (op->source != NULL);  /* guaranteed by the constructor */
+            if (symlink (op->source, dest) != 0)
+              {
+                if (errno == EEXIST)
+                  {
+                    cleanup_free char *existing = readlink_malloc (dest);
+                    if (existing == NULL)
+                      {
+                        if (errno == EINVAL)
+                          die ("Can't make symlink at %s: destination exists and is not a symlink", op->dest);
+                        else
+                          die_with_error ("Can't make symlink at %s: destination exists, and cannot read symlink target", op->dest);
+                      }
 
-                  if (strcmp (existing, op->source) == 0)
-                    break;
+                    if (strcmp (existing, op->source) == 0)
+                      break;
 
-                  die ("Can't make symlink at %s: existing destination is %s", op->dest, existing);
-                }
-              die_with_error ("Can't make symlink at %s", op->dest);
-            }
+                    die ("Can't make symlink at %s: existing destination is %s", op->dest, existing);
+                  }
+                die_with_error ("Can't make symlink at %s", op->dest);
+              }
+          }
           break;
 
         case SETUP_SET_HOSTNAME:
-          assert (op->dest != NULL);  /* guaranteed by the constructor */
-          if (op->dest == NULL)
-            die ("Hostname argument is NULL");
-          if (sethostname (op->dest, strlen(op->dest)) != 0)
-            die_with_error ("Can't set hostname to %s", op->dest);
+          {
+            assert (op->dest != NULL);  /* guaranteed by the constructor */
+            if (op->dest == NULL)
+              die ("Hostname argument is NULL");
+            if (sethostname (op->dest, strlen(op->dest)) != 0)
+              die_with_error ("Can't set hostname to %s", op->dest);
+          }
           break;
 
         case SETUP_OVERLAY_SRC:  /* handled by SETUP_OVERLAY_MOUNT */
