@@ -41,6 +41,14 @@
 
 #define UNUSED __attribute__((__unused__))
 
+#define BWRAP_KERNEL_VERSION(a, b, c) (((a) << 16) + ((b) << 8) + (c))
+#ifdef HAVE_ASSUMED_KERNEL
+#  define ASSUMED_KERNEL \
+     BWRAP_KERNEL_VERSION (ASSUMED_KERNEL_MAJOR, ASSUMED_KERNEL_MINOR, ASSUMED_KERNEL_PATCH)
+#else
+#  define ASSUMED_KERNEL 0
+#endif
+
 #define N_ELEMENTS(arr) (sizeof (arr) / sizeof ((arr)[0]))
 
 #ifndef TEMP_FAILURE_RETRY

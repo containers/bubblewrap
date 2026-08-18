@@ -54,6 +54,12 @@ option(
   value : true,
 )
 option(
+  'assume_kernel',
+  type : 'string',
+  description : 'Assume at least this kernel version (e.g. 6.1.0). Compile out fallback code for older kernels.',
+  value : '',
+)
+option(
   'zsh_completion',
   type : 'feature',
   description : 'install zsh completion script',

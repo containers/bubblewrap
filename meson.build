@@ -87,6 +87,18 @@ if selinux_dep.found()
   endif
 endif
 
+assume_kernel = get_option('assume_kernel')
+if assume_kernel != ''
+  kernel_parts = assume_kernel.split('.')
+  if kernel_parts.length() != 3
+    error('assume_kernel must be three dot-separated integers, e.g. 6.1.0')
+  endif
+  cdata.set('ASSUMED_KERNEL_MAJOR', kernel_parts[0].to_int())
+  cdata.set('ASSUMED_KERNEL_MINOR', kernel_parts[1].to_int())
+  cdata.set('ASSUMED_KERNEL_PATCH', kernel_parts[2].to_int())
+  cdata.set('HAVE_ASSUMED_KERNEL', 1)
+endif
+
 configure_file(
   output : 'config.h',
   configuration : cdata,
