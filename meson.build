@@ -123,6 +123,8 @@ bwrap = executable(
     'bind-mount.c',
     'network.c',
     'utils.c',
+    'chroot_realpath.c',
+    'safe_openat.c',
   ],
   build_rpath : get_option('build_rpath'),
   install : true,

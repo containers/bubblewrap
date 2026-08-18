@@ -158,6 +158,21 @@ char *label_mount (const char *opt,
 int   label_exec (const char *exec_label);
 int   label_create_file (const char *file_label);
 
+int safe_openat (int dirfd,
+                 const char *rootfs,
+                 const char *path,
+                 int flags,
+                 int mode);
+char *chroot_realpath (const char *chroot,
+                       const char *path,
+                       char resolved_path[]);
+
+static inline bool
+is_empty_string (const char *s)
+{
+  return s == NULL || s[0] == '\0';
+}
+
 const char *mount_strerror (int errsv);
 
 static inline void
