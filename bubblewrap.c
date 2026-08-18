@@ -2442,6 +2442,14 @@ parse_args_recurse (int          *argcp,
         {
           opt_not_a_security_boundary = true;
         }
+      else if (has_prefix (arg, "--debug-opt="))
+        {
+          const char *val = arg + strlen ("--debug-opt=");
+          if (strcmp (val, "force-openat-fallback") == 0)
+            opt_force_openat_fallback = true;
+          else
+            die ("Unknown --debug-opt value: %s", val);
+        }
       else if (strcmp (arg, "--") == 0)
         {
           argv += 1;

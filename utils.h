@@ -158,6 +158,8 @@ char *label_mount (const char *opt,
 int   label_exec (const char *exec_label);
 int   label_create_file (const char *file_label);
 
+extern bool opt_force_openat_fallback;
+
 int safe_openat (int dirfd,
                  const char *rootfs,
                  const char *path,

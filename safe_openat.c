@@ -28,8 +28,7 @@
 #define __set_errno(val) ((errno) = (val))
 #endif
 
-
-
+bool opt_force_openat_fallback = false;
 
 #define cleanup_close cleanup_fd
 
@@ -292,7 +291,7 @@ safe_openat (int dirfd, const char *rootfs, const char *path, int flags, int mod
       return ret;
     }
 
-  if (openat2_supported)
+  if (openat2_supported && !opt_force_openat_fallback)
     {
     repeat:
       ret = syscall_openat2 (dirfd, path, flags, mode, RESOLVE_IN_ROOT|RESOLVE_NO_MAGICLINKS);
