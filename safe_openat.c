@@ -30,6 +30,12 @@
 
 bool opt_force_openat_fallback = false;
 
+#if ASSUMED_KERNEL < BWRAP_KERNEL_VERSION (5, 6, 0)
+#  define USE_OPENAT_FALLBACK 1
+#else
+#  define USE_OPENAT_FALLBACK 0
+#endif
+
 #define cleanup_close cleanup_fd
 
 #define LIKELY(x) __builtin_expect ((x), 1)
@@ -142,6 +148,7 @@ check_fd_is_path (const char *path, int fd, UNUSED const char *fdname)
   return 0;
 }
 
+#if USE_OPENAT_FALLBACK
 static int
 check_fd_under_path (const char *rootfs, size_t rootfslen, int fd, UNUSED const char *fdname)
 {
@@ -168,6 +175,7 @@ check_fd_under_path (const char *rootfs, size_t rootfslen, int fd, UNUSED const 
 
   return 0;
 }
+#endif
 
 /* DIRFD must be a file descriptor for ROOTFS itself: PATH is resolved
    against ROOTFS and the result is then opened relatively to DIRFD.  */
@@ -175,6 +183,15 @@ static int
 safe_openat_fallback (int dirfd, const char *rootfs, const char *path, int flags,
                       int mode)
 {
+#if !USE_OPENAT_FALLBACK
+  (void) dirfd;
+  (void) rootfs;
+  (void) path;
+  (void) flags;
+  (void) mode;
+  errno = ENOSYS;
+  return -1;
+#else
   cleanup_free char *parent_path = NULL;
   const char *last_component = NULL;
   const char *orig_path = path;
@@ -258,6 +275,7 @@ safe_openat_fallback (int dirfd, const char *rootfs, const char *path, int flags
   ret = fd;
   fd = -1;
   return ret;
+#endif /* USE_OPENAT_FALLBACK */
 }
 
 int
