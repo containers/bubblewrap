@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2024 Alexander Larsson
-# SPDX-License-Identifier: LGPL-2.0-or-later
+# SPDX-License-Identifier: LGPL-2.1-or-later
 #
 # Helper script that runs inside a bwrap sandbox. Receives commands
 # over a socket fd and sends back JSON results.

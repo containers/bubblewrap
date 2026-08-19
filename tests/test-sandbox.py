@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2024 Alexander Larsson
-# SPDX-License-Identifier: LGPL-2.0-or-later
+# SPDX-License-Identifier: LGPL-2.1-or-later
 #
 # Integration tests for bwrap sandbox setup. Methods decorated with
 # @in_sandbox(...) define assertions that run inside the sandbox;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2024 Alexander Larsson
-# SPDX-License-Identifier: LGPL-2.0-or-later
+# SPDX-License-Identifier: LGPL-2.1-or-later
 #
 # Test infrastructure for bwrap sandbox integration tests.
 # Provides BwrapSandbox context manager, SourceTree fixture,

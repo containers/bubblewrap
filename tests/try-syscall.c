@@ -1,6 +1,6 @@
 /*
  * Copyright 2021 Simon McVittie
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  *
  * Try one or more system calls that might have been blocked by a
  * seccomp filter. Return the last value of errno seen.
