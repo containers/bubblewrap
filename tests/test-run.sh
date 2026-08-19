@@ -91,6 +91,12 @@ else
 fi
 ok "--symlink doesn't overwrite a conflicting symlink"
 
+# A nosymfollow source must stay nosymfollow across the fixup remount
+if unshare -rm sh -c 'mount -t tmpfs -o nosymfollow tmpfs /tmp && : >/tmp/x && ln -s x /tmp/l && '"$BWRAP"' --ro-bind / / cat /tmp/l' 2>/dev/null; then
+    assert_not_reached "nosymfollow dropped by bind fixup; symlink was followed"
+fi
+ok "bind mount preserves nosymfollow"
+
 # Test devices
 $RUN --unshare-pid --dev /dev ls -al /dev/{stdin,stdout,stderr,null,random,urandom,fd,core} >/dev/null
 ok "all expected devices were created"
