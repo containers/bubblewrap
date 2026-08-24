@@ -73,6 +73,10 @@
     When options are used multiple times, the last option wins, unless otherwise
     specified.
   </para>
+  <para>
+    An empty string is not a valid path, so options that take a path
+    reject it with an error.
+  </para>
   <para>General options:</para>
   <variablelist>
     <varlistentry>

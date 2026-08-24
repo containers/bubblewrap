@@ -172,6 +172,34 @@ fi
 assert_file_has_content err.txt "^bwrap: Can't find source path.*source-enoent"
 ok "error prefixing"
 
+# Test that an empty path argument is rejected. Empty paths used to be
+# interpreted as the root directory, so for example --bind-try "" DEST
+# silently gave the sandbox access to the whole filesystem.
+for opt in --bind --bind-try --dev-bind --dev-bind-try --ro-bind --ro-bind-try; do
+    if $RUN "$opt" "" /mnt true 2>err.txt; then
+        assert_not_reached "$opt accepted an empty source"
+    fi
+    assert_file_has_content err.txt "^bwrap: $opt does not take an empty path argument"
+
+    if $RUN "$opt" / "" true 2>err.txt; then
+        assert_not_reached "$opt accepted an empty destination"
+    fi
+    assert_file_has_content err.txt "^bwrap: $opt does not take an empty path argument"
+done
+
+for opt in --chdir --dev --dir --mqueue --proc --remount-ro --tmpfs; do
+    if $RUN "$opt" "" true 2>err.txt; then
+        assert_not_reached "$opt accepted an empty path"
+    fi
+    assert_file_has_content err.txt "^bwrap: $opt does not take an empty path argument"
+done
+
+if $RUN --symlink /usr "" true 2>err.txt; then
+    assert_not_reached "--symlink accepted an empty destination"
+fi
+assert_file_has_content err.txt "^bwrap: --symlink does not take an empty path argument"
+ok "empty path arguments are rejected"
+
 if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
     for OPT in "" "--unshare-user-try --as-pid-1" "--unshare-user-try" "--as-pid-1"; do
