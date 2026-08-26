@@ -1,3 +1,36 @@
+bubblewrap 0.12.0
+=================
+
+Released: 2026-08-26
+
+Enhancements:
+
+ * The flag --not-a-security-boundary was added. If this is enabled
+   then failure of some sandbox setup steps (like remounting a
+   submount) are not fatal.
+
+ * The license has been updated from LGPL 2.0 (or later) to LGPL 2.1
+   (or later).
+
+ * This version removes the support for building a setuid
+   bubblewrap. Changes in this version made it difficult to support
+   and basically all modern linux distributions now support
+   unprivileged user namespaces to some extent.
+
+ * The assume_kernel build option was added, if specified no backwards
+   compatiblity for kernels older than this is built in (and will result
+   in hard failures at runtime). Currently specifying 5.6.0 or
+   later will disable the fallback implementation of
+   openat2(RESOLVE_IN_ROOT).
+
+Bug fixes:
+
+  * Bubblewrap now correctly resolves absolute symlinks during the
+    sandbox setup by using openat2 with RESOLVE_IN_ROOT (or a fallback
+    implementation). This fixes a security issue (GHSA-pxhw-h44j-8pfx)
+    where file or directories created during sandbox setup could
+    follow parent symlinks out of the sandbox.
+
 bubblewrap 0.11.2
 =================
 
