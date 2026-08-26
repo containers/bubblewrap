@@ -89,7 +89,7 @@ syscall_openat2 (int dirfd, const char *path, uint64_t flags, uint64_t mode, uin
 
 #define consume_slashes(t) \
   ({                       \
-    typeof (t) _s = (t);   \
+    __typeof__ (t) _s = (t);   \
     while (*_s == '/')     \
       _s++;                \
     _s;                    \
