@@ -24,6 +24,11 @@
 #include "utils.h"
 #include "bind-mount.h"
 
+/* MS_NOSYMFOLLOW was added in Linux 5.10 */
+#ifndef MS_NOSYMFOLLOW
+#define MS_NOSYMFOLLOW 256
+#endif
+
 static char *
 skip_token (char *line, bool eat_whitespace)
 {
@@ -93,6 +98,7 @@ decode_mountoptions (const char *options)
     { MS_NOSUID, "nosuid" },
     { MS_NODEV, "nodev" },
     { MS_NOEXEC, "noexec" },
+    { MS_NOSYMFOLLOW, "nosymfollow" },
     { MS_NOATIME, "noatime" },
     { MS_NODIRATIME, "nodiratime" },
     { MS_RELATIME, "relatime" },
