@@ -225,6 +225,18 @@ def can_run_bwrap():
         return False
 
 
+def get_assumed_kernel():
+    """Return the minimum kernel supported by BWRAP, e.g. 5.10.0"""
+    r = subprocess.run(
+        [BWRAP, '--debug-opt=print-assumed-kernel'],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=True,
+    )
+    return tuple([int(n) for n in r.stdout.decode('ascii').strip().split('.')])
+
+
 class TAPResult(unittest.TestResult):
     def __init__(self):
         super().__init__()
