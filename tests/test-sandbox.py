@@ -488,7 +488,7 @@ class TestSandbox(unittest.TestCase):
 
     def test_hostname(self):
         result = run_bwrap('--unshare-uts', '--hostname', 'testhost',
-                           'hostname')
+                           'uname', '-n')
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout.strip(), b'testhost')
 
