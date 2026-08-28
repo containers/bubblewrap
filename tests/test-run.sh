@@ -292,6 +292,7 @@ if command -v mktemp > /dev/null; then
     else
         ok_skip "/mnt does not exist or is a symlink"
     fi
+    rm "$tempfile"
 else
     ok_skip "mktemp not found"
     ok_skip "mktemp not found"
