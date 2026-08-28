@@ -38,6 +38,7 @@ mount_setattr_fallback(char *resolved_dest, bind_option_t options, char **failin
 
 bool opt_force_mount_setattr_fallback = false;
 
+#if USE_MOUNT_SETATTR_FALLBACK
 static char *
 skip_token (char *line, bool eat_whitespace)
 {
@@ -386,6 +387,7 @@ parse_mountinfo (const char *root_mount)
 
   return steal_pointer (&mount_tab);
 }
+#endif /* USE_MOUNT_SETATTR_FALLBACK */
 
 bind_mount_result
 bind_mount (const char   *src,
