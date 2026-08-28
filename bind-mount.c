@@ -475,7 +475,10 @@ mount_setattr_fallback (const char *resolved_dest,
 #if !USE_MOUNT_SETATTR_FALLBACK
   (void) resolved_dest;
   (void) options;
-  (void) failing_path;
+
+  if (failing_path != NULL)
+    *failing_path = xstrdup (resolved_dest);
+
   errno = ENOSYS;
   return BIND_MOUNT_ERROR_MOUNT_SETATTR;
 #else
