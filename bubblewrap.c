@@ -2888,7 +2888,7 @@ main (int    argc,
   if (argc == 2 && (strcmp (argv[1], "--version") == 0))
     print_version_and_exit ();
 
-  /* Reset SIGCHILD to SIG_DFL allowing signalfd working propertly
+  /* Reset SIGCHILD to SIG_DFL allowing signalfd working properly
    * if the parent process had set SIGCHLD to SIG_IGN. */
   sigemptyset (&sa.sa_mask);
   sa.sa_handler = SIG_DFL;
