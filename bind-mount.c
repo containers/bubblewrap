@@ -709,10 +709,10 @@ mount_setattr_setup (const char *resolved_dest,
         {
           if (failing_path != NULL)
             *failing_path = xstrdup (resolved_dest);
-          mount_attr_supported = false;
           return BIND_MOUNT_ERROR_MOUNT_SETATTR;
         }
     }
   /* mount_setattr(2) isn't available, so we'll have to do this the hard way: */
+  mount_attr_supported = false;
   return mount_setattr_fallback (resolved_dest, options, failing_path);
 }
