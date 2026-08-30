@@ -21,6 +21,7 @@
 
 #include <poll.h>
 #include <sched.h>
+#include <limits.h>
 #include <pwd.h>
 #include <grp.h>
 #include <ctype.h>

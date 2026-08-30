@@ -21,6 +21,7 @@
 
 #include "utils.h"
 #include <sys/syscall.h>
+#include <limits.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdint.h>
