@@ -38,6 +38,8 @@ typedef enum
   BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
   BIND_MOUNT_ERROR_OPEN_FD,
   BIND_MOUNT_ERROR_MOUNT_SETATTR,
+  BIND_MOUNT_ERROR_OPEN_TREE,
+  BIND_MOUNT_ERROR_MOVE_MOUNT,
 } bind_mount_result;
 
 bind_mount_result bind_mount (const char   *src,
