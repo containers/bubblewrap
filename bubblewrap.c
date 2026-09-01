@@ -165,6 +165,7 @@ struct _SetupOp
   SetupOpFlag flags;
   int         perms;
   size_t      size;  /* number of bytes, zero means unset/default */
+  bool        source_owned;
   SetupOp    *next;
 };
 
@@ -1634,6 +1635,13 @@ close_ops_fd (void)
           (void) close (op->fd);
           op->fd = -1;
         }
+
+      if (op->source_owned)
+        {
+          free ((char *) op->source);
+          op->source = NULL;
+          op->source_owned = false;
+        }
     }
 }
 
@@ -1666,6 +1674,11 @@ resolve_symlinks_in_ops (void)
               else
                 die_with_error("Can't find source path %s", old_source);
             }
+          else if (op->source_owned)
+            {
+              free ((char *) old_source);
+            }
+          op->source_owned = false;
           break;
 
         case SETUP_RO_OVERLAY_MOUNT:
@@ -2007,6 +2020,7 @@ parse_args_recurse (int          *argcp,
           else
             op = setup_op_new (SETUP_BIND_MOUNT);
           op->source = xasprintf ("/proc/self/fd/%d", src_fd);
+          op->source_owned = true;
           op->fd = src_fd;
           op->dest = path_argument (arg, argv[2]);
 
