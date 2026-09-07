@@ -289,6 +289,9 @@ void strappend_escape_for_mount_options (StringBuilder *dest,
                                          const char    *src);
 
 #ifndef MOUNT_ATTR_RDONLY
+
+#include <linux/types.h>
+
 struct mount_attr
 {
   __u64 attr_set;
