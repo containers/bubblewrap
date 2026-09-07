@@ -1097,6 +1097,20 @@ strappend_escape_for_mount_options (StringBuilder *dest, const char *src)
     }
 }
 
+
+/* Enable mount_setattr for systems where the kernel is new enough but
+ * the glibc may lag behind, like it might happen with the Steam runtime.
+ *
+ * This could be expanded for other architectures, but these seem like
+ * the most likely to be backported to old LTS operating systems */
+#ifndef __NR_mount_setattr
+# if (defined(__x86_64__) && defined(__LP64__)) \
+     || defined(__i386__) \
+     || (defined(__aarch64__) && defined(__LP64__))
+#   define __NR_mount_setattr 442
+# endif
+#endif
+
 int
 mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
                        struct mount_attr *attr, size_t size)
