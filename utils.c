@@ -903,6 +903,8 @@ pivot_root (const char * new_root, const char * put_old)
 #ifdef __NR_pivot_root
   return syscall (__NR_pivot_root, new_root, put_old);
 #else
+  (void) new_root;
+  (void) put_old;
   errno = ENOSYS;
   return -1;
 #endif
@@ -1118,6 +1120,11 @@ mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
 #ifdef __NR_mount_setattr
   return syscall (__NR_mount_setattr, dirfd, path, flags, attr, size);
 #else
+  (void) dirfd;
+  (void) path;
+  (void) flags;
+  (void) attr;
+  (void) size;
   errno = ENOSYS;
   return -1;
 #endif
