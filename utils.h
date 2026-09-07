@@ -255,7 +255,9 @@ fdset_add (FdSet *set, int fd)
 static inline void
 cleanup_fdsetp (FdSet *set)
 {
-  for (size_t i = 0; i < set->len; i++)
+  size_t i;
+
+  for (i = 0; i < set->len; i++)
     if (set->fds[i] >= 0)
       close (set->fds[i]);
   free (set->fds);
