@@ -30,14 +30,17 @@
 #  define USE_MOUNT_SETATTR_FALLBACK 0
 #endif
 
-static bind_mount_result
-mount_setattr_setup(char *resolved_dest, bind_option_t options, char **failing_path);
+static bind_mount_result mount_setattr_setup (const char *resolved_dest,
+                                              bind_option_t options,
+                                              char **failing_path);
 
-static bind_mount_result
-mount_setattr_fallback(char *resolved_dest, bind_option_t options, char **failing_path);
+static bind_mount_result mount_setattr_fallback (const char *resolved_dest,
+                                                 bind_option_t options,
+                                                 char **failing_path);
 
 bool opt_force_mount_setattr_fallback = false;
 
+#if USE_MOUNT_SETATTR_FALLBACK
 static char *
 skip_token (char *line, bool eat_whitespace)
 {
@@ -386,6 +389,7 @@ parse_mountinfo (const char *root_mount)
 
   return steal_pointer (&mount_tab);
 }
+#endif /* USE_MOUNT_SETATTR_FALLBACK */
 
 bind_mount_result
 bind_mount (const char   *src,
@@ -464,12 +468,17 @@ bind_mount_fd (int           src_fd,
 }
 
 static bind_mount_result
-mount_setattr_fallback(char *resolved_dest, bind_option_t options, char **failing_path)
+mount_setattr_fallback (const char *resolved_dest,
+                        bind_option_t options,
+                        char **failing_path)
 {
 #if !USE_MOUNT_SETATTR_FALLBACK
   (void) resolved_dest;
   (void) options;
-  (void) failing_path;
+
+  if (failing_path != NULL)
+    *failing_path = xstrdup (resolved_dest);
+
   errno = ENOSYS;
   return BIND_MOUNT_ERROR_MOUNT_SETATTR;
 #else
@@ -484,7 +493,7 @@ mount_setattr_fallback(char *resolved_dest, bind_option_t options, char **failin
   if (mount_tab[0].mountpoint == NULL)
     {
       if (failing_path != NULL)
-        *failing_path = steal_pointer (&resolved_dest);
+        *failing_path = xstrdup (resolved_dest);
 
       errno = EINVAL;
       return BIND_MOUNT_ERROR_FIND_DEST_MOUNT;
@@ -498,7 +507,7 @@ mount_setattr_fallback(char *resolved_dest, bind_option_t options, char **failin
              NULL, MS_SILENT | MS_BIND | MS_REMOUNT | new_flags, NULL) != 0)
     {
       if (failing_path != NULL)
-        *failing_path = steal_pointer (&resolved_dest);
+        *failing_path = xstrdup (resolved_dest);
 
       return BIND_MOUNT_ERROR_REMOUNT_DEST;
     }
@@ -654,7 +663,9 @@ die_with_bind_result (bind_mount_result res,
 }
 
 static bind_mount_result
-mount_setattr_setup(char *resolved_dest, bind_option_t options, char **failing_path)
+mount_setattr_setup (const char *resolved_dest,
+                     bind_option_t options,
+                     char **failing_path)
 {
   static bool mount_attr_supported = true;
   bool readonly = (options & BIND_READONLY) != 0;
@@ -662,45 +673,46 @@ mount_setattr_setup(char *resolved_dest, bind_option_t options, char **failing_p
   bool recursive = (options & BIND_RECURSIVE) != 0;
 
   if (mount_attr_supported && !opt_force_mount_setattr_fallback)
-  {
-    struct mount_attr attr = {
-      .attr_clr = 0,
-      .attr_set = MOUNT_ATTR_NOSUID,
-    };
-
-    if (!devices)
-      attr.attr_set |= MOUNT_ATTR_NODEV;
-
-    if (readonly)
-      attr.attr_set |= MOUNT_ATTR_RDONLY;
-
-    unsigned int setattr_flags = AT_EMPTY_PATH;
-
-    if (recursive)
-      setattr_flags |= AT_RECURSIVE;
-
-    /* reopen dest_fd after mount() */
-    cleanup_fd int resolved_dest_fd =
-      TEMP_FAILURE_RETRY(open(resolved_dest, O_PATH | O_CLOEXEC));
-    if (resolved_dest_fd < 0)
-      {
-        if (failing_path != NULL)
-          *failing_path = steal_pointer (&resolved_dest);
-
-        return BIND_MOUNT_ERROR_OPEN_FD;
-      }
-    if (mount_setattr_wrapper (resolved_dest_fd, "", setattr_flags, &attr, sizeof(attr)) == 0)
     {
-      return BIND_MOUNT_SUCCESS;
+      struct mount_attr attr = {
+        .attr_clr = 0,
+        .attr_set = MOUNT_ATTR_NOSUID,
+      };
+
+      if (!devices)
+        attr.attr_set |= MOUNT_ATTR_NODEV;
+
+      if (readonly)
+        attr.attr_set |= MOUNT_ATTR_RDONLY;
+
+      unsigned int setattr_flags = AT_EMPTY_PATH;
+
+      if (recursive)
+        setattr_flags |= AT_RECURSIVE;
+
+      /* reopen dest_fd after mount() */
+      cleanup_fd int resolved_dest_fd =
+        TEMP_FAILURE_RETRY(open(resolved_dest, O_PATH | O_CLOEXEC));
+      if (resolved_dest_fd < 0)
+        {
+          if (failing_path != NULL)
+            *failing_path = xstrdup (resolved_dest);
+
+          return BIND_MOUNT_ERROR_OPEN_FD;
+        }
+
+      if (mount_setattr_wrapper (resolved_dest_fd, "", setattr_flags, &attr, sizeof(attr)) == 0)
+        {
+          return BIND_MOUNT_SUCCESS;
+        }
+      else if (errno != ENOSYS)
+        {
+          if (failing_path != NULL)
+            *failing_path = xstrdup (resolved_dest);
+          return BIND_MOUNT_ERROR_MOUNT_SETATTR;
+        }
     }
-    else if (errno != ENOSYS)
-    {
-      if (failing_path != NULL)
-        *failing_path = steal_pointer (&resolved_dest);
-      mount_attr_supported = false;
-      return BIND_MOUNT_ERROR_MOUNT_SETATTR;
-    }
-  }
   /* mount_setattr(2) isn't available, so we'll have to do this the hard way: */
+  mount_attr_supported = false;
   return mount_setattr_fallback (resolved_dest, options, failing_path);
 }

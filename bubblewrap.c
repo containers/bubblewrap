@@ -2719,12 +2719,31 @@ parse_args_recurse (int          *argcp,
       else if (has_prefix (arg, "--debug-opt="))
         {
           const char *val = arg + strlen ("--debug-opt=");
+
           if (strcmp (val, "force-openat-fallback") == 0)
-            opt_force_openat_fallback = true;
+            {
+              opt_force_openat_fallback = true;
+            }
           else if (strcmp (val, "force-mount-setattr-fallback") == 0)
-            opt_force_mount_setattr_fallback = true;
+            {
+              opt_force_mount_setattr_fallback = true;
+            }
+          else if (strcmp (val, "print-assumed-kernel") == 0)
+            {
+#ifdef HAVE_ASSUMED_KERNEL
+              printf ("%u.%u.%u\n",
+                      ASSUMED_KERNEL_MAJOR,
+                      ASSUMED_KERNEL_MINOR,
+                      ASSUMED_KERNEL_PATCH);
+#else
+              printf ("0.0.0\n");
+#endif
+              exit (0);
+            }
           else
-            die ("Unknown --debug-opt value: %s", val);
+            {
+              die ("Unknown --debug-opt value: %s", val);
+            }
         }
       else if (strcmp (arg, "--") == 0)
         {

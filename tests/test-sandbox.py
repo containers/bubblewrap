@@ -26,6 +26,7 @@ _spec.loader.exec_module(_helper)
 
 BWRAP = _helper.BWRAP
 can_run_bwrap = _helper.can_run_bwrap
+get_assumed_kernel = _helper.get_assumed_kernel
 in_sandbox = _helper.in_sandbox
 list_mounts = _helper.list_mounts
 DataFd = _helper.DataFd
@@ -311,8 +312,14 @@ class TestSandbox(unittest.TestCase):
         self._test_ro_bind_root_is_recursive()
 
     @in_sandbox('--debug-opt=force-mount-setattr-fallback')
-    def test_ro_bind_root_is_recursive_fallback(self):
+    def _test_ro_bind_root_is_recursive_fallback(self):
         self._test_ro_bind_root_is_recursive()
+
+    def test_ro_bind_root_is_recursive_fallback(self):
+        if get_assumed_kernel() >= (5, 12, 0):
+            self.skipTest('mount_setattr() fallback not compiled')
+        else:
+            self._test_ro_bind_root_is_recursive_fallback()
 
     def _test_ro_bind_root_is_recursive(self):
         """The base --ro-bind / / should apply read-only to sub-mounts."""
