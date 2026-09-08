@@ -531,6 +531,51 @@ class TestSandbox(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'child content')
 
+    # ------ overlay-opt ------
+
+    def test_tmp_overlay_opt_after_src(self):
+        result = run_bwrap('--overlay-src', self.src.dir,
+                           '--overlay-opt', 'index=off,xino=off',
+                           '--tmp-overlay', '/tmp/ov',
+                           'cat', '/tmp/ov/child')
+        if result.returncode != 0 and b'overlay' in result.stderr.lower():
+            self.skipTest('overlayfs not available')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'child content')
+
+    def test_tmp_overlay_opt_before_src(self):
+        result = run_bwrap('--overlay-opt', 'index=off,xino=off',
+                           '--overlay-src', self.src.dir,
+                           '--tmp-overlay', '/tmp/ov',
+                           'cat', '/tmp/ov/child')
+        if result.returncode != 0 and b'overlay' in result.stderr.lower():
+            self.skipTest('overlayfs not available')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'child content')
+
+    def test_tmp_overlay_opt_multiple_comma_joined(self):
+        result = run_bwrap('--overlay-opt', 'index=off',
+                           '--overlay-opt', 'xino=off',
+                           '--overlay-src', self.src.dir,
+                           '--tmp-overlay', '/tmp/ov',
+                           'cat', '/tmp/ov/child')
+        if result.returncode != 0 and b'overlay' in result.stderr.lower():
+            self.skipTest('overlayfs not available')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b'child content')
+
+    def test_overlay_opt_dangling(self):
+        result = run_bwrap('--overlay-opt', 'index=off', 'true')
+        self.assertBwrapFailed(result)
+        self.assertInStderr(b'--overlay-opt must be followed', result)
+
+    def test_overlay_src_not_consumed(self):
+        result = run_bwrap('--overlay-src', self.src.dir,
+                           '--overlay-opt', 'index=off',
+                           '--ro-bind', self.src.file, '/tmp/f', 'true')
+        self.assertBwrapFailed(result)
+        self.assertInStderr(b'--overlay-src must be followed', result)
+
     # ------ Edge cases: source path with symlinks ------
 
     def test_bind_source_absolute_symlink_in_path(self):

@@ -94,6 +94,8 @@ static int opt_tmp_overlay_count = 0;
 static int next_perms = -1;
 static size_t next_size_arg = 0;
 static int next_overlay_src_count = 0;
+static char **next_overlay_srcs = NULL;
+static char *next_overlay_opt = NULL;
 static bool opt_not_a_security_boundary = false;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
@@ -165,6 +167,7 @@ struct _SetupOp
   SetupOpFlag flags;
   int         perms;
   size_t      size;  /* number of bytes, zero means unset/default */
+  char       *overlay_opt;  /* extra overlayfs mount options, owned, NULL if unset */
   SetupOp    *next;
 };
 
@@ -329,6 +332,8 @@ usage (int ecode, FILE *out)
            "    --ro-bind-fd FD DEST         Bind open directory or path fd read-only on DEST\n"
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
            "    --overlay-src SRC            Read files from SRC in the following overlay\n"
+           "    --overlay-opt OPT            Pass extra overlayfs mount options (e.g. index=off,xino=off) to the\n"
+           "                                 next --overlay/--tmp-overlay/--ro-overlay\n"
            "    --overlay RWSRC WORKDIR DEST Mount overlayfs on DEST, with RWSRC as the host path for writes and\n"
            "                                 WORKDIR an empty directory on the same filesystem as RWSRC\n"
            "    --tmp-overlay DEST           Mount overlayfs on DEST, with writes going to an invisible tmpfs\n"
@@ -1317,6 +1322,8 @@ setup_newroot (bool unshare_pid)
             bool multi_src = false;
             cleanup_fdset FdSet fds = {0};
             cleanup_free char *dest_path = fd_to_proc_path (dest_fd);
+            /* Keep the mount op handle; `op` is advanced through the workdir/src ops below. */
+            SetupOp *mount_op = op;
 
             if (op->source != NULL)
               {
@@ -1350,6 +1357,12 @@ setup_newroot (bool unshare_pid)
 
             strappend (&sb, ",userxattr");
 
+            if (mount_op->overlay_opt != NULL)
+              {
+                strappend (&sb, ",");
+                strappend (&sb, mount_op->overlay_opt);
+              }
+
             if (mount ("overlay", dest_path, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
               {
                 /* The standard message for ELOOP, "Too many levels of symbolic
@@ -1357,9 +1370,9 @@ setup_newroot (bool unshare_pid)
                 if (errno == ELOOP)
                   die ("Can't make overlay mount on %s with options %s: "
                        "Overlay directories may not overlap",
-                       op->dest, sb.str);
+                       mount_op->dest, sb.str);
                 die_with_mount_error ("Can't make overlay mount on %s with options %s",
-                                      op->dest, sb.str);
+                                      mount_op->dest, sb.str);
               }
 
             free (sb.str);
@@ -1723,7 +1736,7 @@ path_argument (const char *option,
 }
 
 static void
-make_setup_overlay_src_ops (const char *const *const argv)
+make_setup_overlay_src_ops (SetupOp *mount_op)
 {
   /* SETUP_OVERLAY_SRC is unlike other SETUP_* ops in that it exists to hold
    * data for SETUP_{,TMP_,RO_}OVERLAY_MOUNT ops, not to be its own operation.
@@ -1731,20 +1744,32 @@ make_setup_overlay_src_ops (const char *const *const argv)
    * of each source, as no other operations involve multiple sources the way
    * the *_OVERLAY_MOUNT ops do.
    *
-   * While the --overlay-src arguments are expected to (directly) precede the
+   * While the --overlay-src arguments are expected to precede the
    * --overlay argument, in bottom-to-top order, the SETUP_OVERLAY_SRC ops
    * follow their corresponding *_OVERLAY_MOUNT op, in top-to-bottom order
    * (the order in which overlayfs will want them). They are handled specially
    * in setup_new_root () during the processing of *_OVERLAY_MOUNT.
+   *
+   * The source paths are stored in the next_overlay_srcs pending array at
+   * parse time. They can no longer be re-derived from fixed argv positions,
+   * because --overlay-opt may appear between the --overlay-src arguments and
+   * the overlay op. The pending --overlay-opt, if any, is moved onto the
+   * mount op.
    */
   int i;
   SetupOp *op;
 
-  for (i = 1; i <= next_overlay_src_count; i++)
+  mount_op->overlay_opt = next_overlay_opt;
+  next_overlay_opt = NULL;
+
+  for (i = next_overlay_src_count - 1; i >= 0; i--)
     {
       op = setup_op_new (SETUP_OVERLAY_SRC);
-      op->source = path_argument ("--overlay-src", argv[1 - 2 * i]);
+      op->source = next_overlay_srcs[i];
     }
+
+  free (next_overlay_srcs);
+  next_overlay_srcs = NULL;
   next_overlay_src_count = 0;
 }
 
@@ -2015,7 +2040,32 @@ parse_args_recurse (int          *argcp,
         }
       else if (strcmp (arg, "--overlay-src") == 0)
         {
-          next_overlay_src_count++;
+          next_overlay_srcs = realloc (next_overlay_srcs,
+                                       (size_t) (next_overlay_src_count + 1) * sizeof (char *));
+          if (next_overlay_srcs == NULL)
+            die ("Out of memory");
+          next_overlay_srcs[next_overlay_src_count++] =
+            path_argument ("--overlay-src", argv[1]);
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--overlay-opt") == 0)
+        {
+          const char *opt;
+
+          if (argc < 2)
+            die ("--overlay-opt takes an argument");
+
+          opt = argv[1];
+          if (next_overlay_opt == NULL)
+            next_overlay_opt = xstrdup (opt);
+          else
+            {
+              char *joined = xasprintf ("%s,%s", next_overlay_opt, opt);
+              free (next_overlay_opt);
+              next_overlay_opt = joined;
+            }
 
           argv += 1;
           argc -= 1;
@@ -2035,7 +2085,7 @@ parse_args_recurse (int          *argcp,
           workdir_op = setup_op_new (SETUP_OVERLAY_SRC);
           workdir_op->source = path_argument (arg, argv[2]);
           op->dest = path_argument (arg, argv[3]);
-          make_setup_overlay_src_ops (argv);
+          make_setup_overlay_src_ops (op);
 
           argv += 3;
           argc -= 3;
@@ -2050,7 +2100,7 @@ parse_args_recurse (int          *argcp,
 
           op = setup_op_new (SETUP_TMP_OVERLAY_MOUNT);
           op->dest = path_argument (arg, argv[1]);
-          make_setup_overlay_src_ops (argv);
+          make_setup_overlay_src_ops (op);
           opt_tmp_overlay_count++;
 
           argv += 1;
@@ -2066,7 +2116,7 @@ parse_args_recurse (int          *argcp,
 
           op = setup_op_new (SETUP_RO_OVERLAY_MOUNT);
           op->dest = path_argument (arg, argv[1]);
-          make_setup_overlay_src_ops (argv);
+          make_setup_overlay_src_ops (op);
 
           argv += 1;
           argc -= 1;
@@ -2752,8 +2802,10 @@ parse_args_recurse (int          *argcp,
         die ("--size must be followed by --tmpfs");
 
       /* Similarly for --overlay-src. */
-      if (strcmp (arg, "--overlay-src") != 0 && next_overlay_src_count > 0)
-        die ("--overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay");
+      if (strcmp (arg, "--overlay-src") != 0 &&
+          strcmp (arg, "--overlay-opt") != 0 &&
+          next_overlay_src_count > 0)
+        die ("--overlay-src must be followed by --overlay, --tmp-overlay, or --ro-overlay");
 
       argv++;
       argc--;
@@ -2772,7 +2824,10 @@ parse_args (int          *argcp,
   parse_args_recurse (argcp, argvp, false, &total_parsed_argc);
 
   if (next_overlay_src_count > 0)
-    die ("--overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay");
+    die ("--overlay-src must be followed by --overlay, --tmp-overlay, or --ro-overlay");
+
+  if (next_overlay_opt != NULL)
+    die ("--overlay-opt must be followed by --overlay, --tmp-overlay, or --ro-overlay");
 }
 
 static void

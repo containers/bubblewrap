@@ -343,6 +343,24 @@
       </listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--overlay-opt <arg choice="plain">OPT</arg></option></term>
+      <listitem>
+        <para>
+          This option does nothing on its own, and must be followed by one of
+          the other <literal>overlay</literal> options. It passes extra mount
+          options to the kernel's <literal>overlayfs</literal> for that
+          mount, for example <literal>index=off,xino=off</literal>.
+        </para>
+        <para>
+          This option can be used multiple times, in which case the values are
+          joined with a comma. It may be given before or after the
+          <option>--overlay-src</option> arguments, but must precede the
+          <option>--overlay</option>, <option>--tmp-overlay</option> or
+          <option>--ro-overlay</option> option it applies to.
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--overlay <arg choice="plain">RWSRC</arg> <arg choice="plain">WORKDIR</arg> <arg choice="plain">DEST</arg></option></term>
     </varlistentry>
     <varlistentry>
