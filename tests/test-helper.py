@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2024 Alexander Larsson
+# Copyright 2026 Collabora Ltd.
 # SPDX-License-Identifier: LGPL-2.1-or-later
 #
 # Test infrastructure for bwrap sandbox integration tests.
@@ -8,6 +9,7 @@
 
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -205,10 +207,29 @@ def run_bwrap(*extra_args, pass_fds=()):
             os.close(fd)
 
 
+# A sequence of one or more octal escapes such as \12\345
+_OCTAL_ESCAPES = re.compile(r'(?:\\[0-7]{1,3})+')
+
+
+def _octal_unescape_char(match):
+    """Replace _OCTAL_ESCAPES with their expansion"""
+    text = match.group(0)
+    assert text[0] == '\\'
+    sequences = text[1:].split('\\')
+    return bytes(
+        [int(seq, base=8) for seq in sequences]
+    ).decode('utf-8', errors='surrogateescape')
+
+
+def unescape_mount(escaped):
+    """Unescape a mount point as shown in /proc/self/mounts"""
+    return _OCTAL_ESCAPES.sub(_octal_unescape_char, escaped)
+
+
 def list_mounts():
     """Return list of mountpoints from /proc/self/mounts."""
     with open('/proc/self/mounts') as f:
-        return [line.split()[1] for line in f]
+        return [unescape_mount(line.split()[1]) for line in f]
 
 
 def can_run_bwrap():
