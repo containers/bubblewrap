@@ -28,6 +28,10 @@
 #include <selinux/selinux.h>
 #endif
 
+#ifndef __NR_pivot_root
+#error Linux kernel headers with __NR_pivot_root are required
+#endif
+
 #ifndef HAVE_SELINUX_2_3
 /* libselinux older than 2.3 weren't const-correct */
 #define setexeccon(x) setexeccon ((security_context_t) x)
@@ -900,14 +904,7 @@ raw_clone (unsigned long flags,
 int
 pivot_root (const char * new_root, const char * put_old)
 {
-#ifdef __NR_pivot_root
   return syscall (__NR_pivot_root, new_root, put_old);
-#else
-  (void) new_root;
-  (void) put_old;
-  errno = ENOSYS;
-  return -1;
-#endif
 }
 
 char *
