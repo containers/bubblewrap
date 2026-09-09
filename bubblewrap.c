@@ -858,6 +858,108 @@ drop_privs (bool keep_requested_caps)
     die_with_error ("can't set dumpable");
 }
 
+static char *
+prepare_legacy_root (const char *base_path)
+{
+  char *old_cwd;
+  int i;
+
+  /* Create a tmpfs which we will use as / in the namespace */
+  if (mount ("tmpfs", base_path, "tmpfs", MS_NODEV | MS_NOSUID, NULL) != 0)
+    die_with_mount_error ("Failed to mount tmpfs");
+
+  old_cwd = get_current_dir_name ();
+
+  /* Chdir to the new root tmpfs mount. This will be the CWD during
+     the entire setup. Access old or new root via "oldroot" and "newroot". */
+  if (chdir (base_path) != 0)
+    die_with_error ("chdir base_path");
+
+  /* We create a subdir "$base_path/newroot" for the new root, that
+   * way we can pivot_root to base_path, and put the old root at
+   * "$base_path/oldroot". This avoids problems accessing the oldroot
+   * dir if the user requested to bind mount something over / (or
+   * over /tmp, now that we use that for base_path). */
+
+  if (mkdir ("newroot", 0755))
+    die_with_error ("Creating newroot failed");
+
+  if (mount ("newroot", "newroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+    die_with_mount_error ("setting up newroot bind");
+
+  if (mkdir ("oldroot", 0755))
+    die_with_error ("Creating oldroot failed");
+
+  for (i = 0; i < opt_tmp_overlay_count; i++)
+    {
+      char *dirname;
+      dirname = xasprintf ("tmp-overlay-upper-%d", i);
+      if (mkdir (dirname, 0755))
+        die_with_error ("Creating --tmp-overlay upperdir failed");
+      free (dirname);
+      dirname = xasprintf ("tmp-overlay-work-%d", i);
+      if (mkdir (dirname, 0755))
+        die_with_error ("Creating --tmp-overlay workdir failed");
+      free (dirname);
+    }
+
+  if (pivot_root (base_path, "oldroot"))
+    die_with_error ("pivot_root");
+
+  if (chdir ("/") != 0)
+    die_with_error ("chdir / (base path)");
+
+  /* Bind-mount proc so /proc/self/fd/N paths work for fd-based mount() calls */
+  if (mkdir ("proc", 0755))
+    die_with_error ("Creating proc failed");
+  if (mount ("oldroot/proc", "proc", NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
+    die_with_mount_error ("mounting proc");
+
+  return old_cwd;
+}
+
+static void
+enter_legacy_root (void)
+{
+  /* The old root better be rprivate or we will send unmount events to the parent namespace */
+  if (mount ("oldroot", "oldroot", NULL, MS_SILENT | MS_REC | MS_PRIVATE, NULL) != 0)
+    die_with_mount_error ("Failed to make old root rprivate");
+
+  if (umount2 ("oldroot", MNT_DETACH))
+    die_with_error ("unmount old root");
+
+  /* This is our second pivot. It's like we're a Silicon Valley startup flush
+   * with cash but short on ideas!
+   *
+   * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
+   * that we need a temporary place to store it before we can unmount it.
+   */
+  { cleanup_fd int oldrootfd = TEMP_FAILURE_RETRY (open ("/", O_DIRECTORY | O_RDONLY));
+    if (oldrootfd < 0)
+      die_with_error ("can't open /");
+    if (chdir ("/newroot") != 0)
+      die_with_error ("chdir /newroot");
+    /* While the documentation claims that put_old must be underneath
+     * new_root, it is perfectly fine to use the same directory as the
+     * kernel checks only if old_root is accessible from new_root.
+     *
+     * Both runc and LXC are using this "alternative" method for
+     * setting up the root of the container:
+     *
+     * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
+     * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
+     */
+    if (pivot_root (".", ".") != 0)
+      die_with_error ("pivot_root(/newroot)");
+    if (fchdir (oldrootfd) < 0)
+      die_with_error ("fchdir to oldroot");
+    if (umount2 (".", MNT_DETACH) < 0)
+      die_with_error ("umount old root");
+    if (chdir ("/") != 0)
+      die_with_error ("chdir /");
+  }
+}
+
 static int
 openat_in_root (const char *root, const char *path, int flags)
 {
@@ -2907,7 +3009,6 @@ main (int    argc,
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
   const char *exec_path = NULL;
-  int i;
   struct sigaction sa = {};
 
   /* Handle --version early on before we try to acquire/drop
@@ -3286,98 +3387,13 @@ main (int    argc,
   if (mount (NULL, "/", NULL, MS_SILENT | MS_SLAVE | MS_REC, NULL) < 0)
     die_with_mount_error ("Failed to make / slave");
 
-  /* Create a tmpfs which we will use as / in the namespace */
-  if (mount ("tmpfs", base_path, "tmpfs", MS_NODEV | MS_NOSUID, NULL) != 0)
-    die_with_mount_error ("Failed to mount tmpfs");
-
-  old_cwd = get_current_dir_name ();
-
-  /* Chdir to the new root tmpfs mount. This will be the CWD during
-     the entire setup. Access old or new root via "oldroot" and "newroot". */
-  if (chdir (base_path) != 0)
-    die_with_error ("chdir base_path");
-
-  /* We create a subdir "$base_path/newroot" for the new root, that
-   * way we can pivot_root to base_path, and put the old root at
-   * "$base_path/oldroot". This avoids problems accessing the oldroot
-   * dir if the user requested to bind mount something over / (or
-   * over /tmp, now that we use that for base_path). */
-
-  if (mkdir ("newroot", 0755))
-    die_with_error ("Creating newroot failed");
-
-  if (mount ("newroot", "newroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
-    die_with_mount_error ("setting up newroot bind");
-
-  if (mkdir ("oldroot", 0755))
-    die_with_error ("Creating oldroot failed");
-
-  for (i = 0; i < opt_tmp_overlay_count; i++)
-    {
-      char *dirname;
-      dirname = xasprintf ("tmp-overlay-upper-%d", i);
-      if (mkdir (dirname, 0755))
-        die_with_error ("Creating --tmp-overlay upperdir failed");
-      free (dirname);
-      dirname = xasprintf ("tmp-overlay-work-%d", i);
-      if (mkdir (dirname, 0755))
-        die_with_error ("Creating --tmp-overlay workdir failed");
-      free (dirname);
-    }
-
-  if (pivot_root (base_path, "oldroot"))
-    die_with_error ("pivot_root");
-
-  if (chdir ("/") != 0)
-    die_with_error ("chdir / (base path)");
-
-  /* Bind-mount proc so /proc/self/fd/N paths work for fd-based mount() calls */
-  if (mkdir ("proc", 0755))
-    die_with_error ("Creating proc failed");
-  if (mount ("oldroot/proc", "proc", NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
-    die_with_mount_error ("mounting proc");
+  old_cwd = prepare_legacy_root (base_path);
 
   setup_newroot (opt_unshare_pid);
 
   close_ops_fd ();
 
-  /* The old root better be rprivate or we will send unmount events to the parent namespace */
-  if (mount ("oldroot", "oldroot", NULL, MS_SILENT | MS_REC | MS_PRIVATE, NULL) != 0)
-    die_with_mount_error ("Failed to make old root rprivate");
-
-  if (umount2 ("oldroot", MNT_DETACH))
-    die_with_error ("unmount old root");
-
-  /* This is our second pivot. It's like we're a Silicon Valley startup flush
-   * with cash but short on ideas!
-   *
-   * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
-   * that we need a temporary place to store it before we can unmount it.
-   */
-  { cleanup_fd int oldrootfd = TEMP_FAILURE_RETRY (open ("/", O_DIRECTORY | O_RDONLY));
-    if (oldrootfd < 0)
-      die_with_error ("can't open /");
-    if (chdir ("/newroot") != 0)
-      die_with_error ("chdir /newroot");
-    /* While the documentation claims that put_old must be underneath
-     * new_root, it is perfectly fine to use the same directory as the
-     * kernel checks only if old_root is accessible from new_root.
-     *
-     * Both runc and LXC are using this "alternative" method for
-     * setting up the root of the container:
-     *
-     * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
-     * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
-     */
-    if (pivot_root (".", ".") != 0)
-      die_with_error ("pivot_root(/newroot)");
-    if (fchdir (oldrootfd) < 0)
-      die_with_error ("fchdir to oldroot");
-    if (umount2 (".", MNT_DETACH) < 0)
-      die_with_error ("umount old root");
-    if (chdir ("/") != 0)
-      die_with_error ("chdir /");
-  }
+  enter_legacy_root ();
 
   if (opt_userns2_fd != -1 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
     die_with_error ("Setting userns2 failed");
