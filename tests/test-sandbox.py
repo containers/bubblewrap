@@ -361,6 +361,12 @@ class TestSandbox(unittest.TestCase):
                 self.assertFalse(os.access(path, os.W_OK),
                                  f'/proc/{subdir} should not be writable')
 
+    @in_sandbox('--unshare-pid')
+    def test_proc_new_pid_namespace(self):
+        self.assertMountFlags('/proc',
+                              [os.ST_NOSUID, os.ST_NODEV, os.ST_NOEXEC], [])
+        self.assertIsRegFile('/proc/self/status')
+
     # ------ dev ------
 
     @in_sandbox()

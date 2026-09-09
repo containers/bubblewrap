@@ -40,7 +40,8 @@ def mount_apis_available():
 @unittest.skipUnless(_helper.can_run_bwrap(), 'bwrap not functional')
 @unittest.skipUnless(mount_apis_available(), 'kernel lacks descriptor mount APIs')
 class TestMountApi(unittest.TestCase):
-    def run_filtered(self, syscall, error, *extra):
+    def run_filtered(self, syscall, error, *extra,
+                     mounts=('--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp')):
         def load_filter():
             policy = seccomp.SyscallFilter(defaction=seccomp.ALLOW)
             policy.add_rule(seccomp.ERRNO(error), syscall)
@@ -49,8 +50,7 @@ class TestMountApi(unittest.TestCase):
         # A root overmount keeps this fixture on the original root lifecycle.
         return subprocess.run(
             [_helper.BWRAP, '--unshare-user', '--unshare-pid',
-             '--ro-bind', '/', '/', '--dev', '/dev', '--proc', '/proc',
-             '--tmpfs', '/tmp', *extra, '--', sys.executable, '-c', 'pass'],
+             '--ro-bind', '/', '/', *mounts, *extra, '--', sys.executable, '-c', 'pass'],
             preexec_fn=load_filter, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, timeout=20)
 
@@ -101,6 +101,20 @@ class TestMountApi(unittest.TestCase):
                 self.assertIn(syscall.encode(), result.stderr)
                 self.assertIn(b'tmpfs', result.stderr)
                 self.assertIn(b'Operation not permitted', result.stderr)
+
+    @unittest.skipUnless(os.environ.get('BWRAP_TEST_FILESYSTEM_MOUNTS') == '1',
+                         'filesystem mount APIs not compiled in')
+    def test_proc_syscalls(self):
+        for syscall in ('fsopen', 'fsconfig', 'fsmount'):
+            for error in (errno.ENOSYS, errno.EPERM):
+                with self.subTest(syscall=syscall, error=error):
+                    result = self.run_filtered(syscall, error, mounts=('--proc', '/proc'))
+                    if error == errno.ENOSYS:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(b'proc', result.stderr)
+                        self.assertIn(syscall.encode(), result.stderr)
 
 
 if __name__ == '__main__':

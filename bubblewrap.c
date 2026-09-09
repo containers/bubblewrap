@@ -1405,7 +1405,12 @@ setup_newroot (bool unshare_pid)
             if (unshare_pid || opt_pidns_fd != -1)
               {
                 /* Our own procfs */
-                if (mount ("proc", dest_path, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+                bool mounted = false;
+                if (!opt_force_mount_setattr_fallback)
+                  mounted = mount_filesystem_fd ("proc", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC | MOUNT_ATTR_NODEV,
+                                                  0, 0, dest_fd, op->dest);
+                if (!mounted &&
+                    mount ("proc", dest_path, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
                   die_with_mount_error ("Can't mount proc on %s", op->dest);
               }
             else
