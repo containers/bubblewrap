@@ -99,6 +99,30 @@ if assume_kernel != ''
   cdata.set('HAVE_ASSUMED_KERNEL', 1)
 endif
 
+# The mount_setattr wrapper also works with older libc versions.
+have_fd_mounts = true
+foreach function : ['open_tree', 'move_mount']
+  have_fd_mounts = have_fd_mounts and cc.has_function(
+    function, prefix : '#define _GNU_SOURCE\n#include <sys/mount.h>')
+endforeach
+if have_fd_mounts
+  cdata.set('HAVE_FD_MOUNTS', 1)
+endif
+
+have_filesystem_mounts = have_fd_mounts
+foreach function : ['fsopen', 'fsconfig', 'fsmount']
+  have_filesystem_mounts = have_filesystem_mounts and cc.has_function(
+    function, prefix : '#define _GNU_SOURCE\n#include <sys/mount.h>')
+endforeach
+if have_filesystem_mounts
+  cdata.set('HAVE_FILESYSTEM_MOUNTS', 1)
+endif
+
+have_detached_mounts = have_filesystem_mounts and cc.has_header('linux/openat2.h') and cc.has_header_symbol('sys/syscall.h', 'SYS_openat2')
+if have_detached_mounts
+  cdata.set('HAVE_DETACHED_MOUNTS', 1)
+endif
+
 configure_file(
   output : 'config.h',
   configuration : cdata,
@@ -121,6 +145,8 @@ bwrap = executable(
   [
     'bubblewrap.c',
     'bind-mount.c',
+    'mount-api.c',
+    'newroot-mount.c',
     'network.c',
     'utils.c',
     'chroot_realpath.c',

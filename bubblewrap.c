@@ -40,6 +40,8 @@
 #include "utils.h"
 #include "network.h"
 #include "bind-mount.h"
+#include "mount-api.h"
+#include "newroot-mount.h"
 
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
@@ -76,6 +78,10 @@ static bool opt_unshare_cgroup = false;
 static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
 static bool opt_new_session = false;
+#ifdef HAVE_DETACHED_MOUNTS
+static bool use_single_pivot = false;
+static SinglePivot single_pivot = { .root_fd = -1, .host_fd = -1 };
+#endif
 static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
@@ -857,9 +863,201 @@ drop_privs (bool keep_requested_caps)
     die_with_error ("can't set dumpable");
 }
 
+#ifdef HAVE_DETACHED_MOUNTS
+/* The retained root descriptor cannot follow a mount placed over /.
+ * Keep relative paths and dot components on the existing setup path too. */
+static bool
+single_pivot_destination_supported (const char *path)
+{
+  if (path == NULL || path[0] != '/')
+    return false;
+
+  while (*path == '/')
+    path++;
+  if (*path == '\0')
+    return false;
+
+  while (*path)
+    {
+      const char *end = strchr (path, '/');
+      size_t length = end ? (size_t) (end - path) : strlen (path);
+
+      if ((length == 1 && path[0] == '.') ||
+          (length == 2 && path[0] == '.' && path[1] == '.'))
+        return false;
+      path += length;
+      while (*path == '/')
+        path++;
+    }
+  return true;
+}
+
+static bool
+single_pivot_layout_supported (void)
+{
+  SetupOp *op;
+
+  if (real_uid == 0 || !opt_unshare_user || !opt_unshare_pid ||
+      opt_userns_fd != -1 || opt_userns2_fd != -1 || opt_userns_block_fd != -1 ||
+      opt_pidns_fd != -1 || opt_file_label != NULL || opt_not_a_security_boundary ||
+      opt_force_openat_fallback || opt_force_mount_setattr_fallback)
+    return false;
+  for (op = ops; op; op = op->next)
+    {
+      /* Start with layouts whose root and destination construction can use a
+       * retained descriptor. Preserve the existing implementation for other
+       * operations, root overmounts, relative paths and dot components. */
+      if (op->fd >= 0)
+        return false;
+      switch (op->type)
+        {
+        case SETUP_BIND_MOUNT:
+        case SETUP_RO_BIND_MOUNT:
+        case SETUP_DEV_BIND_MOUNT:
+        case SETUP_MOUNT_PROC:
+        case SETUP_MOUNT_DEV:
+        case SETUP_MOUNT_TMPFS:
+        case SETUP_MAKE_DIR:
+          if (!single_pivot_destination_supported (op->dest))
+            return false;
+          break;
+
+        case SETUP_SET_HOSTNAME:
+          break;
+
+        case SETUP_MAKE_SYMLINK:
+        case SETUP_OVERLAY_MOUNT:
+        case SETUP_TMP_OVERLAY_MOUNT:
+        case SETUP_RO_OVERLAY_MOUNT:
+        case SETUP_OVERLAY_SRC:
+        case SETUP_MOUNT_MQUEUE:
+        case SETUP_MAKE_FILE:
+        case SETUP_MAKE_BIND_FILE:
+        case SETUP_MAKE_RO_BIND_FILE:
+        case SETUP_REMOUNT_RO_NO_RECURSIVE:
+        case SETUP_CHMOD:
+        default:
+          return false;
+        }
+    }
+  return true;
+}
+#endif /* HAVE_DETACHED_MOUNTS */
+
+static char *
+prepare_legacy_root (const char *base_path)
+{
+  char *old_cwd;
+  int i;
+
+  /* Create a tmpfs which we will use as / in the namespace */
+  if (mount ("tmpfs", base_path, "tmpfs", MS_NODEV | MS_NOSUID, NULL) != 0)
+    die_with_mount_error ("Failed to mount tmpfs");
+
+  old_cwd = get_current_dir_name ();
+
+  /* Chdir to the new root tmpfs mount. This will be the CWD during
+     the entire setup. Access old or new root via "oldroot" and "newroot". */
+  if (chdir (base_path) != 0)
+    die_with_error ("chdir base_path");
+
+  /* We create a subdir "$base_path/newroot" for the new root, that
+   * way we can pivot_root to base_path, and put the old root at
+   * "$base_path/oldroot". This avoids problems accessing the oldroot
+   * dir if the user requested to bind mount something over / (or
+   * over /tmp, now that we use that for base_path). */
+
+  if (mkdir ("newroot", 0755))
+    die_with_error ("Creating newroot failed");
+
+  if (mount ("newroot", "newroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
+    die_with_mount_error ("setting up newroot bind");
+
+  if (mkdir ("oldroot", 0755))
+    die_with_error ("Creating oldroot failed");
+
+  for (i = 0; i < opt_tmp_overlay_count; i++)
+    {
+      char *dirname;
+      dirname = xasprintf ("tmp-overlay-upper-%d", i);
+      if (mkdir (dirname, 0755))
+        die_with_error ("Creating --tmp-overlay upperdir failed");
+      free (dirname);
+      dirname = xasprintf ("tmp-overlay-work-%d", i);
+      if (mkdir (dirname, 0755))
+        die_with_error ("Creating --tmp-overlay workdir failed");
+      free (dirname);
+    }
+
+  if (pivot_root (base_path, "oldroot"))
+    die_with_error ("pivot_root");
+
+  if (chdir ("/") != 0)
+    die_with_error ("chdir / (base path)");
+
+  /* Bind-mount proc so /proc/self/fd/N paths work for fd-based mount() calls */
+  if (mkdir ("proc", 0755))
+    die_with_error ("Creating proc failed");
+  if (mount ("oldroot/proc", "proc", NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
+    die_with_mount_error ("mounting proc");
+
+  return old_cwd;
+}
+
+static void
+enter_legacy_root (void)
+{
+  /* The old root better be rprivate or we will send unmount events to the parent namespace */
+  if (mount ("oldroot", "oldroot", NULL, MS_SILENT | MS_REC | MS_PRIVATE, NULL) != 0)
+    die_with_mount_error ("Failed to make old root rprivate");
+
+  if (umount2 ("oldroot", MNT_DETACH))
+    die_with_error ("unmount old root");
+
+  /* This is our second pivot. It's like we're a Silicon Valley startup flush
+   * with cash but short on ideas!
+   *
+   * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
+   * that we need a temporary place to store it before we can unmount it.
+   */
+  { cleanup_fd int oldrootfd = TEMP_FAILURE_RETRY (open ("/", O_DIRECTORY | O_RDONLY));
+    if (oldrootfd < 0)
+      die_with_error ("can't open /");
+    if (chdir ("/newroot") != 0)
+      die_with_error ("chdir /newroot");
+    /* While the documentation claims that put_old must be underneath
+     * new_root, it is perfectly fine to use the same directory as the
+     * kernel checks only if old_root is accessible from new_root.
+     *
+     * Both runc and LXC are using this "alternative" method for
+     * setting up the root of the container:
+     *
+     * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
+     * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
+     */
+    if (pivot_root (".", ".") != 0)
+      die_with_error ("pivot_root(/newroot)");
+    if (fchdir (oldrootfd) < 0)
+      die_with_error ("fchdir to oldroot");
+    if (umount2 (".", MNT_DETACH) < 0)
+      die_with_error ("umount old root");
+    if (chdir ("/") != 0)
+      die_with_error ("chdir /");
+  }
+}
+
 static int
 openat_in_root (const char *root, const char *path, int flags)
 {
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      if (strcmp (root, "/oldroot") == 0)
+        return single_pivot_openat2 (single_pivot.host_fd, path, flags);
+      if (strcmp (root, "/newroot") == 0)
+        return single_pivot_openat2 (single_pivot.root_fd, path, flags);
+    }
+#endif
   /* We have reopen the root dir, because we typically mount on top of
    * /newroot (e.g. with --bind / /), which an old O_PATH fd will not
    * pick up */
@@ -928,6 +1126,13 @@ setup_op_bind_mount_fd (bind_option_t options,
                         int           dest_fd,
                         const char   *dest_display)
 {
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      single_pivot_bind (&single_pivot, options, src_fd, src_display, dest_fd, dest_display);
+      return;
+    }
+#endif
   bind_mount_result bind_result;
   char *failing_path = NULL;
 
@@ -968,6 +1173,20 @@ setup_op_tmpfs_mount (uint32_t    perms,
    * the --size option as well. However, better be safe than sorry. */
   if (size > MAX_TMPFS_BYTES)
     die_with_error ("Specified tmpfs size too large (%zu > %zu)", size, MAX_TMPFS_BYTES);
+
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      single_pivot_mount_filesystem (&single_pivot, "tmpfs", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV,
+                                    perms, size, dest_fd, dest_display);
+      return;
+    }
+#endif
+  /* Keep SELinux-labelled mounts on the existing option-handling path. */
+  if (opt_file_label == NULL && !opt_force_mount_setattr_fallback &&
+      mount_filesystem_fd ("tmpfs", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV,
+                           perms, size, dest_fd, dest_display))
+    return;
 
   if (size != 0)
     mode = xasprintf ("mode=%#o,size=%zu", perms, size);
@@ -1153,7 +1372,16 @@ setup_newroot (bool unshare_pid)
                * for these. This should be fine because /proc doesn't have any regular
                * absolute symlinks, and the magic links should work fine.
                */
-              cleanup_free char *proc_oldroot_path = get_oldroot_path (op->source);
+              cleanup_free char *proc_oldroot_path = NULL;
+#ifdef HAVE_DETACHED_MOUNTS
+              if (use_single_pivot)
+                {
+                  cleanup_free char *host_root = fd_to_proc_path (single_pivot.host_fd);
+                  proc_oldroot_path = strconcat (host_root, op->source);
+                }
+              else
+#endif
+                proc_oldroot_path = get_oldroot_path (op->source);
               source_fd = TEMP_FAILURE_RETRY (
                 open (proc_oldroot_path, O_PATH | O_CLOEXEC));
             }
@@ -1279,9 +1507,19 @@ setup_newroot (bool unshare_pid)
             if (op->type == SETUP_DEV_BIND_MOUNT)
               bind_flags |= BIND_DEVICES;
 
-            setup_op_bind_mount_fd (bind_flags, source_fd, op->source, dest_fd, op->dest);
+            /* Prefer the caller's original descriptor for --[ro-]bind-fd.
+             * The reopened source and identity check below remain necessary
+             * for the traditional mount API on older kernels. */
+            bind_mount_result result = BIND_MOUNT_UNSUPPORTED;
+            if (op->fd >= 0)
+              result = bind_mount_fd_new (op->fd, dest_fd, BIND_RECURSIVE | bind_flags);
+            if (result == BIND_MOUNT_UNSUPPORTED)
+              setup_op_bind_mount_fd (bind_flags, source_fd, op->source, dest_fd, op->dest);
+            else if (result != BIND_MOUNT_SUCCESS)
+              die_with_bind_result (result, errno, op->dest,
+                                    "Can't bind fd %d on %s", op->fd, op->dest);
 
-            /* When using bind-fd, there is a race condition between resolving the fd as a magic symlink
+            /* When using the traditional API for bind-fd, there is a race condition between resolving the fd as a magic symlink
              * and mounting it, where someone could replace what is at the symlink target. Ideally
              * we would not even resolve the symlink and directly bind-mount from the fd, but unfortunately
              * we can't do that, because its not permitted to bind mount a fd from another user namespace.
@@ -1388,7 +1626,22 @@ setup_newroot (bool unshare_pid)
             if (unshare_pid || opt_pidns_fd != -1)
               {
                 /* Our own procfs */
-                if (mount ("proc", dest_path, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
+                bool mounted = false;
+#ifdef HAVE_DETACHED_MOUNTS
+                if (use_single_pivot)
+                  {
+                    single_pivot_mount_filesystem (&single_pivot, "proc",
+                                                  MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC | MOUNT_ATTR_NODEV,
+                                                  0, 0, dest_fd, op->dest);
+                    mounted = true;
+                  }
+                else
+#endif
+                if (!opt_force_mount_setattr_fallback)
+                  mounted = mount_filesystem_fd ("proc", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC | MOUNT_ATTR_NODEV,
+                                                  0, 0, dest_fd, op->dest);
+                if (!mounted &&
+                    mount ("proc", dest_path, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
                   die_with_mount_error ("Can't mount proc on %s", op->dest);
               }
             else
@@ -1474,7 +1727,24 @@ setup_newroot (bool unshare_pid)
                 die_with_error ("Can't open %s/pts", op->dest);
               cleanup_free char *pts_path = fd_to_proc_path (pts_fd);
 
-              if (mount ("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC,
+              bool mounted = false;
+#ifdef HAVE_DETACHED_MOUNTS
+              if (use_single_pivot)
+                {
+                  cleanup_free char *pts_display = strconcat (op->dest, "/pts");
+                  single_pivot_mount_filesystem (&single_pivot, "devpts", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC,
+                                                0, 0, pts_fd, pts_display);
+                  mounted = true;
+                }
+              else
+#endif
+              if (!opt_force_mount_setattr_fallback)
+                {
+                  cleanup_free char *pts_display = strconcat (op->dest, "/pts");
+                  mounted = mount_filesystem_fd ("devpts", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC,
+                                                  0, 0, pts_fd, pts_display);
+                }
+              if (!mounted && mount ("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC,
                          "newinstance,ptmxmode=0666,mode=620") != 0)
                 die_with_mount_error ("Can't mount devpts on %s/pts", op->dest);
             }
@@ -2878,7 +3148,6 @@ main (int    argc,
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
   const char *exec_path = NULL;
-  int i;
   struct sigaction sa = {};
 
   /* Handle --version early on before we try to acquire/drop
@@ -3251,104 +3520,42 @@ main (int    argc,
   /* Need to do this before the chroot, but after we're the real uid */
   resolve_symlinks_in_ops ();
 
+#ifdef HAVE_DETACHED_MOUNTS
+  if (single_pivot_layout_supported ())
+    single_pivot.root_fd = single_pivot_prepare ();
+  use_single_pivot = single_pivot.root_fd >= 0;
+#endif
+
   /* Mark everything as slave, so that we still
    * receive mounts from the real root, but don't
    * propagate mounts to the real root. */
   if (mount (NULL, "/", NULL, MS_SILENT | MS_SLAVE | MS_REC, NULL) < 0)
     die_with_mount_error ("Failed to make / slave");
 
-  /* Create a tmpfs which we will use as / in the namespace */
-  if (mount ("tmpfs", base_path, "tmpfs", MS_NODEV | MS_NOSUID, NULL) != 0)
-    die_with_mount_error ("Failed to mount tmpfs");
-
-  old_cwd = get_current_dir_name ();
-
-  /* Chdir to the new root tmpfs mount. This will be the CWD during
-     the entire setup. Access old or new root via "oldroot" and "newroot". */
-  if (chdir (base_path) != 0)
-    die_with_error ("chdir base_path");
-
-  /* We create a subdir "$base_path/newroot" for the new root, that
-   * way we can pivot_root to base_path, and put the old root at
-   * "$base_path/oldroot". This avoids problems accessing the oldroot
-   * dir if the user requested to bind mount something over / (or
-   * over /tmp, now that we use that for base_path). */
-
-  if (mkdir ("newroot", 0755))
-    die_with_error ("Creating newroot failed");
-
-  if (mount ("newroot", "newroot", NULL, MS_SILENT | MS_MGC_VAL | MS_BIND | MS_REC, NULL) < 0)
-    die_with_mount_error ("setting up newroot bind");
-
-  if (mkdir ("oldroot", 0755))
-    die_with_error ("Creating oldroot failed");
-
-  for (i = 0; i < opt_tmp_overlay_count; i++)
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
     {
-      char *dirname;
-      dirname = xasprintf ("tmp-overlay-upper-%d", i);
-      if (mkdir (dirname, 0755))
-        die_with_error ("Creating --tmp-overlay upperdir failed");
-      free (dirname);
-      dirname = xasprintf ("tmp-overlay-work-%d", i);
-      if (mkdir (dirname, 0755))
-        die_with_error ("Creating --tmp-overlay workdir failed");
-      free (dirname);
+      /* The detached root has not covered any host path. Save cwd before
+       * entering it, so relative working directories retain their meaning. */
+      old_cwd = get_current_dir_name ();
+      single_pivot.host_fd = open ("/", O_PATH | O_DIRECTORY | O_CLOEXEC);
+      if (single_pivot.host_fd < 0)
+        die_with_error ("single-pivot: retain host root");
     }
-
-  if (pivot_root (base_path, "oldroot"))
-    die_with_error ("pivot_root");
-
-  if (chdir ("/") != 0)
-    die_with_error ("chdir / (base path)");
-
-  /* Bind-mount proc so /proc/self/fd/N paths work for fd-based mount() calls */
-  if (mkdir ("proc", 0755))
-    die_with_error ("Creating proc failed");
-  if (mount ("oldroot/proc", "proc", NULL, MS_SILENT | MS_BIND | MS_REC, NULL) != 0)
-    die_with_mount_error ("mounting proc");
+  else
+#endif
+    old_cwd = prepare_legacy_root (base_path);
 
   setup_newroot (opt_unshare_pid);
 
   close_ops_fd ();
 
-  /* The old root better be rprivate or we will send unmount events to the parent namespace */
-  if (mount ("oldroot", "oldroot", NULL, MS_SILENT | MS_REC | MS_PRIVATE, NULL) != 0)
-    die_with_mount_error ("Failed to make old root rprivate");
-
-  if (umount2 ("oldroot", MNT_DETACH))
-    die_with_error ("unmount old root");
-
-  /* This is our second pivot. It's like we're a Silicon Valley startup flush
-   * with cash but short on ideas!
-   *
-   * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
-   * that we need a temporary place to store it before we can unmount it.
-   */
-  { cleanup_fd int oldrootfd = TEMP_FAILURE_RETRY (open ("/", O_DIRECTORY | O_RDONLY));
-    if (oldrootfd < 0)
-      die_with_error ("can't open /");
-    if (chdir ("/newroot") != 0)
-      die_with_error ("chdir /newroot");
-    /* While the documentation claims that put_old must be underneath
-     * new_root, it is perfectly fine to use the same directory as the
-     * kernel checks only if old_root is accessible from new_root.
-     *
-     * Both runc and LXC are using this "alternative" method for
-     * setting up the root of the container:
-     *
-     * https://github.com/opencontainers/runc/blob/HEAD/libcontainer/rootfs_linux.go#L671
-     * https://github.com/lxc/lxc/blob/HEAD/src/lxc/conf.c#L1121
-     */
-    if (pivot_root (".", ".") != 0)
-      die_with_error ("pivot_root(/newroot)");
-    if (fchdir (oldrootfd) < 0)
-      die_with_error ("fchdir to oldroot");
-    if (umount2 (".", MNT_DETACH) < 0)
-      die_with_error ("umount old root");
-    if (chdir ("/") != 0)
-      die_with_error ("chdir /");
-  }
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    single_pivot_enter (&single_pivot, base_path);
+  else
+#endif
+    enter_legacy_root ();
 
   if (opt_userns2_fd != -1 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
     die_with_error ("Setting userns2 failed");
