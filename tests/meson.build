@@ -71,3 +71,14 @@ foreach test_script : test_scripts
     )
   endif
 endforeach
+
+# Fault injection asserts use of the descriptor mount implementation.
+if have_fd_mounts
+  if meson.version().version_compare('>=0.50.0')
+    test('test-mount-api.py', python, args : [files('test-mount-api.py')],
+         env : test_env, protocol : 'tap', timeout : 120)
+  else
+    test('test-mount-api.py', python, args : [files('test-mount-api.py')],
+         env : test_env, timeout : 120)
+  endif
+endif

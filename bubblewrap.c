@@ -1279,9 +1279,19 @@ setup_newroot (bool unshare_pid)
             if (op->type == SETUP_DEV_BIND_MOUNT)
               bind_flags |= BIND_DEVICES;
 
-            setup_op_bind_mount_fd (bind_flags, source_fd, op->source, dest_fd, op->dest);
+            /* Prefer the caller's original descriptor for --[ro-]bind-fd.
+             * The reopened source and identity check below remain necessary
+             * for the traditional mount API on older kernels. */
+            bind_mount_result result = BIND_MOUNT_UNSUPPORTED;
+            if (op->fd >= 0)
+              result = bind_mount_fd_new (op->fd, dest_fd, BIND_RECURSIVE | bind_flags);
+            if (result == BIND_MOUNT_UNSUPPORTED)
+              setup_op_bind_mount_fd (bind_flags, source_fd, op->source, dest_fd, op->dest);
+            else if (result != BIND_MOUNT_SUCCESS)
+              die_with_bind_result (result, errno, op->dest,
+                                    "Can't bind fd %d on %s", op->fd, op->dest);
 
-            /* When using bind-fd, there is a race condition between resolving the fd as a magic symlink
+            /* When using the traditional API for bind-fd, there is a race condition between resolving the fd as a magic symlink
              * and mounting it, where someone could replace what is at the symlink target. Ideally
              * we would not even resolve the symlink and directly bind-mount from the fd, but unfortunately
              * we can't do that, because its not permitted to bind mount a fd from another user namespace.

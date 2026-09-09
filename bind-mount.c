@@ -417,6 +417,58 @@ bind_mount (const char   *src,
 }
 
 bind_mount_result
+bind_mount_fd_new (int           src_fd,
+                   int           dest_fd,
+                   bind_option_t options)
+{
+#ifdef HAVE_FD_MOUNTS
+  struct stat st;
+  struct mount_attr attr = {
+    .attr_set = MOUNT_ATTR_NOSUID |
+                ((options & BIND_DEVICES) ? 0 : MOUNT_ATTR_NODEV) |
+                ((options & BIND_READONLY) ? MOUNT_ATTR_RDONLY : 0),
+    /* An original caller fd can refer to a shared mount outside the new
+     * namespace. Receive its events without sending changes back to it. */
+    .propagation = MS_SLAVE,
+  };
+
+  if (opt_force_mount_setattr_fallback)
+    return BIND_MOUNT_UNSUPPORTED;
+  if (fstat (src_fd, &st) < 0)
+    return BIND_MOUNT_ERROR_MOUNT;
+  if (S_ISLNK (st.st_mode))
+    {
+      errno = ELOOP;
+      return BIND_MOUNT_ERROR_MOUNT;
+    }
+
+  unsigned recursive = (options & BIND_RECURSIVE) && S_ISDIR (st.st_mode) ? AT_RECURSIVE : 0;
+  cleanup_fd int tree = open_tree (src_fd, "", OPEN_TREE_CLONE | OPEN_TREE_CLOEXEC |
+                                   AT_EMPTY_PATH | recursive);
+  if (tree < 0)
+    {
+      /* Some kernels cannot clone an fd retained from the parent's mount
+       * namespace. No mount has been attached, so the caller can reopen and
+       * verify that source with the existing implementation. */
+      return (errno == ENOSYS || errno == EINVAL) ? BIND_MOUNT_UNSUPPORTED : BIND_MOUNT_ERROR_MOUNT;
+    }
+
+  /* Only add restrictions to the private clone; retain inherited flags. */
+  if (mount_setattr_wrapper (tree, "", AT_EMPTY_PATH | recursive, &attr, sizeof attr) < 0)
+    return errno == ENOSYS ? BIND_MOUNT_UNSUPPORTED : BIND_MOUNT_ERROR_MOUNT_SETATTR;
+  if (move_mount (tree, "", dest_fd, "",
+                  MOVE_MOUNT_F_EMPTY_PATH | MOVE_MOUNT_T_EMPTY_PATH) < 0)
+    return errno == ENOSYS ? BIND_MOUNT_UNSUPPORTED : BIND_MOUNT_ERROR_MOUNT;
+  return BIND_MOUNT_SUCCESS;
+#else
+  (void) src_fd;
+  (void) dest_fd;
+  (void) options;
+  return BIND_MOUNT_UNSUPPORTED;
+#endif
+}
+
+bind_mount_result
 bind_mount_fd (int           src_fd,
                int           dest_fd,
                bind_option_t options,
@@ -425,6 +477,21 @@ bind_mount_fd (int           src_fd,
   bool recursive = (options & BIND_RECURSIVE) != 0;
   cleanup_free char *resolved_dest = NULL;
   cleanup_free char *dest_proc = NULL;
+
+  if (src_fd >= 0)
+    {
+      bind_mount_result result = bind_mount_fd_new (src_fd, dest_fd, options);
+      if (result != BIND_MOUNT_UNSUPPORTED)
+        {
+          if (result != BIND_MOUNT_SUCCESS && failing_path != NULL)
+            {
+              int saved_errno = errno;
+              *failing_path = fd_to_proc_path (dest_fd);
+              errno = saved_errno;
+            }
+          return result;
+        }
+    }
 
   dest_proc = fd_to_proc_path (dest_fd);
 
@@ -594,6 +661,11 @@ bind_mount_result_to_string (bind_mount_result res,
         string = xstrdup ("Success");
         break;
 
+      case BIND_MOUNT_UNSUPPORTED:
+        string = xstrdup ("File-descriptor mount API is unavailable");
+        want_errno = false;
+        break;
+
       default:
         string = xstrdup ("(unknown/invalid bind_mount_result)");
         break;
@@ -644,6 +716,7 @@ die_with_bind_result (bind_mount_result res,
           case BIND_MOUNT_ERROR_OPEN_FD:
           case BIND_MOUNT_ERROR_MOUNT_SETATTR:
           case BIND_MOUNT_SUCCESS:
+          case BIND_MOUNT_UNSUPPORTED:
           default:
             fprintf (stderr, ": %s", strerror (saved_errno));
         }
