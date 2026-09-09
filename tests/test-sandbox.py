@@ -7,8 +7,6 @@
 # the @sandbox_test_class decorator auto-generates the host-side
 # test_* methods that launch bwrap and run them.
 
-import ctypes
-import ctypes.util
 import importlib.util
 import os
 import stat
@@ -112,21 +110,16 @@ class TestSandbox(unittest.TestCase):
         with open(path) as f:
             self.assertEqual(f.read(), expected)
 
-    _libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
-    TMPFS_MAGIC = 0x01021994
-
-    def _statfs_type(self, path):
-        class statfs_t(ctypes.Structure):
-            _fields_ = [('f_type', ctypes.c_long), ('f_bsize', ctypes.c_long)]
-        buf = statfs_t()
-        rc = self._libc.statfs(path.encode(), ctypes.byref(buf))
-        self.assertEqual(rc, 0, f'statfs({path}) failed')
-        return buf.f_type
-
     def assertIsTmpfs(self, path):
-        fs_type = self._statfs_type(path)
-        self.assertEqual(fs_type, self.TMPFS_MAGIC,
-                         f'{path} is not tmpfs (f_type=0x{fs_type:x})')
+        # Avoid a ctypes statfs buffer: libc writes the entire structure,
+        # whose layout depends on the architecture, even if we only need type.
+        filesystems = {}
+        with open('/proc/self/mounts') as mounts:
+            for line in mounts:
+                fields = line.split()
+                filesystems[fields[1]] = fields[2]
+        self.assertEqual(filesystems.get(path), 'tmpfs',
+                         f'{path} is not a tmpfs mount')
 
     def assertIsMountpoint(self, path):
         self.assertIn(path, list_mounts(),
