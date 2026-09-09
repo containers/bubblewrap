@@ -1496,7 +1496,14 @@ setup_newroot (bool unshare_pid)
                 die_with_error ("Can't open %s/pts", op->dest);
               cleanup_free char *pts_path = fd_to_proc_path (pts_fd);
 
-              if (mount ("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC,
+              bool mounted = false;
+              if (!opt_force_mount_setattr_fallback)
+                {
+                  cleanup_free char *pts_display = strconcat (op->dest, "/pts");
+                  mounted = mount_filesystem_fd ("devpts", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC,
+                                                  0, 0, pts_fd, pts_display);
+                }
+              if (!mounted && mount ("devpts", pts_path, "devpts", MS_NOSUID | MS_NOEXEC,
                          "newinstance,ptmxmode=0666,mode=620") != 0)
                 die_with_mount_error ("Can't mount devpts on %s/pts", op->dest);
             }

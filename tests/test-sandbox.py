@@ -377,6 +377,14 @@ class TestSandbox(unittest.TestCase):
             self.assertIsSymlink(f'/dev/{link}')
         self.assertIsDir('/dev/pts')
         self.assertIsDir('/dev/shm')
+        self.assertMountFlags('/dev/pts', [os.ST_NOSUID, os.ST_NOEXEC], [os.ST_NODEV])
+        self.assertEqual(stat.S_IMODE(os.stat('/dev/pts/ptmx').st_mode), 0o666)
+        master, slave = os.openpty()
+        try:
+            self.assertEqual(stat.S_IMODE(os.fstat(slave).st_mode), 0o620)
+        finally:
+            os.close(master)
+            os.close(slave)
 
     # ------ dir ------
 

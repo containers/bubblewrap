@@ -41,10 +41,11 @@ def mount_apis_available():
 @unittest.skipUnless(mount_apis_available(), 'kernel lacks descriptor mount APIs')
 class TestMountApi(unittest.TestCase):
     def run_filtered(self, syscall, error, *extra,
-                     mounts=('--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp')):
+                     mounts=('--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp'),
+                     match=()):
         def load_filter():
             policy = seccomp.SyscallFilter(defaction=seccomp.ALLOW)
-            policy.add_rule(seccomp.ERRNO(error), syscall)
+            policy.add_rule(seccomp.ERRNO(error), syscall, *match)
             policy.load()
 
         # A root overmount keeps this fixture on the original root lifecycle.
@@ -115,6 +116,21 @@ class TestMountApi(unittest.TestCase):
                         self.assertNotEqual(result.returncode, 0)
                         self.assertIn(b'proc', result.stderr)
                         self.assertIn(syscall.encode(), result.stderr)
+
+    @unittest.skipUnless(os.environ.get('BWRAP_TEST_FILESYSTEM_MOUNTS') == '1',
+                         'filesystem mount APIs not compiled in')
+    def test_devpts_syscalls(self):
+        # Only devpts uses FSCONFIG_SET_FLAG (newinstance), so the tmpfs
+        # creation for /dev succeeds before this injected failure.
+        for error in (errno.ENOSYS, errno.EPERM):
+            with self.subTest(error=error):
+                result = self.run_filtered('fsconfig', error,
+                    match=(seccomp.Arg(1, seccomp.EQ, 0),))
+                if error == errno.ENOSYS:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(b'fsconfig newinstance for devpts on /dev/pts', result.stderr)
 
 
 if __name__ == '__main__':

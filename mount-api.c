@@ -43,6 +43,13 @@ create_detached_mount (const char *type, unsigned attrs, uint32_t perms,
             return -1;
         }
     }
+  if (strcmp (type, "devpts") == 0)
+    {
+      if (!configure_filesystem (context, FSCONFIG_SET_FLAG, "newinstance", NULL, type, dest_display) ||
+          !configure_filesystem (context, FSCONFIG_SET_STRING, "ptmxmode", "0666", type, dest_display) ||
+          !configure_filesystem (context, FSCONFIG_SET_STRING, "mode", "620", type, dest_display))
+        return -1;
+    }
   if (!configure_filesystem (context, FSCONFIG_CMD_CREATE, NULL, NULL, type, dest_display))
     return -1;
   int tree = fsmount (context, FSMOUNT_CLOEXEC, attrs);
