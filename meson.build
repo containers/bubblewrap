@@ -109,6 +109,15 @@ if have_fd_mounts
   cdata.set('HAVE_FD_MOUNTS', 1)
 endif
 
+have_filesystem_mounts = have_fd_mounts
+foreach function : ['fsopen', 'fsconfig', 'fsmount']
+  have_filesystem_mounts = have_filesystem_mounts and cc.has_function(
+    function, prefix : '#define _GNU_SOURCE\n#include <sys/mount.h>')
+endforeach
+if have_filesystem_mounts
+  cdata.set('HAVE_FILESYSTEM_MOUNTS', 1)
+endif
+
 configure_file(
   output : 'config.h',
   configuration : cdata,
@@ -131,6 +140,7 @@ bwrap = executable(
   [
     'bubblewrap.c',
     'bind-mount.c',
+    'mount-api.c',
     'network.c',
     'utils.c',
     'chroot_realpath.c',

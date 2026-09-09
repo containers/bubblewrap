@@ -40,6 +40,7 @@
 #include "utils.h"
 #include "network.h"
 #include "bind-mount.h"
+#include "mount-api.h"
 
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
@@ -968,6 +969,12 @@ setup_op_tmpfs_mount (uint32_t    perms,
    * the --size option as well. However, better be safe than sorry. */
   if (size > MAX_TMPFS_BYTES)
     die_with_error ("Specified tmpfs size too large (%zu > %zu)", size, MAX_TMPFS_BYTES);
+
+  /* Keep SELinux-labelled mounts on the existing option-handling path. */
+  if (opt_file_label == NULL && !opt_force_mount_setattr_fallback &&
+      mount_filesystem_fd ("tmpfs", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV,
+                           perms, size, dest_fd, dest_display))
+    return;
 
   if (size != 0)
     mode = xasprintf ("mode=%#o,size=%zu", perms, size);

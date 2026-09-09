@@ -83,6 +83,25 @@ class TestMountApi(unittest.TestCase):
                     '--debug-opt=force-mount-setattr-fallback')
                 self.assertEqual(result.returncode, 0, result.stderr)
 
+    @unittest.skipUnless(os.environ.get('BWRAP_TEST_FILESYSTEM_MOUNTS') == '1',
+                         'filesystem mount APIs not compiled in')
+    def test_absent_filesystem_syscalls(self):
+        for syscall in ('fsopen', 'fsconfig', 'fsmount'):
+            with self.subTest(syscall=syscall):
+                result = self.run_filtered(syscall, errno.ENOSYS)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    @unittest.skipUnless(os.environ.get('BWRAP_TEST_FILESYSTEM_MOUNTS') == '1',
+                         'filesystem mount APIs not compiled in')
+    def test_denied_filesystem_syscalls(self):
+        for syscall in ('fsopen', 'fsconfig', 'fsmount'):
+            with self.subTest(syscall=syscall):
+                result = self.run_filtered(syscall, errno.EPERM)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(syscall.encode(), result.stderr)
+                self.assertIn(b'tmpfs', result.stderr)
+                self.assertIn(b'Operation not permitted', result.stderr)
+
 
 if __name__ == '__main__':
     _helper.run_tap_tests(sys.modules[__name__])

@@ -74,6 +74,7 @@ endforeach
 
 # Fault injection asserts use of the descriptor mount implementation.
 if have_fd_mounts
+  test_env.set('BWRAP_TEST_FILESYSTEM_MOUNTS', have_filesystem_mounts ? '1' : '0')
   if meson.version().version_compare('>=0.50.0')
     test('test-mount-api.py', python, args : [files('test-mount-api.py')],
          env : test_env, protocol : 'tap', timeout : 120)
