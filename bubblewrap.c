@@ -41,6 +41,7 @@
 #include "network.h"
 #include "bind-mount.h"
 #include "mount-api.h"
+#include "newroot-mount.h"
 
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
@@ -77,6 +78,10 @@ static bool opt_unshare_cgroup = false;
 static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
 static bool opt_new_session = false;
+#ifdef HAVE_DETACHED_MOUNTS
+static bool use_single_pivot = false;
+static SinglePivot single_pivot = { .root_fd = -1, .host_fd = -1 };
+#endif
 static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
@@ -858,6 +863,87 @@ drop_privs (bool keep_requested_caps)
     die_with_error ("can't set dumpable");
 }
 
+#ifdef HAVE_DETACHED_MOUNTS
+/* The retained root descriptor cannot follow a mount placed over /.
+ * Keep relative paths and dot components on the existing setup path too. */
+static bool
+single_pivot_destination_supported (const char *path)
+{
+  if (path == NULL || path[0] != '/')
+    return false;
+
+  while (*path == '/')
+    path++;
+  if (*path == '\0')
+    return false;
+
+  while (*path)
+    {
+      const char *end = strchr (path, '/');
+      size_t length = end ? (size_t) (end - path) : strlen (path);
+
+      if ((length == 1 && path[0] == '.') ||
+          (length == 2 && path[0] == '.' && path[1] == '.'))
+        return false;
+      path += length;
+      while (*path == '/')
+        path++;
+    }
+  return true;
+}
+
+static bool
+single_pivot_layout_supported (void)
+{
+  SetupOp *op;
+
+  if (real_uid == 0 || !opt_unshare_user || !opt_unshare_pid ||
+      opt_userns_fd != -1 || opt_userns2_fd != -1 || opt_userns_block_fd != -1 ||
+      opt_pidns_fd != -1 || opt_file_label != NULL || opt_not_a_security_boundary ||
+      opt_force_openat_fallback || opt_force_mount_setattr_fallback)
+    return false;
+  for (op = ops; op; op = op->next)
+    {
+      /* Start with layouts whose root and destination construction can use a
+       * retained descriptor. Preserve the existing implementation for other
+       * operations, root overmounts, relative paths and dot components. */
+      if (op->fd >= 0)
+        return false;
+      switch (op->type)
+        {
+        case SETUP_BIND_MOUNT:
+        case SETUP_RO_BIND_MOUNT:
+        case SETUP_DEV_BIND_MOUNT:
+        case SETUP_MOUNT_PROC:
+        case SETUP_MOUNT_DEV:
+        case SETUP_MOUNT_TMPFS:
+        case SETUP_MAKE_DIR:
+          if (!single_pivot_destination_supported (op->dest))
+            return false;
+          break;
+
+        case SETUP_SET_HOSTNAME:
+          break;
+
+        case SETUP_MAKE_SYMLINK:
+        case SETUP_OVERLAY_MOUNT:
+        case SETUP_TMP_OVERLAY_MOUNT:
+        case SETUP_RO_OVERLAY_MOUNT:
+        case SETUP_OVERLAY_SRC:
+        case SETUP_MOUNT_MQUEUE:
+        case SETUP_MAKE_FILE:
+        case SETUP_MAKE_BIND_FILE:
+        case SETUP_MAKE_RO_BIND_FILE:
+        case SETUP_REMOUNT_RO_NO_RECURSIVE:
+        case SETUP_CHMOD:
+        default:
+          return false;
+        }
+    }
+  return true;
+}
+#endif /* HAVE_DETACHED_MOUNTS */
+
 static char *
 prepare_legacy_root (const char *base_path)
 {
@@ -963,6 +1049,15 @@ enter_legacy_root (void)
 static int
 openat_in_root (const char *root, const char *path, int flags)
 {
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      if (strcmp (root, "/oldroot") == 0)
+        return single_pivot_openat2 (single_pivot.host_fd, path, flags);
+      if (strcmp (root, "/newroot") == 0)
+        return single_pivot_openat2 (single_pivot.root_fd, path, flags);
+    }
+#endif
   /* We have reopen the root dir, because we typically mount on top of
    * /newroot (e.g. with --bind / /), which an old O_PATH fd will not
    * pick up */
@@ -1031,6 +1126,13 @@ setup_op_bind_mount_fd (bind_option_t options,
                         int           dest_fd,
                         const char   *dest_display)
 {
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      single_pivot_bind (&single_pivot, options, src_fd, src_display, dest_fd, dest_display);
+      return;
+    }
+#endif
   bind_mount_result bind_result;
   char *failing_path = NULL;
 
@@ -1072,6 +1174,14 @@ setup_op_tmpfs_mount (uint32_t    perms,
   if (size > MAX_TMPFS_BYTES)
     die_with_error ("Specified tmpfs size too large (%zu > %zu)", size, MAX_TMPFS_BYTES);
 
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      single_pivot_mount_filesystem (&single_pivot, "tmpfs", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV,
+                                    perms, size, dest_fd, dest_display);
+      return;
+    }
+#endif
   /* Keep SELinux-labelled mounts on the existing option-handling path. */
   if (opt_file_label == NULL && !opt_force_mount_setattr_fallback &&
       mount_filesystem_fd ("tmpfs", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV,
@@ -1262,7 +1372,16 @@ setup_newroot (bool unshare_pid)
                * for these. This should be fine because /proc doesn't have any regular
                * absolute symlinks, and the magic links should work fine.
                */
-              cleanup_free char *proc_oldroot_path = get_oldroot_path (op->source);
+              cleanup_free char *proc_oldroot_path = NULL;
+#ifdef HAVE_DETACHED_MOUNTS
+              if (use_single_pivot)
+                {
+                  cleanup_free char *host_root = fd_to_proc_path (single_pivot.host_fd);
+                  proc_oldroot_path = strconcat (host_root, op->source);
+                }
+              else
+#endif
+                proc_oldroot_path = get_oldroot_path (op->source);
               source_fd = TEMP_FAILURE_RETRY (
                 open (proc_oldroot_path, O_PATH | O_CLOEXEC));
             }
@@ -1508,6 +1627,16 @@ setup_newroot (bool unshare_pid)
               {
                 /* Our own procfs */
                 bool mounted = false;
+#ifdef HAVE_DETACHED_MOUNTS
+                if (use_single_pivot)
+                  {
+                    single_pivot_mount_filesystem (&single_pivot, "proc",
+                                                  MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC | MOUNT_ATTR_NODEV,
+                                                  0, 0, dest_fd, op->dest);
+                    mounted = true;
+                  }
+                else
+#endif
                 if (!opt_force_mount_setattr_fallback)
                   mounted = mount_filesystem_fd ("proc", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC | MOUNT_ATTR_NODEV,
                                                   0, 0, dest_fd, op->dest);
@@ -1599,6 +1728,16 @@ setup_newroot (bool unshare_pid)
               cleanup_free char *pts_path = fd_to_proc_path (pts_fd);
 
               bool mounted = false;
+#ifdef HAVE_DETACHED_MOUNTS
+              if (use_single_pivot)
+                {
+                  cleanup_free char *pts_display = strconcat (op->dest, "/pts");
+                  single_pivot_mount_filesystem (&single_pivot, "devpts", MOUNT_ATTR_NOSUID | MOUNT_ATTR_NOEXEC,
+                                                0, 0, pts_fd, pts_display);
+                  mounted = true;
+                }
+              else
+#endif
               if (!opt_force_mount_setattr_fallback)
                 {
                   cleanup_free char *pts_display = strconcat (op->dest, "/pts");
@@ -3381,19 +3520,42 @@ main (int    argc,
   /* Need to do this before the chroot, but after we're the real uid */
   resolve_symlinks_in_ops ();
 
+#ifdef HAVE_DETACHED_MOUNTS
+  if (single_pivot_layout_supported ())
+    single_pivot.root_fd = single_pivot_prepare ();
+  use_single_pivot = single_pivot.root_fd >= 0;
+#endif
+
   /* Mark everything as slave, so that we still
    * receive mounts from the real root, but don't
    * propagate mounts to the real root. */
   if (mount (NULL, "/", NULL, MS_SILENT | MS_SLAVE | MS_REC, NULL) < 0)
     die_with_mount_error ("Failed to make / slave");
 
-  old_cwd = prepare_legacy_root (base_path);
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    {
+      /* The detached root has not covered any host path. Save cwd before
+       * entering it, so relative working directories retain their meaning. */
+      old_cwd = get_current_dir_name ();
+      single_pivot.host_fd = open ("/", O_PATH | O_DIRECTORY | O_CLOEXEC);
+      if (single_pivot.host_fd < 0)
+        die_with_error ("single-pivot: retain host root");
+    }
+  else
+#endif
+    old_cwd = prepare_legacy_root (base_path);
 
   setup_newroot (opt_unshare_pid);
 
   close_ops_fd ();
 
-  enter_legacy_root ();
+#ifdef HAVE_DETACHED_MOUNTS
+  if (use_single_pivot)
+    single_pivot_enter (&single_pivot, base_path);
+  else
+#endif
+    enter_legacy_root ();
 
   if (opt_userns2_fd != -1 && setns (opt_userns2_fd, CLONE_NEWUSER) != 0)
     die_with_error ("Setting userns2 failed");

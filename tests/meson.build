@@ -83,3 +83,9 @@ if have_fd_mounts
          env : test_env, timeout : 120)
   endif
 endif
+
+# This script uses normal exit-status reporting, rather than TAP.
+if have_detached_mounts
+  test('test-single-pivot', python, args : [files('test-single-pivot.py')],
+       env : test_env, timeout : 120)
+endif

@@ -118,6 +118,11 @@ if have_filesystem_mounts
   cdata.set('HAVE_FILESYSTEM_MOUNTS', 1)
 endif
 
+have_detached_mounts = have_filesystem_mounts and cc.has_header('linux/openat2.h') and cc.has_header_symbol('sys/syscall.h', 'SYS_openat2')
+if have_detached_mounts
+  cdata.set('HAVE_DETACHED_MOUNTS', 1)
+endif
+
 configure_file(
   output : 'config.h',
   configuration : cdata,
@@ -141,6 +146,7 @@ bwrap = executable(
     'bubblewrap.c',
     'bind-mount.c',
     'mount-api.c',
+    'newroot-mount.c',
     'network.c',
     'utils.c',
     'chroot_realpath.c',
