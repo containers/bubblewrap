@@ -17,10 +17,6 @@ There is a feature in the Linux kernel called
 which allows unprivileged users to use container features. Bubblewrap uses these to
 build the sandbox, allowing any user to use the tool.
 
-Historically, bubblewrap also supported a setuid mode for systems where
-unprivileged user namespaces were not supported. However, this has been
-removed.
-
 The original bubblewrap code existed before user namespaces - it inherits code from
 [xdg-app helper](https://cgit.freedesktop.org/xdg-app/xdg-app/tree/common/xdg-app-helper.c?id=4c3bf179e2e4a2a298cd1db1d045adaf3f564532)
 which in turn distantly derives from
