@@ -1,3 +1,47 @@
+bubblewrap 0.13.0
+=================
+
+Released: not yet
+
+Dependencies:
+
+  * Linux kernel headers with `__NR_pivot_root` (Linux 2.3.41+)
+    are required at build-time on all architectures (#789).
+
+  * If compiled with `-Dassume_kernel=5.12.0` or newer,
+    then a kernel with the `mount_setattr` syscall is required at runtime,
+    and kernel headers with `__NR_mount_setattr` are required at build-time
+    on most architectures.
+    On the `x86_64`, `i386` and `aarch64` architectures,
+    a fallback is provided to be able to compile with pre-5.12 kernel headers.
+    (#756, #785)
+
+Enhancements:
+
+  * On kernels that support it (5.12+), use `mount_setattr()` to remount
+    filesystems with `ro`, `nodev` and/or `nosuid`. (#756)
+
+  * Arguments that expect a path argument (`--bind`, `--overlay-src`, etc.)
+    now reject empty strings.
+    Previously they would sometimes be treated as the root directory
+    due to implementation details, but this was unintended.
+    (#771)
+
+Bug fixes:
+
+  * Fix build failures with older gcc or older `-std` argument (#773, #786)
+
+  * Fix build failure with musl (#782)
+
+  * Fix test failure on systems that lack hostname(1) (#775)
+
+  * Fix test failure on systems with a mount point containing a backslash
+    (#778)
+
+  * Don't leave a temporary file behind after running the test suite (#775)
+
+Thanks: abhinavmir, ao2, smcv, vaibhav8a, xxyzz
+
 bubblewrap 0.12.0
 =================
 
