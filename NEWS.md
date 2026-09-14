@@ -47,6 +47,12 @@ bubblewrap 0.12.0
 
 Released: 2026-08-26
 
+Dependencies:
+
+  * If compiled with `-Dassume_kernel=5.6.0` or newer,
+    then a kernel with the `openat2` syscall is required at runtime,
+    and kernel headers with `__NR_openat2` are required at build-time.
+
 Enhancements:
 
  * The flag --not-a-security-boundary was added. If this is enabled
