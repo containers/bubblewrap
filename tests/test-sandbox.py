@@ -138,7 +138,15 @@ class TestSandbox(unittest.TestCase):
                             f'expected bwrap to fail, stderr: {result.stderr!r}')
 
     def assertMountFlags(self, path, expected, unexpected):
-        flags = os.statvfs(path).f_flag
+        try:
+            flags = os.statvfs(path).f_flag
+        except PermissionError:
+            if path.endswith('/doc'):
+                # https://github.com/flatpak/xdg-desktop-portal/issues/553
+                return
+            else:
+                raise
+
         for f in expected:
             self.assertTrue(flags & f, f'{path}: expected flag {f:#x} not set')
         for f in unexpected:
@@ -328,7 +336,16 @@ class TestSandbox(unittest.TestCase):
             if any(mountpoint == p or mountpoint.startswith(p + '/')
                    for p in skip_prefixes):
                 continue
-            flags = os.statvfs(mountpoint).f_flag
+
+            try:
+                flags = os.statvfs(mountpoint).f_flag
+            except PermissionError:
+                if mountpoint.endswith('/doc'):
+                    # https://github.com/flatpak/xdg-desktop-portal/issues/553
+                    return
+                else:
+                    raise
+
             self.assertTrue(
                 flags & os.ST_RDONLY,
                 f'{mountpoint} is not read-only',
