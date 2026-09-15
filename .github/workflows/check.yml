@@ -26,7 +26,7 @@ jobs:
       run: mkdir test-logs
     - name: setup
       run: |
-        meson setup _build -Db_sanitize=address,undefined -Doptimization=2
+        meson setup _build -Db_sanitize=address,undefined -Ddebug_logging=true -Doptimization=2
       env:
         CFLAGS: >-
           -Wp,-D_FORTIFY_SOURCE=2
@@ -38,11 +38,13 @@ jobs:
         ./_build/bwrap --bind / / --tmpfs /tmp true
       env:
         ASAN_OPTIONS: detect_leaks=0
+        DEBUG_INVOCATION: '1'
     - name: test
       run: |
         BWRAP_MUST_WORK=1 meson test -C _build
       env:
         ASAN_OPTIONS: detect_leaks=0
+        DEBUG_INVOCATION: '1'
     - name: Collect overall test logs on failure
       if: failure()
       run: mv _build/meson-logs/testlog.txt test-logs/ || true
