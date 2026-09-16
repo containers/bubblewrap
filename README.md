@@ -86,7 +86,7 @@ and can be installed from there.
 If you need to build bubblewrap from source, you can do this with meson:
 
 ```sh
-meson _builddir
+meson setup _builddir
 meson compile -C _builddir
 meson test -C _builddir
 meson install -C _builddir
