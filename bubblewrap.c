@@ -2920,6 +2920,11 @@ main (int    argc,
   /* Get the (optional) privileges we need */
   acquire_privs ();
 
+#ifdef BWRAP_DEBUG
+  if (getenv ("DEBUG_INVOCATION") != NULL)
+    bwrap_is_debugging = true;
+#endif
+
   /* Never gain any more privs during exec */
   if (prctl (PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0)
     die_with_error ("prctl(PR_SET_NO_NEW_PRIVS) failed");

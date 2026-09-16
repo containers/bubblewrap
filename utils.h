@@ -33,7 +33,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if 0
+#ifdef BWRAP_DEBUG
+extern bool bwrap_is_debugging;
 #define debug(...) bwrap_log (LOG_DEBUG, __VA_ARGS__)
 #else
 #define debug(...)

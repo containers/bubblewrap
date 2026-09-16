@@ -473,6 +473,7 @@ mount_setattr_fallback (const char *resolved_dest,
                         char **failing_path)
 {
 #if !USE_MOUNT_SETATTR_FALLBACK
+  debug ("No mount_setattr fallback");
   (void) resolved_dest;
   (void) options;
 
@@ -488,6 +489,12 @@ mount_setattr_fallback (const char *resolved_dest,
   unsigned long current_flags, new_flags;
   cleanup_mount_tab MountTab mount_tab = NULL;
   int i;
+
+  debug ("Remounting mount table entries (%s %s) on  \"%s\" %s",
+         readonly ? "ro" : "rw",
+         devices ? "dev" : "nodev",
+         resolved_dest,
+         recursive ? "recursively" : "only");
 
   mount_tab = parse_mountinfo (resolved_dest);
   if (mount_tab[0].mountpoint == NULL)
@@ -520,6 +527,7 @@ mount_setattr_fallback (const char *resolved_dest,
     {
       for (i = 1; mount_tab[i].mountpoint != NULL; i++)
         {
+          debug ("Acting on submount %s", mount_tab[i].mountpoint);
           current_flags = mount_tab[i].options;
           new_flags = current_flags | (devices ? 0 : MS_NODEV) | MS_NOSUID | (readonly ? MS_RDONLY : 0);
           if (new_flags != current_flags &&
@@ -548,6 +556,7 @@ mount_setattr_fallback (const char *resolved_dest,
         }
     }
 
+  debug ("-> success");
   return BIND_MOUNT_SUCCESS;
 #endif /* USE_MOUNT_SETATTR_FALLBACK */
 }
@@ -679,6 +688,12 @@ mount_setattr_setup (const char *resolved_dest,
         .attr_set = MOUNT_ATTR_NOSUID,
       };
 
+      debug ("Setting mount attributes (%s %s) on  \"%s\" %s",
+             readonly ? "ro" : "rw",
+             devices ? "dev" : "nodev",
+             resolved_dest,
+             recursive ? "recursively" : "only");
+
       if (!devices)
         attr.attr_set |= MOUNT_ATTR_NODEV;
 
@@ -703,6 +718,7 @@ mount_setattr_setup (const char *resolved_dest,
 
       if (mount_setattr_wrapper (resolved_dest_fd, "", setattr_flags, &attr, sizeof(attr)) == 0)
         {
+          debug ("-> success");
           return BIND_MOUNT_SUCCESS;
         }
       else if (errno != ENOSYS)
@@ -711,6 +727,8 @@ mount_setattr_setup (const char *resolved_dest,
             *failing_path = xstrdup (resolved_dest);
           return BIND_MOUNT_ERROR_MOUNT_SETATTR;
         }
+
+      debug ("-> Falling back");
     }
   /* mount_setattr(2) isn't available, so we'll have to do this the hard way: */
   mount_attr_supported = false;

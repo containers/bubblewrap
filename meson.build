@@ -87,6 +87,10 @@ if selinux_dep.found()
   endif
 endif
 
+if get_option('debug')
+  cdata.set('BWRAP_DEBUG', 1)
+endif
+
 assume_kernel = get_option('assume_kernel')
 if assume_kernel != ''
   kernel_parts = assume_kernel.split('.')

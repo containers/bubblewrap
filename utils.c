@@ -39,6 +39,10 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
+#ifdef BWRAP_DEBUG
+bool bwrap_is_debugging = false;
+#endif
+
 bool bwrap_level_prefix = false;
 int proc_fd = -1;
 
@@ -48,6 +52,9 @@ bwrap_logv (int severity,
             va_list args,
             const char *detail)
 {
+  if (severity == LOG_DEBUG && !bwrap_is_debugging)
+    return;
+
   if (bwrap_level_prefix)
     fprintf (stderr, "<%d>", severity);
 

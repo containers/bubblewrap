@@ -32,6 +32,12 @@ option(
   value : 'auto',
 )
 option(
+  'debug_logging',
+  type : 'boolean',
+  description : 'Provide debug messages, off-by-default',
+  value : false,
+)
+option(
   'program_prefix',
   type : 'string',
   description : 'Prepend string to bwrap executable name, for use with subprojects',
