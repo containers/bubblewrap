@@ -27,6 +27,11 @@ Enhancements:
     due to implementation details, but this was unintended.
     (#771)
 
+  * A new build option `-Ddebug_logging=true` can be used to enable
+    verbose debug logging (not recommended for distro builds).
+    These debug messages don't appear unless environment variable
+    `DEBUG_INVOCATION` is set at runtime.
+
 Bug fixes:
 
   * Fix build failures with older gcc or older `-std` argument (#773, #786)
@@ -39,6 +44,8 @@ Bug fixes:
     (#778)
 
   * Don't leave a temporary file behind after running the test suite (#775)
+
+  * CI improvements
 
 Thanks: abhinavmir, ao2, smcv, vaibhav8a, xxyzz
 
