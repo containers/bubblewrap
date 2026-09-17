@@ -66,6 +66,7 @@ if dpkg-vendor --derives-from Debian; then
         pkg-config \
         python3 \
         xsltproc \
+        python3-seccomp \
         ${NULL+}
 
     if [ -n "${opt_clang}" ]; then
