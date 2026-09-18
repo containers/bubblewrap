@@ -351,6 +351,16 @@ class TestSandbox(unittest.TestCase):
                 f'{mountpoint} is not read-only',
             )
 
+    @in_sandbox('--debug-opt=force-bind-mount-fallback')
+    def _test_ro_bind_root_is_recursive_bind_mount_fallback(self):
+        self._test_ro_bind_root_is_recursive()
+
+    def test_ro_bind_root_is_recursive_bind_mount_fallback(self):
+        if get_assumed_kernel() >= (5, 2, 0):
+            self.skipTest('mount() fallback not compiled')
+        else:
+            self._test_ro_bind_root_is_recursive_bind_mount_fallback()
+
     # ------ tmpfs ------
 
     @in_sandbox('--tmpfs', '/tmp/t')

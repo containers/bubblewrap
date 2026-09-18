@@ -160,6 +160,7 @@ int   label_create_file (const char *file_label);
 
 extern bool opt_force_openat_fallback;
 extern bool opt_force_mount_setattr_fallback;
+extern bool opt_force_bind_mount_fallback;
 
 int safe_openat (int dirfd,
                  const char *rootfs,
@@ -318,5 +319,16 @@ struct mount_attr
 #define AT_RECURSIVE  0x8000
 #endif
 
+#ifndef OPEN_TREE_CLONE
+#define OPEN_TREE_CLONE         (1 << 0)
+#define OPEN_TREE_CLOEXEC       O_CLOEXEC
+#define MOVE_MOUNT_F_EMPTY_PATH 0x00000004
+#define MOVE_MOUNT_T_EMPTY_PATH 0x00000040
+#endif
+
 int mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
                            struct mount_attr *attr, size_t size);
+int open_tree_wrapper (int dirfd, const char *path, unsigned int flags);
+int move_mount_wrapper (int from_dirfd, const char *from_path,
+                        int to_dirfd, const char *to_path,
+                        unsigned int flags);

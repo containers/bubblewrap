@@ -1133,3 +1133,27 @@ mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
   return -1;
 #endif
 }
+
+int
+open_tree_wrapper (int dirfd, const char *path, unsigned int flags)
+{
+#ifdef __NR_open_tree
+  return syscall (__NR_open_tree, dirfd, path, flags);
+#else
+  errno = ENOSYS;
+  return -1;
+#endif
+}
+
+int
+move_mount_wrapper (int from_dirfd, const char *from_path, int to_dirfd,
+                    const char *to_path, unsigned int flags)
+{
+#ifdef __NR_move_mount
+  return syscall (__NR_move_mount, from_dirfd, from_path, to_dirfd,
+                  to_path, flags);
+#else
+  errno = ENOSYS;
+  return -1;
+#endif
+}
