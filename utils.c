@@ -309,25 +309,112 @@ has_prefix (const char *str,
   return strncmp (str, prefix, strlen (prefix)) == 0;
 }
 
+/* clearenv()/unsetenv() leave the initial strings readable via
+ * /proc/PID/environ, so overwrite them once unreferenced. */
+static char **initial_environ = NULL;
+
+static void
+save_initial_environ (void)
+{
+  size_t n = 0;
+
+  if (initial_environ != NULL)
+    return;
+
+  if (environ != NULL)
+    while (environ[n] != NULL)
+      n++;
+
+  initial_environ = xcalloc (n + 1, sizeof (char *));
+  if (n > 0)
+    memcpy (initial_environ, environ, n * sizeof (char *));
+}
+
+static void
+scrub_string (char *s)
+{
+#ifdef HAVE_EXPLICIT_BZERO
+  explicit_bzero (s, strlen (s));
+#else
+  volatile char *p = s;
+
+  while (*p != 0)
+    *p++ = 0;
+#endif
+}
+
+static bool
+still_in_environ (const char *s)
+{
+  size_t i;
+
+  if (environ == NULL)
+    return false;
+
+  for (i = 0; environ[i] != NULL; i++)
+    if (environ[i] == s)
+      return true;
+
+  return false;
+}
+
+static void
+scrub_initial_env (const char *name)
+{
+  size_t name_len = name != NULL ? strlen (name) : 0;
+  size_t i;
+
+  save_initial_environ ();
+
+  for (i = 0; initial_environ[i] != NULL; i++)
+    {
+      char *s = initial_environ[i];
+
+      if (*s == 0)
+        continue;
+
+      if (name != NULL &&
+          (strncmp (s, name, name_len) != 0 || s[name_len] != '='))
+        continue;
+
+      if (still_in_environ (s))
+        continue;
+
+      scrub_string (s);
+    }
+}
+
 void
 xclearenv (void)
 {
+  save_initial_environ ();
+
   if (clearenv () != 0)
     die_with_error ("clearenv failed");
+
+  scrub_initial_env (NULL);
 }
 
 void
 xsetenv (const char *name, const char *value, int overwrite)
 {
+  save_initial_environ ();
+
   if (setenv (name, value, overwrite))
     die ("setenv failed");
+
+  scrub_initial_env (name);
 }
 
 void
 xunsetenv (const char *name)
 {
+  save_initial_environ ();
+
   if (unsetenv (name))
     die ("unsetenv failed");
+
+  scrub_initial_env (name);
 }
 
 char *
