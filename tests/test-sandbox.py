@@ -536,8 +536,13 @@ class TestSandbox(unittest.TestCase):
 
     # ------ overlay ------
 
-    def test_tmp_overlay(self):
-        result = run_bwrap('--overlay-src', self.src.dir,
+    # More lower layers than fit in the one page the kernel keeps of a
+    # mount(2) options string, but fewer than overlayfs stacks at most.
+    MANY_LAYERS = 250
+
+    def _test_tmp_overlay(self, *extra_args):
+        result = run_bwrap(*extra_args,
+                           '--overlay-src', self.src.dir,
                            '--tmp-overlay', '/tmp/ov',
                            'cat', '/tmp/ov/child')
         if result.returncode != 0 and b'overlay' in result.stderr.lower():
@@ -545,8 +550,17 @@ class TestSandbox(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'child content')
 
-    def test_ro_overlay(self):
-        result = run_bwrap('--overlay-src', self.src.dir,
+    def test_tmp_overlay(self):
+        self._test_tmp_overlay()
+
+    def test_tmp_overlay_fallback(self):
+        if get_assumed_kernel() >= (6, 7, 0):
+            self.skipTest('overlay mount(2) fallback not compiled')
+        self._test_tmp_overlay('--debug-opt=force-overlay-fallback')
+
+    def _test_ro_overlay(self, *extra_args):
+        result = run_bwrap(*extra_args,
+                           '--overlay-src', self.src.dir,
                            '--overlay-src', self.src.dir2,
                            '--ro-overlay', '/tmp/ov',
                            'cat', '/tmp/ov/child')
@@ -554,6 +568,45 @@ class TestSandbox(unittest.TestCase):
             self.skipTest('overlayfs not available')
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, b'child content')
+
+    def test_ro_overlay(self):
+        self._test_ro_overlay()
+
+    def test_ro_overlay_fallback(self):
+        if get_assumed_kernel() >= (6, 7, 0):
+            self.skipTest('overlay mount(2) fallback not compiled')
+        self._test_ro_overlay('--debug-opt=force-overlay-fallback')
+
+    def _test_many_layer_overlay(self, tmp_dir, *extra_args):
+        args = []
+        for i in range(self.MANY_LAYERS):
+            lower = os.path.join(tmp_dir, 'l%d' % i)
+            os.mkdir(lower)
+            with open(os.path.join(lower, 'f%d' % i), 'w') as f:
+                f.write(str(i))
+            args += ['--overlay-src', lower]
+        return run_bwrap(*extra_args, *args,
+                         '--ro-overlay', '/tmp/ov',
+                         'ls', '/tmp/ov')
+
+    def test_overlay_many_layers(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = self._test_many_layer_overlay(tmp_dir)
+            if result.returncode != 0 and b'overlay' in result.stderr.lower():
+                self.skipTest('overlayfs cannot stack %d layers'
+                              % self.MANY_LAYERS)
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(len(result.stdout.split()), self.MANY_LAYERS)
+
+    def test_overlay_many_layers_fallback(self):
+        if get_assumed_kernel() >= (6, 7, 0):
+            self.skipTest('overlay mount(2) fallback not compiled')
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = self._test_many_layer_overlay(
+                tmp_dir, '--debug-opt=force-overlay-fallback')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(b'do not fit in the mount(2) options string',
+                          result.stderr)
 
     # ------ Edge cases: source path with symlinks ------
 
