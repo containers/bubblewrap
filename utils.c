@@ -1135,3 +1135,97 @@ mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
   return -1;
 #endif
 }
+
+/* fsopen(), fsconfig(), fsmount() and move_mount() are part of the same "new
+ * mount API" as mount_setattr(); provide the syscall numbers on the same
+ * architectures. */
+#ifndef __NR_move_mount
+# if (defined(__x86_64__) && defined(__LP64__)) \
+     || defined(__i386__) \
+     || (defined(__aarch64__) && defined(__LP64__))
+#   define __NR_move_mount 429
+# endif
+#endif
+#ifndef __NR_fsopen
+# if (defined(__x86_64__) && defined(__LP64__)) \
+     || defined(__i386__) \
+     || (defined(__aarch64__) && defined(__LP64__))
+#   define __NR_fsopen 430
+# endif
+#endif
+#ifndef __NR_fsconfig
+# if (defined(__x86_64__) && defined(__LP64__)) \
+     || defined(__i386__) \
+     || (defined(__aarch64__) && defined(__LP64__))
+#   define __NR_fsconfig 431
+# endif
+#endif
+#ifndef __NR_fsmount
+# if (defined(__x86_64__) && defined(__LP64__)) \
+     || defined(__i386__) \
+     || (defined(__aarch64__) && defined(__LP64__))
+#   define __NR_fsmount 432
+# endif
+#endif
+
+int
+fsopen_wrapper (const char *fsname, unsigned int flags)
+{
+#ifdef __NR_fsopen
+  return (int) syscall (__NR_fsopen, fsname, flags);
+#else
+  (void) fsname;
+  (void) flags;
+  errno = ENOSYS;
+  return -1;
+#endif
+}
+
+int
+fsconfig_wrapper (int fd, unsigned int cmd, const char *key,
+                  const void *value, int aux)
+{
+#ifdef __NR_fsconfig
+  return (int) syscall (__NR_fsconfig, fd, cmd, key, value, aux);
+#else
+  (void) fd;
+  (void) cmd;
+  (void) key;
+  (void) value;
+  (void) aux;
+  errno = ENOSYS;
+  return -1;
+#endif
+}
+
+int
+fsmount_wrapper (int fd, unsigned int flags, unsigned int attr_flags)
+{
+#ifdef __NR_fsmount
+  return (int) syscall (__NR_fsmount, fd, flags, attr_flags);
+#else
+  (void) fd;
+  (void) flags;
+  (void) attr_flags;
+  errno = ENOSYS;
+  return -1;
+#endif
+}
+
+int
+move_mount_wrapper (int from_dirfd, const char *from_path,
+                    int to_dirfd, const char *to_path, unsigned int flags)
+{
+#ifdef __NR_move_mount
+  return (int) syscall (__NR_move_mount, from_dirfd, from_path,
+                        to_dirfd, to_path, flags);
+#else
+  (void) from_dirfd;
+  (void) from_path;
+  (void) to_dirfd;
+  (void) to_path;
+  (void) flags;
+  errno = ENOSYS;
+  return -1;
+#endif
+}
