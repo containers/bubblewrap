@@ -87,7 +87,7 @@ if selinux_dep.found()
   endif
 endif
 
-if get_option('debug')
+if get_option('debug_logging')
   cdata.set('BWRAP_DEBUG', 1)
 endif
 
