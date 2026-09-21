@@ -52,8 +52,10 @@ bwrap_logv (int severity,
             va_list args,
             const char *detail)
 {
+#ifdef BWRAP_DEBUG
   if (severity == LOG_DEBUG && !bwrap_is_debugging)
     return;
+#endif
 
   if (bwrap_level_prefix)
     fprintf (stderr, "<%d>", severity);
