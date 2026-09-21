@@ -1231,6 +1231,14 @@ overlay_mount_legacy (const char *dest,
 
   strappend (&sb, ",userxattr");
 
+  /* The kernel silently truncates the options string at one page, which would
+   * cut a layer path in half and make overlayfs report an overlap that isn't
+   * there. Say what is really wrong instead. */
+  if (sb.offset >= (size_t) sysconf (_SC_PAGESIZE))
+    die ("Can't make overlay mount on %s: %zu lower layers do not fit in the "
+         "mount(2) options string; Linux 6.7 or later is required for more",
+         dest, n_lower);
+
   if (mount ("overlay", dest_path, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
     {
       /* The standard message for ELOOP, "Too many levels of symbolic
