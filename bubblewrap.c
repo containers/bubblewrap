@@ -1127,6 +1127,50 @@ reopen_newroot_fd (int dest_fd, const char *dest_path)
   return dest_fd;
 }
 
+/* Mount an overlay with a single mount(2) call, passing every layer in one
+ * options string. */
+static void
+overlay_mount_legacy (const char *dest,
+                      int         dest_fd,
+                      const char *upper_path,
+                      const char *work_path,
+                      const int  *lower_fds,
+                      size_t      n_lower)
+{
+  StringBuilder sb = {0};
+  cleanup_free char *dest_path = fd_to_proc_path (dest_fd);
+  size_t i;
+
+  if (upper_path != NULL)
+    strappendf (&sb, "upperdir=%s,workdir=%s,", upper_path, work_path);
+
+  strappend (&sb, "lowerdir=");
+  for (i = 0; i < n_lower; i++)
+    {
+      cleanup_free char *lower_path = fd_to_proc_path (lower_fds[i]);
+
+      if (i > 0)
+        strappend (&sb, ":");
+      strappend (&sb, lower_path);
+    }
+
+  strappend (&sb, ",userxattr");
+
+  if (mount ("overlay", dest_path, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
+    {
+      /* The standard message for ELOOP, "Too many levels of symbolic
+       * links", is not helpful here. */
+      if (errno == ELOOP)
+        die ("Can't make overlay mount on %s with options %s: "
+             "Overlay directories may not overlap",
+             dest, sb.str);
+      die_with_mount_error ("Can't make overlay mount on %s with options %s",
+                            dest, sb.str);
+    }
+
+  free (sb.str);
+}
+
 static void
 setup_newroot (bool unshare_pid)
 {
@@ -1313,59 +1357,43 @@ setup_newroot (bool unshare_pid)
         case SETUP_RO_OVERLAY_MOUNT:
         case SETUP_TMP_OVERLAY_MOUNT:
           {
-            StringBuilder sb = {0};
-            bool multi_src = false;
             cleanup_fdset FdSet fds = {0};
-            cleanup_free char *dest_path = fd_to_proc_path (dest_fd);
+            cleanup_free char *upper_path = NULL;
+            cleanup_free char *work_path = NULL;
             /* The loop below advances op past the SETUP_OVERLAY_SRC ops, which
              * carry no dest of their own. */
             const char *dest = op->dest;
+            size_t first_lower;
 
             if (op->source != NULL)
               {
-                cleanup_free char *upper_path = fdset_add_to_proc_path (&fds, steal_fd (&source_fd));
-                strappendf (&sb, "upperdir=%s,", upper_path);
+                upper_path = fdset_add_to_proc_path (&fds, steal_fd (&source_fd));
 
                 op = op->next;
                 int work_fd = openat_in_root ("/oldroot", op->source, O_PATH);
                 if (work_fd < 0)
                   die_with_error ("Can't open overlay workdir %s", op->source);
-                cleanup_free char *work_path = fdset_add_to_proc_path (&fds, work_fd);
-                strappendf (&sb, "workdir=%s,", work_path);
+                work_path = fdset_add_to_proc_path (&fds, work_fd);
               }
             else if (op->type == SETUP_TMP_OVERLAY_MOUNT)
-              strappendf (&sb, "upperdir=/tmp-overlay-upper-%1$d,workdir=/tmp-overlay-work-%1$d,",
-                          tmp_overlay_idx++);
+              {
+                upper_path = xasprintf ("/tmp-overlay-upper-%d", tmp_overlay_idx);
+                work_path = xasprintf ("/tmp-overlay-work-%d", tmp_overlay_idx);
+                tmp_overlay_idx++;
+              }
 
-            strappend (&sb, "lowerdir=");
+            first_lower = fds.len;
             while (op->next != NULL && op->next->type == SETUP_OVERLAY_SRC)
               {
                 op = op->next;
                 int lower_fd = openat_in_root ("/oldroot", op->source, O_PATH);
                 if (lower_fd < 0)
                   die_with_error ("Can't open overlay source %s", op->source);
-                cleanup_free char *lower_path = fdset_add_to_proc_path (&fds, lower_fd);
-                if (multi_src)
-                  strappend (&sb, ":");
-                strappend (&sb, lower_path);
-                multi_src = true;
+                fdset_add (&fds, lower_fd);
               }
 
-            strappend (&sb, ",userxattr");
-
-            if (mount ("overlay", dest_path, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
-              {
-                /* The standard message for ELOOP, "Too many levels of symbolic
-                 * links", is not helpful here. */
-                if (errno == ELOOP)
-                  die ("Can't make overlay mount on %s with options %s: "
-                       "Overlay directories may not overlap",
-                       dest, sb.str);
-                die_with_mount_error ("Can't make overlay mount on %s with options %s",
-                                      dest, sb.str);
-              }
-
-            free (sb.str);
+            overlay_mount_legacy (dest, dest_fd, upper_path, work_path,
+                                  fds.fds + first_lower, fds.len - first_lower);
           }
           break;
 
