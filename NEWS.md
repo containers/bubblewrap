@@ -23,10 +23,24 @@ Dependencies:
     a fallback is provided to be able to compile with pre-5.12 kernel headers.
     (#756, #785)
 
+  * If compiled with `-Dassume_kernel=6.7.0` or newer,
+    then a kernel that can mount overlayfs with the `fsopen` syscall family
+    is required at runtime,
+    and kernel headers with `__NR_fsopen` are required at build-time
+    on most architectures.
+    On the `x86_64`, `i386` and `aarch64` architectures,
+    a fallback is provided to be able to compile with pre-5.2 kernel headers.
+
 Enhancements:
 
   * On kernels that support it (5.12+), use `mount_setattr()` to remount
     filesystems with `ro`, `nodev` and/or `nosuid`. (#756)
+
+  * On kernels that support it (6.7+), mount overlayfs with `fsopen()` and
+    one `fsconfig()` call per layer. Previously all layers had to fit in a
+    single mount option string of one page, which limited `--overlay-src` to
+    roughly 200 layers and reported the overflow as a spurious overlap
+    between overlay directories.
 
   * Arguments that expect a path argument (`--bind`, `--overlay-src`, etc.)
     now reject empty strings.
