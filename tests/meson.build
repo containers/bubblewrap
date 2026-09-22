@@ -17,6 +17,7 @@ executable(
 
 test_scripts = [
   'test-run.sh',
+  'test-sandbox.py',
   'test-seccomp.py',
   'test-specifying-pidns.sh',
   'test-specifying-userns.sh',

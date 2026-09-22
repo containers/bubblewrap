@@ -56,8 +56,6 @@ done
 if dpkg-vendor --derives-from Debian; then
     apt-get -y update
     apt-get -q -y install \
-        autoconf \
-        automake \
         build-essential \
         docbook-xml \
         docbook-xsl \
@@ -68,6 +66,7 @@ if dpkg-vendor --derives-from Debian; then
         pkg-config \
         python3 \
         xsltproc \
+        python3-seccomp \
         ${NULL+}
 
     if [ -n "${opt_clang}" ]; then
@@ -81,8 +80,6 @@ if command -v yum; then
     yum -y install \
         'pkgconfig(libselinux)' \
         /usr/bin/eu-readelf \
-        autoconf \
-        automake \
         docbook-style-xsl \
         gcc \
         git \

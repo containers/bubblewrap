@@ -19,10 +19,17 @@
 #include "config.h"
 
 #include "utils.h"
+#include <limits.h>
+#include <stdint.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
+#include <sys/param.h>
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
+#endif
+
+#ifndef __NR_pivot_root
+#error Linux kernel headers with __NR_pivot_root are required
 #endif
 
 #ifndef HAVE_SELINUX_2_3
@@ -32,21 +39,44 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
-__attribute__((format(printf, 1, 0))) static void
-warnv (const char *format, va_list args)
+#ifdef BWRAP_DEBUG
+bool bwrap_is_debugging = false;
+#endif
+
+bool bwrap_level_prefix = false;
+int proc_fd = -1;
+
+__attribute__((format(printf, 2, 0))) static void
+bwrap_logv (int severity,
+            const char *format,
+            va_list args,
+            const char *detail)
 {
+#ifdef BWRAP_DEBUG
+  if (severity == LOG_DEBUG && !bwrap_is_debugging)
+    return;
+#endif
+
+  if (bwrap_level_prefix)
+    fprintf (stderr, "<%d>", severity);
+
   fprintf (stderr, "bwrap: ");
   vfprintf (stderr, format, args);
+
+  if (detail != NULL)
+    fprintf (stderr, ": %s", detail);
+
   fprintf (stderr, "\n");
 }
 
 void
-warn (const char *format, ...)
+bwrap_log (int severity,
+           const char *format, ...)
 {
   va_list args;
 
   va_start (args, format);
-  warnv (format, args);
+  bwrap_logv (severity, format, args, NULL);
   va_end (args);
 }
 
@@ -58,13 +88,24 @@ die_with_error (const char *format, ...)
 
   errsv = errno;
 
-  fprintf (stderr, "bwrap: ");
-
   va_start (args, format);
-  vfprintf (stderr, format, args);
+  bwrap_logv (LOG_ERR, format, args, strerror (errsv));
   va_end (args);
 
-  fprintf (stderr, ": %s\n", strerror (errsv));
+  exit (1);
+}
+
+void
+die_with_mount_error (const char *format, ...)
+{
+  va_list args;
+  int errsv;
+
+  errsv = errno;
+
+  va_start (args, format);
+  bwrap_logv (LOG_ERR, format, args, mount_strerror (errsv));
+  va_end (args);
 
   exit (1);
 }
@@ -75,7 +116,7 @@ die (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args);
+  bwrap_logv (LOG_ERR, format, args, NULL);
   va_end (args);
 
   exit (1);
@@ -110,7 +151,7 @@ fork_intermediate_child (void)
   if (pid == -1)
     die_with_error ("Can't fork for --pidns");
 
-  /* Parent is an process not needed */
+  /* The parent process is not needed */
   if (pid != 0)
     exit (0);
 }
@@ -126,9 +167,9 @@ xmalloc (size_t size)
 }
 
 void *
-xcalloc (size_t size)
+xcalloc (size_t nmemb, size_t size)
 {
-  void *res = calloc (1, size);
+  void *res = calloc (nmemb, size);
 
   if (res == NULL)
     die_oom ();
@@ -138,9 +179,13 @@ xcalloc (size_t size)
 void *
 xrealloc (void *ptr, size_t size)
 {
-  void *res = realloc (ptr, size);
+  void *res;
 
-  if (size != 0 && res == NULL)
+  assert (size != 0);
+
+  res = realloc (ptr, size);
+
+  if (res == NULL)
     die_oom ();
   return res;
 }
@@ -153,6 +198,20 @@ xstrdup (const char *str)
   assert (str != NULL);
 
   res = strdup (str);
+  if (res == NULL)
+    die_oom ();
+
+  return res;
+}
+
+char *
+xstrndup (const char *str, size_t n)
+{
+  char *res;
+
+  assert (str != NULL);
+
+  res = strndup (str, n);
   if (res == NULL)
     die_oom ();
 
@@ -183,7 +242,7 @@ bool
 has_path_prefix (const char *str,
                  const char *prefix)
 {
-  while (TRUE)
+  while (true)
     {
       /* Skip consecutive slashes to reach next path
          element */
@@ -194,13 +253,13 @@ has_path_prefix (const char *str,
 
       /* No more prefix path elements? Done! */
       if (*prefix == 0)
-        return TRUE;
+        return true;
 
       /* Compare path element */
       while (*prefix != 0 && *prefix != '/')
         {
           if (*str != *prefix)
-            return FALSE;
+            return false;
           str++;
           prefix++;
         }
@@ -208,7 +267,7 @@ has_path_prefix (const char *str,
       /* Matched prefix path element,
          must be entire str path element */
       if (*str != '/' && *str != 0)
-        return FALSE;
+        return false;
     }
 }
 
@@ -216,7 +275,7 @@ bool
 path_equal (const char *path1,
             const char *path2)
 {
-  while (TRUE)
+  while (true)
     {
       /* Skip consecutive slashes to reach next path
          element */
@@ -233,14 +292,14 @@ path_equal (const char *path1,
       while (*path1 != 0 && *path1 != '/')
         {
           if (*path1 != *path2)
-            return FALSE;
+            return false;
           path1++;
           path2++;
         }
 
       /* Matched path1 path element, must be entire path element */
       if (*path2 != '/' && *path2 != 0)
-        return FALSE;
+        return false;
     }
 }
 
@@ -338,8 +397,8 @@ xasprintf (const char *format,
 }
 
 int
-fdwalk (int proc_fd, int (*cb)(void *data,
-                               int   fd), void *data)
+fdwalk (int (*cb)(void *data,
+                  int   fd), void *data)
 {
   int open_max;
   int fd;
@@ -347,7 +406,7 @@ fdwalk (int proc_fd, int (*cb)(void *data,
   int res = 0;
   DIR *d;
 
-  dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
+  dfd = TEMP_FAILURE_RETRY (openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY));
   if (dfd == -1)
     return res;
 
@@ -421,7 +480,7 @@ write_to_fd (int         fd,
 
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int
-write_file_at (int         dirfd,
+write_file_at (int         dfd,
                const char *path,
                const char *content)
 {
@@ -429,7 +488,7 @@ write_file_at (int         dirfd,
   bool res;
   int errsv;
 
-  fd = openat (dirfd, path, O_RDWR | O_CLOEXEC, 0);
+  fd = TEMP_FAILURE_RETRY (openat (dfd, path, O_RDWR | O_CLOEXEC, 0));
   if (fd == -1)
     return -1;
 
@@ -454,7 +513,7 @@ create_file (const char *path,
   int res;
   int errsv;
 
-  fd = creat (path, mode);
+  fd = TEMP_FAILURE_RETRY (creat (path, mode));
   if (fd == -1)
     return -1;
 
@@ -479,14 +538,18 @@ ensure_file (const char *path,
      the create file will fail in the read-only
      case with EROFS instead of EEXIST.
 
-     We're trying to set up a mount point for a non-directory, so any
-     non-directory, non-symlink is acceptable - it doesn't necessarily
-     have to be a regular file. */
+     We're trying to set up a mount point for a non-directory, for which
+     the kernel will accept any non-directory. If it's a symlink, follow
+     it and look at the target: again, any non-directory is good enough.
+     We'll only get S_ISLNK if the path is a dangling symlink (target
+     doesn't exist). */
   if (stat (path, &buf) ==  0 &&
       !S_ISDIR (buf.st_mode) &&
       !S_ISLNK (buf.st_mode))
     return 0;
 
+  /* If the file didn't exist, create it. If it was a dangling symlink
+   * (S_ISLNK above) then this will create the target of the symlink. */
   if (create_file (path, mode, NULL) != 0 &&  errno != EEXIST)
     return -1;
 
@@ -503,7 +566,7 @@ copy_file_data (int sfd,
   char buffer[BUFSIZE];
   ssize_t bytes_read;
 
-  while (TRUE)
+  while (true)
     {
       bytes_read = read (sfd, buffer, BUFSIZE);
       if (bytes_read == -1)
@@ -535,11 +598,11 @@ copy_file (const char *src_path,
   int res;
   int errsv;
 
-  sfd = open (src_path, O_CLOEXEC | O_RDONLY);
+  sfd = TEMP_FAILURE_RETRY (open (src_path, O_CLOEXEC | O_RDONLY));
   if (sfd == -1)
     return -1;
 
-  dfd = creat (dst_path, mode);
+  dfd = TEMP_FAILURE_RETRY (creat (dst_path, mode));
   if (dfd == -1)
     {
       errsv = errno;
@@ -577,6 +640,12 @@ load_file_data (int     fd,
     {
       if (data_len == data_read + 1)
         {
+          if (data_len > SSIZE_MAX / 2)
+            {
+              errno = EFBIG;
+              return NULL;
+            }
+
           data_len *= 2;
           data = xrealloc (data, data_len);
         }
@@ -603,14 +672,14 @@ load_file_data (int     fd,
 /* Sets errno on error (== NULL),
  * Always ensures terminating zero */
 char *
-load_file_at (int         dirfd,
+load_file_at (int         dfd,
               const char *path)
 {
   int fd;
   char *data;
   int errsv;
 
-  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
+  fd = TEMP_FAILURE_RETRY (openat (dfd, path, O_CLOEXEC | O_RDONLY));
   if (fd == -1)
     return NULL;
 
@@ -625,11 +694,11 @@ load_file_at (int         dirfd,
 
 /* Sets errno on error (< 0) */
 int
-get_file_mode (const char *pathname)
+get_file_mode (int fd)
 {
   struct stat buf;
 
-  if (stat (pathname, &buf) !=  0)
+  if (fstat (fd, &buf) !=  0)
     return -1;
 
   return buf.st_mode & S_IFMT;
@@ -644,7 +713,8 @@ ensure_dir (const char *path,
   /* We check this ahead of time, otherwise
      the mkdir call can fail in the read-only
      case with EROFS instead of EEXIST on some
-     filesystems (such as NFS) */
+     filesystems (such as NFS).
+     We follow symlinks: it's OK if path is a symlink to a directory. */
   if (stat (path, &buf) == 0)
     {
       if (!S_ISDIR (buf.st_mode))
@@ -716,15 +786,15 @@ mkdir_with_parents (const char *pathname,
    read back with read_pid_from_socket(), and then the kernel has
    translated it between namespaces as needed. */
 void
-send_pid_on_socket (int socket)
+send_pid_on_socket (int sockfd)
 {
   char buf[1] = { 0 };
   struct msghdr msg = {};
   struct iovec iov = { buf, sizeof (buf) };
   const ssize_t control_len_snd = CMSG_SPACE(sizeof(struct ucred));
-  char control_buf_snd[control_len_snd];
+  _Alignas(struct cmsghdr) char control_buf_snd[control_len_snd];
   struct cmsghdr *cmsg;
-  struct ucred *cred;
+  struct ucred cred;
 
   msg.msg_iov = &iov;
   msg.msg_iovlen = 1;
@@ -735,13 +805,13 @@ send_pid_on_socket (int socket)
   cmsg->cmsg_level = SOL_SOCKET;
   cmsg->cmsg_type = SCM_CREDENTIALS;
   cmsg->cmsg_len = CMSG_LEN(sizeof(struct ucred));
-  cred = (struct ucred *)CMSG_DATA(cmsg);
 
-  cred->pid = getpid ();
-  cred->uid = geteuid ();
-  cred->gid = getegid ();
+  cred.pid = getpid ();
+  cred.uid = geteuid ();
+  cred.gid = getegid ();
+  memcpy (CMSG_DATA (cmsg), &cred, sizeof (cred));
 
-  if (sendmsg (socket, &msg, 0) < 0)
+  if (TEMP_FAILURE_RETRY (sendmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't send pid");
 }
 
@@ -758,13 +828,13 @@ create_pid_socketpair (int sockets[2])
 }
 
 int
-read_pid_from_socket (int socket)
+read_pid_from_socket (int sockfd)
 {
   char recv_buf[1] = { 0 };
   struct msghdr msg = {};
   struct iovec iov = { recv_buf, sizeof (recv_buf) };
   const ssize_t control_len_rcv = CMSG_SPACE(sizeof(struct ucred));
-  char control_buf_rcv[control_len_rcv];
+  _Alignas(struct cmsghdr) char control_buf_rcv[control_len_rcv];
   struct cmsghdr* cmsg;
 
   msg.msg_iov = &iov;
@@ -772,7 +842,7 @@ read_pid_from_socket (int socket)
   msg.msg_control = control_buf_rcv;
   msg.msg_controllen = control_len_rcv;
 
-  if (recvmsg (socket, &msg, 0) < 0)
+  if (TEMP_FAILURE_RETRY (recvmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't read pid from socket");
 
   if (msg.msg_controllen <= 0)
@@ -785,8 +855,10 @@ read_pid_from_socket (int socket)
           cmsg->cmsg_type == SCM_CREDENTIALS &&
           payload_len == sizeof(struct ucred))
         {
-          struct ucred *cred = (struct ucred *)CMSG_DATA(cmsg);
-          return cred->pid;
+          struct ucred cred;
+
+          memcpy (&cred, CMSG_DATA (cmsg), sizeof (cred));
+          return cred.pid;
         }
     }
   die ("No pid returned on socket");
@@ -803,6 +875,8 @@ readlink_malloc (const char *pathname)
 
   do
     {
+      if (size > SIZE_MAX / 2)
+        die ("Symbolic link target pathname too long");
       size *= 2;
       value = xrealloc (value, size);
       n = readlink (pathname, value, size - 1);
@@ -823,14 +897,6 @@ get_oldroot_path (const char *path)
   return strconcat ("/oldroot/", path);
 }
 
-char *
-get_newroot_path (const char *path)
-{
-  while (*path == '/')
-    path++;
-  return strconcat ("/newroot/", path);
-}
-
 int
 raw_clone (unsigned long flags,
            void         *child_stack)
@@ -847,12 +913,7 @@ raw_clone (unsigned long flags,
 int
 pivot_root (const char * new_root, const char * put_old)
 {
-#ifdef __NR_pivot_root
   return syscall (__NR_pivot_root, new_root, put_old);
-#else
-  errno = ENOSYS;
-  return -1;
-#endif
 }
 
 char *
@@ -890,4 +951,187 @@ label_exec (UNUSED const char *exec_label)
     return setexeccon (exec_label);
 #endif
   return 0;
+}
+
+/*
+ * Like strerror(), but specialized for a failed mount(2) call.
+ */
+const char *
+mount_strerror (int errsv)
+{
+  switch (errsv)
+    {
+      case ENOSPC:
+        /* "No space left on device" misleads users into thinking there
+         * is some sort of disk-space problem, but mount(2) uses that
+         * errno value to mean something more like "limit exceeded". */
+        return ("Limit exceeded (ENOSPC). "
+                "(Hint: Check that /proc/sys/fs/mount-max is sufficient, "
+                "typically 100000)");
+
+      default:
+        return strerror (errsv);
+    }
+}
+
+char *
+fd_to_proc_path (int fd)
+{
+  return xasprintf ("/proc/self/fd/%d", fd);
+}
+
+/*
+ * Return a + b if it would not overflow.
+ * Die with an "out of memory" error if it would.
+ */
+static size_t
+xadd (size_t a, size_t b)
+{
+#if defined(__GNUC__) && __GNUC__ >= 5
+  size_t result;
+  if (__builtin_add_overflow (a, b, &result))
+    die_oom ();
+  return result;
+#else
+  if (a > SIZE_MAX - b)
+    die_oom ();
+
+  return a + b;
+#endif
+}
+
+/*
+ * Return a * b if it would not overflow.
+ * Die with an "out of memory" error if it would.
+ */
+static size_t
+xmul (size_t a, size_t b)
+{
+#if defined(__GNUC__) && __GNUC__ >= 5
+  size_t result;
+  if (__builtin_mul_overflow (a, b, &result))
+    die_oom ();
+  return result;
+#else
+  if (b != 0 && a > SIZE_MAX / b)
+    die_oom ();
+
+  return a * b;
+#endif
+}
+
+void
+strappend (StringBuilder *dest, const char *src)
+{
+  size_t len = strlen (src);
+  size_t new_offset = xadd (dest->offset, len);
+
+  if (new_offset >= dest->size)
+    {
+      dest->size = xmul (xadd (new_offset, 1), 2);
+      dest->str = xrealloc (dest->str, dest->size);
+    }
+
+  /* Preserves the invariant that dest->str is always null-terminated, even
+   * though the offset is positioned at the null byte for the next write.
+   */
+  strncpy (dest->str + dest->offset, src, len + 1);
+  dest->offset = new_offset;
+}
+
+__attribute__((format (printf, 2, 3)))
+void
+strappendf (StringBuilder *dest, const char *fmt, ...)
+{
+  va_list args;
+  int len;
+  size_t new_offset;
+
+  va_start (args, fmt);
+  len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+  va_end (args);
+  if (len < 0)
+    die_with_error ("vsnprintf");
+  new_offset = xadd (dest->offset, len);
+  if (new_offset >= dest->size)
+    {
+      dest->size = xmul (xadd (new_offset, 1), 2);
+      dest->str = xrealloc (dest->str, dest->size);
+      va_start (args, fmt);
+      len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+      va_end (args);
+      if (len < 0)
+        die_with_error ("vsnprintf");
+    }
+
+  dest->offset = new_offset;
+}
+
+void
+strappend_escape_for_mount_options (StringBuilder *dest, const char *src)
+{
+  bool unescaped = true;
+
+  for (;;)
+    {
+      if (dest->offset == dest->size)
+        {
+          dest->size = MAX (64, xmul (dest->size, 2));
+          dest->str = xrealloc (dest->str, dest->size);
+        }
+      switch (*src)
+        {
+        case '\0':
+          dest->str[dest->offset] = '\0';
+          return;
+
+        case '\\':
+        case ',':
+        case ':':
+          if (unescaped)
+            {
+              dest->str[dest->offset++] = '\\';
+              unescaped = false;
+              continue;
+            }
+          /* else fall through */
+
+        default:
+          dest->str[dest->offset++] = *src;
+          unescaped = true;
+          break;
+        }
+      src++;
+    }
+}
+
+
+/* Enable mount_setattr for systems where the kernel is new enough but
+ * the glibc may lag behind, like it might happen with the Steam runtime.
+ *
+ * This could be expanded for other architectures, but these seem like
+ * the most likely to be backported to old LTS operating systems */
+#ifndef __NR_mount_setattr
+# if (defined(__x86_64__) && defined(__LP64__)) \
+     || defined(__i386__) \
+     || (defined(__aarch64__) && defined(__LP64__))
+#   define __NR_mount_setattr 442
+# endif
+#endif
+
+int
+mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
+                       struct mount_attr *attr, size_t size)
+{
+#ifdef __NR_mount_setattr
+  return syscall (__NR_mount_setattr, dirfd, path, flags, attr, size);
+#else
+  (void) dirfd;
+  (void) path;
+  (void) flags;
+  (void) attr;
+  (void) size;
+  errno = ENOSYS;
+  return -1;
+#endif
 }

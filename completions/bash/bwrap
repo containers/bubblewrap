@@ -51,15 +51,19 @@ _bwrap() {
 		--hostname
 		--info-fd
 		--lock-file
+		--overlay
+		--overlay-src
 		--perms
 		--proc
 		--remount-ro
 		--ro-bind
+		--ro-overlay
 		--seccomp
 		--setenv
 		--size
 		--symlink
 		--sync-fd
+		--tmp-overlay
 		--uid
 		--unsetenv
 		--userns-block-fd

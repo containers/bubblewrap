@@ -32,6 +32,12 @@ option(
   value : 'auto',
 )
 option(
+  'debug_logging',
+  type : 'boolean',
+  description : 'Provide debug messages, off-by-default',
+  value : false,
+)
+option(
   'program_prefix',
   type : 'string',
   description : 'Prepend string to bwrap executable name, for use with subprojects',
@@ -40,12 +46,6 @@ option(
   'python',
   type : 'string',
   description : 'Path to Python 3, or empty to use python3',
-)
-option(
-  'require_userns',
-  type : 'boolean',
-  description : 'require user namespaces by default when installed setuid',
-  value : 'false',
 )
 option(
   'selinux',
@@ -57,7 +57,13 @@ option(
   'tests',
   type : 'boolean',
   description : 'build tests',
-  value : 'true',
+  value : true,
+)
+option(
+  'assume_kernel',
+  type : 'string',
+  description : 'Assume at least this kernel version (e.g. 6.1.0). Compile out fallback code for older kernels.',
+  value : '',
 )
 option(
   'zsh_completion',

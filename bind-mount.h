@@ -25,25 +25,30 @@ typedef enum {
   BIND_READONLY = (1 << 0),
   BIND_DEVICES = (1 << 2),
   BIND_RECURSIVE = (1 << 3),
+  BIND_FAIL_OPEN = (1 << 4),
 } bind_option_t;
 
 typedef enum
 {
   BIND_MOUNT_SUCCESS = 0,
   BIND_MOUNT_ERROR_MOUNT,
-  BIND_MOUNT_ERROR_REALPATH_DEST,
-  BIND_MOUNT_ERROR_REOPEN_DEST,
   BIND_MOUNT_ERROR_READLINK_DEST_PROC_FD,
   BIND_MOUNT_ERROR_FIND_DEST_MOUNT,
   BIND_MOUNT_ERROR_REMOUNT_DEST,
   BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
+  BIND_MOUNT_ERROR_OPEN_FD,
+  BIND_MOUNT_ERROR_MOUNT_SETATTR,
 } bind_mount_result;
 
-bind_mount_result bind_mount (int           proc_fd,
-                              const char   *src,
+bind_mount_result bind_mount (const char   *src,
                               const char   *dest,
                               bind_option_t options,
                               char        **failing_path);
+
+bind_mount_result bind_mount_fd (int           src_fd,
+                                 int           dest_fd,
+                                 bind_option_t options,
+                                 char        **failing_path);
 
 void die_with_bind_result (bind_mount_result res,
                            int               saved_errno,

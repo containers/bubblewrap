@@ -42,8 +42,7 @@
 
 <refsect1><title>Description</title>
 <para>
-  <command>bwrap</command> is a unprivileged low-level sandboxing tool
-  (optionally setuid on older distributions). You
+  <command>bwrap</command> is an unprivileged low-level sandboxing tool. You
   are unlikely to use it directly from the commandline, although that is possible.
 </para>
 <para>
@@ -56,7 +55,7 @@
 <para>
   By default, <command>bwrap</command> creates a new mount namespace for the sandbox.
   Optionally it also sets up new user, ipc, pid, network and uts namespaces (but note the
-  user namespace is required if bwrap is not installed setuid root).
+  user namespace is required if bwrap is not run as root).
   The application in the sandbox can be made to run with a different UID and GID.
 </para>
 <para>
@@ -73,6 +72,10 @@
   <para>
     When options are used multiple times, the last option wins, unless otherwise
     specified.
+  </para>
+  <para>
+    An empty string is not a valid path, so options that take a path
+    reject it with an error.
   </para>
   <para>General options:</para>
   <variablelist>
@@ -95,6 +98,26 @@
     <varlistentry>
       <term><option>--argv0 <arg choice="plain">VALUE</arg></option></term>
       <listitem><para>Set argv[0] to the value <arg choice="plain">VALUE</arg> before running the program</para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--level-prefix</option></term>
+      <listitem>
+        <para>
+          Prefix each line of diagnostic output with a numeric severity
+          level enclosed in angle brackets.
+          The severity levels used are based on the constants used by
+          <citerefentry><refentrytitle>syslog</refentrytitle><manvolnum>3</manvolnum></citerefentry>:
+          for example, <literal>&lt;4&gt;</literal> indicates a warning,
+          because <literal>LOG_WARNING</literal> has numeric value 4.
+          Numbers smaller than 4 indicate fatal errors, and numbers larger
+          than 4 indicate informational messages.
+          These prefixes can be parsed by tools compatible with
+          <literal>logger --prio-prefix</literal> (see
+          <citerefentry><refentrytitle>logger</refentrytitle><manvolnum>1</manvolnum></citerefentry>)
+          or <literal>systemd-cat --level-prefix=1</literal> (see
+          <citerefentry><refentrytitle>systemd-cat</refentrytitle><manvolnum>1</manvolnum></citerefentry>).
+        </para>
+      </listitem>
     </varlistentry>
   </variablelist>
   <para>Options related to kernel namespaces:</para>
@@ -142,7 +165,7 @@
     <varlistentry>
       <term><option>--userns <arg choice="plain">FD</arg></option></term>
       <listitem><para>Use an existing user namespace instead of creating a new one. The namespace must fulfil the permission requirements for setns(), which generally means that it must be a descendant of the currently active user namespace, owned by the same user. </para>
-      <para>This is incompatible with --unshare-user, and doesn't work in the setuid version of bubblewrap.</para></listitem>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--userns2 <arg choice="plain">FD</arg></option></term>
@@ -159,8 +182,7 @@
         <literal>user.max_user_namespaces</literal> sysctl to 1, and then
         entering a nested user namespace which is unable to raise that limit
         in the outer namespace.
-        This option requires <option>--unshare-user</option>, and doesn't work
-        in the setuid version of bubblewrap.
+        This option requires <option>--unshare-user</option>.
       </para></listitem>
     </varlistentry>
     <varlistentry>
@@ -298,6 +320,85 @@
       <listitem><para>Remount the path <arg choice="plain">DEST</arg> as readonly.  It works only on the specified mount point, without changing any other mount point under the specified path</para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--overlay-src <arg choice="plain">SRC</arg></option></term>
+      <listitem>
+        <para>
+          This option does nothing on its own, and must be followed by one of
+          the other <literal>overlay</literal> options. It specifies a host
+          path from which files should be read if they aren't present in a
+          higher layer.
+        </para>
+        <para>
+          This option can be used multiple times to provide multiple sources.
+          The sources are overlaid in the order given, with the first source on
+          the command line at the bottom of the stack: if a given path to be
+          read exists in more than one source, the file is read from the last
+          such source specified.
+        </para>
+        <para>
+          (For readers familiar with overlayfs, note that this is the
+          reverse of the order used by the kernel's <literal>lowerdir</literal>
+          mount option.)
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--overlay <arg choice="plain">RWSRC</arg> <arg choice="plain">WORKDIR</arg> <arg choice="plain">DEST</arg></option></term>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--tmp-overlay <arg choice="plain">DEST</arg></option></term>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--ro-overlay <arg choice="plain">DEST</arg></option></term>
+      <listitem>
+        <para>
+          Use overlayfs to mount the host paths specified by
+          <arg choice="plain">RWSRC</arg> and all immediately preceding
+          <option>--overlay-src</option> on <arg choice="plain">DEST</arg>.
+          <arg choice="plain">DEST</arg> will contain the union of all the files
+          in all the layers.
+        </para>
+        <para>
+          With <arg choice="plain">--overlay</arg> all writes will go to
+          <arg choice="plain">RWSRC</arg>. Reads will come preferentially from
+          <arg choice="plain">RWSRC</arg>, and then from any
+          <option>--overlay-src</option> paths.
+          <arg choice="plain">WORKDIR</arg> must be an empty directory on the
+          same filesystem as <arg choice="plain">RWSRC</arg>, and is used
+          internally by the kernel.
+        </para>
+        <para>
+          With <arg choice="plain">--tmp-overlay</arg> all writes will go to
+          the tmpfs that hosts the sandbox root, in a location not accessible
+          from either the host or the child process. Writes will therefore not
+          be persisted across multiple runs.
+        </para>
+        <para>
+          With <arg choice="plain">--ro-overlay</arg> the filesystem will be
+          mounted read-only. This option requires at least two
+          <option>--overlay-src</option> to precede it.
+        </para>
+        <para>
+          Using <arg choice="plain">--ro-overlay</arg> or providing
+          more than one <option>--overlay-src</option> requires a Linux kernel
+          version of 4.0 or later.
+        </para>
+        <para>
+          Due to limitations of overlayfs, no host directory given via
+          <arg choice="plain">--overlay-src</arg> or
+          <arg choice="plain">--overlay</arg> may be an ancestor of another,
+          after resolving symlinks. Depending on version, the Linux kernel may
+          or may not enforce this, but if not then overlayfs's behavior is
+          undefined.
+        </para>
+        <para>
+          For more information see the Overlay Filesystem documentation in the
+          Linux kernel at
+          https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--proc <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Mount procfs on <arg choice="plain">DEST</arg></para></listitem>
     </varlistentry>
@@ -364,7 +465,16 @@
     </varlistentry>
     <varlistentry>
       <term><option>--symlink <arg choice="plain">SRC</arg> <arg choice="plain">DEST</arg></option></term>
-      <listitem><para>Create a symlink at <arg choice="plain">DEST</arg> with target <arg choice="plain">SRC</arg></para></listitem>
+      <listitem>
+        <para>Create a symlink at <arg choice="plain">DEST</arg> with target
+          <arg choice="plain">SRC</arg>.</para>
+        <para>Since version 0.9.0, it is not considered to be an error if
+          <arg choice="plain">DEST</arg> already exists as a symbolic link and its
+          target is exactly <arg choice="plain">SRC</arg>.</para>
+        <para>Before version 0.9.0, if <arg choice="plain">DEST</arg> already
+          existed, this would be treated as an error (even if its target
+          was identical to <arg choice="plain">SRC</arg>).</para>
+      </listitem>
     </varlistentry>
     <varlistentry>
       <term><option>--chmod <arg choice="plain">OCTAL</arg> <arg choice="plain">PATH</arg></option></term>
@@ -507,6 +617,38 @@
         options are processed in the order they are specified on the
         command line.  Please be careful to the order they are specified.
       </para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--not-a-security-boundary</option></term>
+      <listitem>
+        <para>
+          Declare that this invocation of <command>bwrap</command>
+          is not intended to create a security boundary
+          between the sandbox and the host system.
+          When this option is given,
+          certain non-fatal sandbox setup failures
+          (such as a subdirectory remount failing
+          because an automounter did not respond in time)
+          will produce a warning and will be skipped,
+          rather than causing <command>bwrap</command> to exit with an error.
+          In future releases of bubblewrap
+          the effect of this option might be extended
+          to make other sandbox setup operations non-fatal
+        </para>
+        <para>
+          This option is intended for callers
+          such as <application>xdg-dbus-proxy</application> or Steam
+          that use <command>bwrap</command>
+          to adjust the filesystem layout for a process,
+          but do not rely on it to create a security boundary.
+        </para>
+        <para>
+          Other operations that are fundamental to establishing the sandbox
+          (creating namespaces, <function>pivot_root</function>,
+          dropping capabilities)
+          will still cause a hard failure regardless of this option.
+        </para>
+      </listitem>
     </varlistentry>
   </variablelist>
 </refsect1>

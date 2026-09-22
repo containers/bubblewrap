@@ -12,23 +12,14 @@ on the host.
 User namespaces
 ---------------
 
-There is an effort in the Linux kernel called
+There is a feature in the Linux kernel called
 [user namespaces](https://www.google.com/search?q=user+namespaces+site%3Ahttps%3A%2F%2Flwn.net)
-which attempts to allow unprivileged users to use container features.
-While significant progress has been made, there are
-[still concerns](https://lwn.net/Articles/673597/) about it, and
-it is not available to unprivileged users in several production distributions
-such as CentOS/Red Hat Enterprise Linux 7, Debian Jessie, etc.
+which allows unprivileged users to use container features. Bubblewrap uses these to
+build the sandbox, allowing any user to use the tool.
 
-See for example
-[CVE-2016-3135](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2016-3135)
-which is a local root vulnerability introduced by userns.
-[This March 2016 post](https://lkml.org/lkml/2016/3/9/555) has some
-more discussion.
-
-Bubblewrap could be viewed as setuid implementation of a *subset* of
-user namespaces.  Emphasis on subset - specifically relevant to the
-above CVE, bubblewrap does not allow control over iptables.
+Historically, bubblewrap also supported a setuid mode for systems where
+unprivileged user namespaces were not supported. However, this has been
+removed.
 
 The original bubblewrap code existed before user namespaces - it inherits code from
 [xdg-app helper](https://cgit.freedesktop.org/xdg-app/xdg-app/tree/common/xdg-app-helper.c?id=4c3bf179e2e4a2a298cd1db1d045adaf3f564532)
@@ -68,13 +59,16 @@ or an ad-hoc script) is responsible for defining its own security model,
 and choosing appropriate bubblewrap command-line arguments to implement
 that security model.
 
+Some aspects of sandbox security that require particular care are described
+in the [Limitations](#limitations) section below.
+
 Users
 -----
 
 This program can be shared by all container tools which perform
 non-root operation, such as:
 
- - [Flatpak](http://www.flatpak.org)
+ - [Flatpak](https://www.flatpak.org)
  - [rpm-ostree unprivileged](https://github.com/projectatomic/rpm-ostree/pull/209)
  - [bwrap-oci](https://github.com/projectatomic/bwrap-oci)
 
@@ -89,23 +83,13 @@ Installation
 bubblewrap is available in the package repositories of the most Linux distributions
 and can be installed from there.
 
-If you need to build bubblewrap from source, you can do this with meson or autotools.
+If you need to build bubblewrap from source, you can do this with meson:
 
-meson:
-
-```
-meson _builddir
+```sh
+meson setup _builddir
 meson compile -C _builddir
 meson test -C _builddir
 meson install -C _builddir
-```
-
-autotools:
-
-```
-./autogen.sh
-make
-sudo make install
 ```
 
 Usage
@@ -152,25 +136,49 @@ Any such directories you specify mounted `nodev` by default, and can be made rea
 
 Additionally you can use these kernel features:
 
-User namespaces ([CLONE_NEWUSER](http://linux.die.net/man/2/clone)): This hides all but the current uid and gid from the
+User namespaces ([CLONE_NEWUSER](https://linux.die.net/man/2/clone)): This hides all but the current uid and gid from the
 sandbox. You can also change what the value of uid/gid should be in the sandbox.
 
-IPC namespaces ([CLONE_NEWIPC](http://linux.die.net/man/2/clone)): The sandbox will get its own copy of all the
+IPC namespaces ([CLONE_NEWIPC](https://linux.die.net/man/2/clone)): The sandbox will get its own copy of all the
 different forms of IPCs, like SysV shared memory and semaphores.
 
-PID namespaces ([CLONE_NEWPID](http://linux.die.net/man/2/clone)): The sandbox will not see any processes outside the sandbox. Additionally, bubblewrap will run a trivial pid1 inside your container to handle the requirements of reaping children in the sandbox. This avoids what is known now as the [Docker pid 1 problem](https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem/).
+PID namespaces ([CLONE_NEWPID](https://linux.die.net/man/2/clone)): The sandbox will not see any processes outside the sandbox. Additionally, bubblewrap will run a trivial pid1 inside your container to handle the requirements of reaping children in the sandbox. This avoids what is known now as the [Docker pid 1 problem](https://blog.phusion.nl/docker-and-the-pid-1-zombie-reaping-problem/).
 
 
-Network namespaces ([CLONE_NEWNET](http://linux.die.net/man/2/clone)): The sandbox will not see the network. Instead it will have its own network namespace with only a loopback device.
+Network namespaces ([CLONE_NEWNET](https://linux.die.net/man/2/clone)): The sandbox will not see the network. Instead it will have its own network namespace with only a loopback device.
 
-UTS namespace ([CLONE_NEWUTS](http://linux.die.net/man/2/clone)): The sandbox will have its own hostname.
+UTS namespace ([CLONE_NEWUTS](https://linux.die.net/man/2/clone)): The sandbox will have its own hostname.
 
 Seccomp filters: You can pass in seccomp filters that limit which syscalls can be done in the sandbox. For more information, see [Seccomp](https://en.wikipedia.org/wiki/Seccomp).
 
-If you are not filtering out `TIOCSTI` commands using seccomp filters,
+Limitations
+-----------
+
+As noted in the [Sandbox security](#sandbox-security) section above,
+the level of protection between the sandboxed processes and the host system
+is entirely determined by the arguments passed to bubblewrap.
+Some aspects that require special care are noted here.
+
+- If you are not filtering out `TIOCSTI` commands using seccomp filters,
 argument `--new-session` is needed to protect against out-of-sandbox
 command execution
 (see [CVE-2017-5226](https://github.com/containers/bubblewrap/issues/142)).
+
+- Everything mounted into the sandbox can potentially be used to escalate
+privileges.
+For example, if you bind a D-Bus socket into the sandbox, it can be used to
+execute commands via systemd. You can use
+[xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) to filter
+D-Bus communication.
+
+- Some applications deploy their own sandboxing mechanisms, and these can be
+restricted by the constraints imposed by bubblewrap's sandboxing.
+For example, some web browsers which configure their child proccesses via
+seccomp to not have access to the filesystem. If you limit the syscalls and
+don't allow the seccomp syscall, a browser cannot apply these restrictions.
+Similarly, if these rules were compiled into a file that is not available in
+the sandbox, the browser cannot load these rules from this file and cannot
+apply these restrictions.
 
 Related project comparison: Firejail
 ------------------------------------

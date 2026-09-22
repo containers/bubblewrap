@@ -70,11 +70,22 @@ for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare
     else
         ok_skip "not sure what unreadable file to use"
     fi
-
-    # bind dest in symlink (https://github.com/projectatomic/bubblewrap/pull/119)
-    $RUN $ALT --dir /tmp/dir --symlink dir /tmp/link --bind /etc /tmp/link true
-    ok "can bind a destination over a symlink"
 done
+
+# Test symlink behaviour
+rm -f ./symlink
+$RUN --ro-bind / / --bind "$(pwd)" "$(pwd)" --symlink /dev/null "$(pwd)/symlink" true >&2
+readlink ./symlink > target.txt
+assert_file_has_content target.txt /dev/null
+ok "--symlink works"
+$RUN --ro-bind / / --bind "$(pwd)" "$(pwd)" --symlink /dev/null "$(pwd)/symlink" true >&2
+ok "--symlink is idempotent"
+if $RUN --ro-bind / / --bind "$(pwd)" "$(pwd)" --symlink /dev/full "$(pwd)/symlink" true 2>err.txt; then
+    fatal "creating a conflicting symlink should have failed"
+else
+    assert_file_has_content err.txt "Can't make symlink .*: existing destination is /dev/null"
+fi
+ok "--symlink doesn't overwrite a conflicting symlink"
 
 # Test devices
 $RUN --unshare-pid --dev /dev ls -al /dev/{stdin,stdout,stderr,null,random,urandom,fd,core} >/dev/null
@@ -94,7 +105,7 @@ assert_file_has_content json-status.json '"child-pid": [0-9]'
 assert_file_has_content_literal json-status.json '"exit-code": 42'
 ok "info and json-status fd"
 
-DATA=$($RUN --proc /proc --unshare-all --info-fd 42 --json-status-fd 43 -- bash -c 'stat -L --format "%n %i" /proc/self/ns/*' 42>info.json 43>json-status.json 2>err.txt)
+DATA=$($RUN --proc /proc --unshare-all --info-fd 42 --json-status-fd 43 -- bash -c 'stat -L -c "%n %i" /proc/self/ns/*' 42>info.json 43>json-status.json 2>err.txt)
 
 for NS in "ipc" "mnt" "net" "pid" "uts"; do
 
@@ -160,6 +171,34 @@ if $RUN --unshare-pid --bind /source-enoent /dest true 2>err.txt; then
 fi
 assert_file_has_content err.txt "^bwrap: Can't find source path.*source-enoent"
 ok "error prefixing"
+
+# Test that an empty path argument is rejected. Empty paths used to be
+# interpreted as the root directory, so for example --bind-try "" DEST
+# silently gave the sandbox access to the whole filesystem.
+for opt in --bind --bind-try --dev-bind --dev-bind-try --ro-bind --ro-bind-try; do
+    if $RUN "$opt" "" /mnt true 2>err.txt; then
+        assert_not_reached "$opt accepted an empty source"
+    fi
+    assert_file_has_content err.txt "^bwrap: $opt does not take an empty path argument"
+
+    if $RUN "$opt" / "" true 2>err.txt; then
+        assert_not_reached "$opt accepted an empty destination"
+    fi
+    assert_file_has_content err.txt "^bwrap: $opt does not take an empty path argument"
+done
+
+for opt in --chdir --dev --dir --mqueue --proc --remount-ro --tmpfs; do
+    if $RUN "$opt" "" true 2>err.txt; then
+        assert_not_reached "$opt accepted an empty path"
+    fi
+    assert_file_has_content err.txt "^bwrap: $opt does not take an empty path argument"
+done
+
+if $RUN --symlink /usr "" true 2>err.txt; then
+    assert_not_reached "--symlink accepted an empty destination"
+fi
+assert_file_has_content err.txt "^bwrap: --symlink does not take an empty path argument"
+ok "empty path arguments are rejected"
 
 if ! ${is_uidzero}; then
     # When invoked as non-root, check that by default we have no caps left
@@ -281,6 +320,7 @@ if command -v mktemp > /dev/null; then
     else
         ok_skip "/mnt does not exist or is a symlink"
     fi
+    rm "$tempfile"
 else
     ok_skip "mktemp not found"
     ok_skip "mktemp not found"
@@ -549,5 +589,138 @@ assert_file_has_content stdout sh
 $RUN --argv0 right sh -c 'echo $0' > stdout
 assert_file_has_content stdout right
 ok "argv0 manipulation"
+
+echo "foobar" > file-data
+$RUN --proc /proc --dev /dev --bind / / --bind-fd 100 /tmp cat /tmp/file-data 100< . > stdout
+assert_file_has_content stdout foobar
+
+ok "bind-fd"
+
+$RUN --chdir / --chdir / true > stdout 2>&1
+assert_file_has_content stdout '^bwrap: Only the last --chdir option will take effect$'
+ok "warning logged for redundant --chdir"
+
+$RUN --level-prefix --chdir / --chdir / true > stdout 2>&1
+assert_file_has_content stdout '^<4>bwrap: Only the last --chdir option will take effect$'
+ok "--level-prefix"
+
+if test -n "${bwrap_is_suid:-}"; then
+    ok_skip "no --overlay support"
+    ok_skip "no --overlay support"
+    ok_skip "no --tmp-overlay support"
+    ok_skip "no --ro-overlay support"
+    ok_skip "no --overlay-src support"
+else
+    mkdir lower1 lower2 upper work
+    printf 1 > lower1/a
+    printf 2 > lower1/b
+    printf 3 > lower2/b
+    printf 4 > upper/a
+
+    # Check if unprivileged overlayfs is available
+    if ! unshare -rm mount -t overlay -o lowerdir=lower1,upperdir=upper,workdir=work,userxattr overlay lower2; then
+        ok_skip "no kernel support for unprivileged overlayfs"
+        ok_skip "no kernel support for unprivileged overlayfs"
+        ok_skip "no kernel support for unprivileged overlayfs"
+        ok_skip "no kernel support for unprivileged overlayfs"
+        ok_skip "no kernel support for unprivileged overlayfs"
+    else
+
+        # Test --overlay
+        if $RUN --overlay upper work /tmp true 2>err.txt; then
+            assert_not_reached At least one --overlay-src not required
+        fi
+        assert_file_has_content err.txt "^bwrap: --overlay requires at least one --overlay-src"
+        $RUN --overlay-src lower1 --overlay upper work /tmp/x/y/z cat /tmp/x/y/z/a > stdout
+        assert_file_has_content stdout '^4$'
+        $RUN --overlay-src lower1 --overlay upper work /tmp/x/y/z cat /tmp/x/y/z/b > stdout
+        assert_file_has_content stdout '^2$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --overlay upper work /tmp/x/y/z cat /tmp/x/y/z/a > stdout
+        assert_file_has_content stdout '^4$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --overlay upper work /tmp/x/y/z cat /tmp/x/y/z/b > stdout
+        assert_file_has_content stdout '^3$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --overlay upper work /tmp/x/y/z sh -c 'printf 5 > /tmp/x/y/z/b; cat /tmp/x/y/z/b' > stdout
+        assert_file_has_content stdout '^5$'
+        assert_file_has_content upper/b '^5$'
+        ok "--overlay"
+
+        # Test --overlay path escaping
+        # Coincidentally, ":,\ is the face I make contemplating anyone who might
+        # need this functionality, not that that's going to stop me from supporting
+        # it.
+        mkdir 'lower ":,\' 'upper ":,\' 'work ":,\'
+        printf 1 > 'lower ":,\'/a
+        $RUN --overlay-src 'lower ":,\' --overlay 'upper ":,\' 'work ":,\' /tmp/x sh -c 'cat /tmp/x/a; printf 2 > /tmp/x/a; cat /tmp/x/a' > stdout
+        assert_file_has_content stdout '^12$'
+        assert_file_has_content 'lower ":,\'/a '^1$'
+        assert_file_has_content 'upper ":,\'/a '^2$'
+        ok "--overlay path escaping"
+
+        # Test --tmp-overlay
+        printf 1 > lower1/a
+        printf 2 > lower1/b
+        printf 3 > lower2/b
+        if $RUN --tmp-overlay /tmp true 2>err.txt; then
+            assert_not_reached At least one --overlay-src not required
+        fi
+        assert_file_has_content err.txt "^bwrap: --tmp-overlay requires at least one --overlay-src"
+        $RUN --overlay-src lower1 --tmp-overlay /tmp/x/y/z cat /tmp/x/y/z/a > stdout
+        assert_file_has_content stdout '^1$'
+        $RUN --overlay-src lower1 --tmp-overlay /tmp/x/y/z cat /tmp/x/y/z/b > stdout
+        assert_file_has_content stdout '^2$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --tmp-overlay /tmp/x/y/z cat /tmp/x/y/z/a > stdout
+        assert_file_has_content stdout '^1$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --tmp-overlay /tmp/x/y/z cat /tmp/x/y/z/b > stdout
+        assert_file_has_content stdout '^3$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --tmp-overlay /tmp/x/y/z sh -c 'printf 4 > /tmp/x/y/z/b; cat /tmp/x/y/z/b' > stdout
+        assert_file_has_content stdout '^4$'
+        $RUN --overlay-src lower1 --tmp-overlay /tmp/x --overlay-src lower2 --tmp-overlay /tmp/y sh -c 'cat /tmp/x/b; printf 4 > /tmp/x/b; cat /tmp/x/b; cat /tmp/y/b' > stdout
+        assert_file_has_content stdout '^243$'
+        assert_file_has_content lower1/b '^2$'
+        assert_file_has_content lower2/b '^3$'
+        ok "--tmp-overlay"
+
+        # Test --ro-overlay
+        printf 1 > lower1/a
+        printf 2 > lower1/b
+        printf 3 > lower2/b
+        if $RUN --ro-overlay /tmp true 2>err.txt; then
+            assert_not_reached At least two --overlay-src not required
+        fi
+        assert_file_has_content err.txt "^bwrap: --ro-overlay requires at least two --overlay-src"
+        if $RUN --overlay-src lower1 --ro-overlay /tmp true 2>err.txt; then
+            assert_not_reached At least two --overlay-src not required
+        fi
+        assert_file_has_content err.txt "^bwrap: --ro-overlay requires at least two --overlay-src"
+        $RUN --overlay-src lower1 --overlay-src lower2 --ro-overlay /tmp/x/y/z cat /tmp/x/y/z/a > stdout
+        assert_file_has_content stdout '^1$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --ro-overlay /tmp/x/y/z cat /tmp/x/y/z/b > stdout
+        assert_file_has_content stdout '^3$'
+        $RUN --overlay-src lower1 --overlay-src lower2 --ro-overlay /tmp/x/y/z sh -c 'printf 4 > /tmp/x/y/z/b; cat /tmp/x/y/z/b' > stdout
+        assert_file_has_content stdout '^3$'
+        ok "--ro-overlay"
+
+        # Test --overlay-src restrictions
+        if $RUN --overlay-src /tmp true 2>err.txt; then
+            assert_not_reached Trailing --overlay-src allowed
+        fi
+        assert_file_has_content err.txt "^bwrap: --overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay"
+        if $RUN --overlay-src /tmp --chdir / true 2>err.txt; then
+            assert_not_reached --overlay-src allowed to precede non-overlay options
+        fi
+        assert_file_has_content err.txt "^bwrap: --overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay"
+        ok "--overlay-src restrictions"
+
+    fi
+fi
+
+# Smoke-test --not-a-security-boundary
+#
+# Setting up an unavailable automount and triggering the right conditions is
+# complicated to do here, but we can at least check that the option is there,
+# and that it stays there.
+
+$RUN --not-a-security-boundary true
+ok "Accepts --not-a-security-boundary"
 
 done_testing
