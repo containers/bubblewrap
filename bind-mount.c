@@ -29,6 +29,11 @@
 #else
 #  define USE_MOUNT_SETATTR_FALLBACK 0
 #endif
+#if ASSUMED_KERNEL < BWRAP_KERNEL_VERSION (5, 2, 0)
+#  define USE_BIND_MOUNT_FALLBACK 1
+#else
+#  define USE_BIND_MOUNT_FALLBACK 0
+#endif
 
 static bind_mount_result mount_setattr_setup (const char *resolved_dest,
                                               bind_option_t options,
@@ -39,6 +44,7 @@ static bind_mount_result mount_setattr_fallback (const char *resolved_dest,
                                                  char **failing_path);
 
 bool opt_force_mount_setattr_fallback = false;
+bool opt_force_bind_mount_fallback = false;
 
 #if USE_MOUNT_SETATTR_FALLBACK
 static char *
@@ -420,16 +426,100 @@ bind_mount (const char   *src,
   return bind_mount_fd (src_fd, dest_fd, options, failing_path);
 }
 
+static bind_mount_result
+bind_mount_fallback (const char *src_path,
+                     const char *dest_path,
+                     bind_option_t options,
+                     char **failing_path)
+{
+#if !USE_BIND_MOUNT_FALLBACK
+  debug ("No bind mount fallback");
+  (void) src_path;
+  (void) dest_path;
+  (void) options;
+  (void) failing_path;
+  errno = ENOSYS;
+  return BIND_MOUNT_ERROR_MOUNT;
+#else
+  debug ("Bind mount \"%s\" to \"%s\"", src_path, dest_path);
+  bool recursive = (options & BIND_RECURSIVE) != 0;
+  if (mount (src_path, dest_path, NULL,
+             MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
+    {
+      if (failing_path != NULL)
+        *failing_path = xstrdup (dest_path);
+      return BIND_MOUNT_ERROR_MOUNT;
+    }
+
+  debug ("-> Success");
+  return BIND_MOUNT_SUCCESS;
+#endif
+}
+
+static bind_mount_result
+new_bind_mount (int src_fd,
+                const char *src_path,
+                int dest_fd,
+                const char *dest_path,
+                bind_option_t options,
+                char **failing_path)
+{
+  static bool new_mount_supported = true;
+  bool recursive = (options & BIND_RECURSIVE) != 0;
+
+  if (new_mount_supported && !opt_force_bind_mount_fallback)
+    {
+      debug ("Remounting \"%s\" on \"%s\" using open_tree + move_mount",
+             src_path, dest_path);
+      unsigned int open_tree_flags = OPEN_TREE_CLONE | AT_EMPTY_PATH | OPEN_TREE_CLOEXEC;
+      if (recursive)
+        open_tree_flags |= AT_RECURSIVE;
+      cleanup_fd int tree_fd = open_tree_wrapper (src_fd, "", open_tree_flags);
+      if (tree_fd == -1)
+        {
+          if (errno != ENOSYS)
+            {
+              if (failing_path != NULL)
+                *failing_path = xstrdup (src_path);
+              return BIND_MOUNT_ERROR_OPEN_TREE;
+            }
+        }
+      else if (move_mount_wrapper (tree_fd, "", dest_fd, "",
+                                   MOVE_MOUNT_F_EMPTY_PATH |
+                                   MOVE_MOUNT_T_EMPTY_PATH) == 0)
+        {
+          debug ("-> Success");
+          return BIND_MOUNT_SUCCESS;
+        }
+      else if (errno != ENOSYS)
+        {
+          if (failing_path != NULL) {
+            if (errno == EINVAL)
+              *failing_path = xstrdup (src_path);
+            else
+              *failing_path = xstrdup (dest_path);
+          }
+          return BIND_MOUNT_ERROR_MOVE_MOUNT;
+        }
+
+      debug ("-> Falling back");
+    }
+
+  new_mount_supported = false;
+  return bind_mount_fallback (src_path, dest_path, options, failing_path);
+}
+
 bind_mount_result
 bind_mount_fd (int           src_fd,
                int           dest_fd,
                bind_option_t options,
                char        **failing_path)
 {
-  bool recursive = (options & BIND_RECURSIVE) != 0;
   cleanup_free char *resolved_dest = NULL;
+  cleanup_free char *src_proc = NULL;
   cleanup_free char *dest_proc = NULL;
 
+  src_proc = fd_to_proc_path (src_fd);
   dest_proc = fd_to_proc_path (dest_fd);
 
   /* If we are in a case-insensitive filesystem, mountinfo might contain a
@@ -453,15 +543,9 @@ bind_mount_fd (int           src_fd,
 
   if (src_fd != -1)
     {
-      cleanup_free char *src_proc = fd_to_proc_path (src_fd);
-
-      if (mount (src_proc, dest_proc, NULL, MS_SILENT | MS_BIND | (recursive ? MS_REC : 0), NULL) != 0)
-        {
-          if (failing_path != NULL)
-            *failing_path = steal_pointer (&resolved_dest);
-
-          return BIND_MOUNT_ERROR_MOUNT;
-        }
+      bind_mount_result mount_result = new_bind_mount (src_fd, src_proc, dest_fd, resolved_dest, options, failing_path);
+      if (mount_result != BIND_MOUNT_SUCCESS)
+        return mount_result;
     }
 
   return mount_setattr_setup (resolved_dest, options, failing_path);
@@ -608,6 +692,14 @@ bind_mount_result_to_string (bind_mount_result res,
         string = xasprintf ("mount_setattr() failed at \"%s\"", failing_path);
         break;
 
+      case BIND_MOUNT_ERROR_OPEN_TREE:
+        string = xasprintf ("open_tree() failed at \"%s\"", failing_path);
+        break;
+
+      case BIND_MOUNT_ERROR_MOVE_MOUNT:
+        string = xasprintf ("move_mount() failed at \"%s\"", failing_path);
+        break;
+
       case BIND_MOUNT_SUCCESS:
         string = xstrdup ("Success");
         break;
@@ -654,6 +746,8 @@ die_with_bind_result (bind_mount_result res,
           case BIND_MOUNT_ERROR_MOUNT:
           case BIND_MOUNT_ERROR_REMOUNT_DEST:
           case BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT:
+          case BIND_MOUNT_ERROR_OPEN_TREE:
+          case BIND_MOUNT_ERROR_MOVE_MOUNT:
             fprintf (stderr, ": %s", mount_strerror (saved_errno));
             break;
 

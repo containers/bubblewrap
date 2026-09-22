@@ -2740,6 +2740,10 @@ parse_args_recurse (int          *argcp,
 #endif
               exit (0);
             }
+          else if (strcmp (val, "force-bind-mount-fallback") == 0)
+            {
+              opt_force_bind_mount_fallback = true;
+            }
           else
             {
               die ("Unknown --debug-opt value: %s", val);
