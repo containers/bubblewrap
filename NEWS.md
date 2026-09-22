@@ -43,6 +43,8 @@ Bug fixes:
   * Fix test failure on systems with a mount point containing a backslash
     (#778)
 
+  * Fix test failure on systems with older xdg-desktop-portal (#794)
+
   * Don't leave a temporary file behind after running the test suite (#775)
 
   * CI improvements
