@@ -1042,7 +1042,7 @@ ensure_newroot_parents_at (const char *path,
   fn = xstrdup (path);
   p = fn;
 
-  cleanup_fd int parent_fd = openat_in_root ("/newroot", "/", O_DIRECTORY | O_PATH);
+  cleanup_fd int parent_fd = openat_in_root ("/newroot", "/", O_DIRECTORY | O_PATH | O_CLOEXEC);
 
   while (*p == '/')
     p++;
@@ -1072,7 +1072,7 @@ ensure_newroot_parents_at (const char *path,
 
       char saved = *after_component;
       *after_component = 0;
-      cleanup_fd int new_parent_fd = openat_in_root ("/newroot", fn, O_DIRECTORY | O_PATH);
+      cleanup_fd int new_parent_fd = openat_in_root ("/newroot", fn, O_DIRECTORY | O_PATH | O_CLOEXEC);
       *after_component = saved;
       if (new_parent_fd < 0)
         return -1;
