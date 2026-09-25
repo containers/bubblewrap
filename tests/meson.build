@@ -19,6 +19,7 @@ test_scripts = [
   'test-run.sh',
   'test-sandbox.py',
   'test-seccomp.py',
+  'test-specifying-netns.sh',
   'test-specifying-pidns.sh',
   'test-specifying-userns.sh',
 ]
