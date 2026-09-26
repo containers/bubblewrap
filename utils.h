@@ -318,5 +318,30 @@ struct mount_attr
 #define AT_RECURSIVE  0x8000
 #endif
 
+/* glibc guards the whole fsopen()/fsconfig() group on FSOPEN_CLOEXEC, and
+ * FSCONFIG_* are enumerators rather than macros, so guard the group the same
+ * way instead of testing each name. */
+#ifndef FSOPEN_CLOEXEC
+#define FSOPEN_CLOEXEC       0x00000001
+#define FSMOUNT_CLOEXEC      0x00000001
+#define FSCONFIG_SET_FLAG    0
+#define FSCONFIG_SET_STRING  1
+#define FSCONFIG_CMD_CREATE  6
+#endif
+
+#ifndef MOVE_MOUNT_F_EMPTY_PATH
+#define MOVE_MOUNT_F_EMPTY_PATH  0x00000004
+#endif
+
+#ifndef MOVE_MOUNT_T_EMPTY_PATH
+#define MOVE_MOUNT_T_EMPTY_PATH  0x00000040
+#endif
+
 int mount_setattr_wrapper (int dirfd, const char *path, unsigned int flags,
                            struct mount_attr *attr, size_t size);
+int fsopen_wrapper (const char *fsname, unsigned int flags);
+int fsconfig_wrapper (int fd, unsigned int cmd, const char *key,
+                      const void *value, int aux);
+int fsmount_wrapper (int fd, unsigned int flags, unsigned int attr_flags);
+int move_mount_wrapper (int from_dirfd, const char *from_path,
+                        int to_dirfd, const char *to_path, unsigned int flags);

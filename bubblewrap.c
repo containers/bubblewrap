@@ -45,6 +45,14 @@
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
 #endif
 
+/* overlayfs gained the "lowerdir+" parameter, and with it support for the new
+ * mount API, in Linux 6.7. */
+#if ASSUMED_KERNEL < BWRAP_KERNEL_VERSION (6, 7, 0)
+#  define USE_OVERLAY_FALLBACK 1
+#else
+#  define USE_OVERLAY_FALLBACK 0
+#endif
+
 /* We limit the size of a tmpfs to half the architecture's address space,
  * to avoid hitting arbitrary limits in the kernel.
  * For example, on at least one x86_64 machine, the actual limit seems to be
@@ -95,6 +103,7 @@ static int next_perms = -1;
 static size_t next_size_arg = 0;
 static int next_overlay_src_count = 0;
 static bool opt_not_a_security_boundary = false;
+static bool opt_force_overlay_fallback = false;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -1127,6 +1136,125 @@ reopen_newroot_fd (int dest_fd, const char *dest_path)
   return dest_fd;
 }
 
+/* Mount an overlay with the new mount API, appending one lower layer per
+ * fsconfig() call. Unlike the mount(2) options string this has no length
+ * limit, so the number of layers is bounded only by overlayfs itself.
+ *
+ * Returns false if the kernel can't do this, in which case the caller falls
+ * back to overlay_mount_legacy(). Before Linux 6.7 overlayfs has no new mount
+ * API support of its own, so fsopen() succeeds and the failure only shows up
+ * at FSCONFIG_CMD_CREATE, indistinguishable from a bad configuration. Falling
+ * back on any failure costs one extra mount(2) and keeps the diagnostics the
+ * legacy path already produces. */
+static bool
+overlay_mount_fsconfig (int         dest_fd,
+                        const char *upper_path,
+                        const char *work_path,
+                        const int  *lower_fds,
+                        size_t      n_lower)
+{
+  cleanup_fd int fs_fd = -1;
+  cleanup_fd int mount_fd = -1;
+  size_t i;
+
+  if (opt_force_overlay_fallback)
+    return false;
+
+  fs_fd = fsopen_wrapper ("overlay", FSOPEN_CLOEXEC);
+  if (fs_fd < 0)
+    return false;
+
+  if (upper_path != NULL &&
+      (fsconfig_wrapper (fs_fd, FSCONFIG_SET_STRING, "upperdir", upper_path, 0) != 0 ||
+       fsconfig_wrapper (fs_fd, FSCONFIG_SET_STRING, "workdir", work_path, 0) != 0))
+    return false;
+
+  for (i = 0; i < n_lower; i++)
+    {
+      cleanup_free char *lower_path = fd_to_proc_path (lower_fds[i]);
+
+      if (fsconfig_wrapper (fs_fd, FSCONFIG_SET_STRING, "lowerdir+", lower_path, 0) != 0)
+        return false;
+    }
+
+  if (fsconfig_wrapper (fs_fd, FSCONFIG_SET_FLAG, "userxattr", NULL, 0) != 0 ||
+      fsconfig_wrapper (fs_fd, FSCONFIG_CMD_CREATE, NULL, NULL, 0) != 0)
+    return false;
+
+  mount_fd = fsmount_wrapper (fs_fd, FSMOUNT_CLOEXEC,
+                              MOUNT_ATTR_NOSUID | MOUNT_ATTR_NODEV);
+  if (mount_fd < 0)
+    return false;
+
+  if (move_mount_wrapper (mount_fd, "", dest_fd, "",
+                          MOVE_MOUNT_F_EMPTY_PATH | MOVE_MOUNT_T_EMPTY_PATH) != 0)
+    return false;
+
+  return true;
+}
+
+/* Mount an overlay with a single mount(2) call, passing every layer in one
+ * options string. */
+static void
+overlay_mount_legacy (const char *dest,
+                      int         dest_fd,
+                      const char *upper_path,
+                      const char *work_path,
+                      const int  *lower_fds,
+                      size_t      n_lower)
+{
+#if !USE_OVERLAY_FALLBACK
+  (void) dest_fd;
+  (void) upper_path;
+  (void) work_path;
+  (void) lower_fds;
+  (void) n_lower;
+  errno = ENOSYS;
+  die_with_error ("Can't make overlay mount on %s", dest);
+#else
+  StringBuilder sb = {0};
+  cleanup_free char *dest_path = fd_to_proc_path (dest_fd);
+  size_t i;
+
+  if (upper_path != NULL)
+    strappendf (&sb, "upperdir=%s,workdir=%s,", upper_path, work_path);
+
+  strappend (&sb, "lowerdir=");
+  for (i = 0; i < n_lower; i++)
+    {
+      cleanup_free char *lower_path = fd_to_proc_path (lower_fds[i]);
+
+      if (i > 0)
+        strappend (&sb, ":");
+      strappend (&sb, lower_path);
+    }
+
+  strappend (&sb, ",userxattr");
+
+  /* The kernel silently truncates the options string at one page, which would
+   * cut a layer path in half and make overlayfs report an overlap that isn't
+   * there. Say what is really wrong instead. */
+  if (sb.offset >= (size_t) sysconf (_SC_PAGESIZE))
+    die ("Can't make overlay mount on %s: %zu lower layers do not fit in the "
+         "mount(2) options string; Linux 6.7 or later is required for more",
+         dest, n_lower);
+
+  if (mount ("overlay", dest_path, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
+    {
+      /* The standard message for ELOOP, "Too many levels of symbolic
+       * links", is not helpful here. */
+      if (errno == ELOOP)
+        die ("Can't make overlay mount on %s with options %s: "
+             "Overlay directories may not overlap",
+             dest, sb.str);
+      die_with_mount_error ("Can't make overlay mount on %s with options %s",
+                            dest, sb.str);
+    }
+
+  free (sb.str);
+#endif
+}
+
 static void
 setup_newroot (bool unshare_pid)
 {
@@ -1313,56 +1441,48 @@ setup_newroot (bool unshare_pid)
         case SETUP_RO_OVERLAY_MOUNT:
         case SETUP_TMP_OVERLAY_MOUNT:
           {
-            StringBuilder sb = {0};
-            bool multi_src = false;
             cleanup_fdset FdSet fds = {0};
-            cleanup_free char *dest_path = fd_to_proc_path (dest_fd);
+            cleanup_free char *upper_path = NULL;
+            cleanup_free char *work_path = NULL;
+            /* The loop below advances op past the SETUP_OVERLAY_SRC ops, which
+             * carry no dest of their own. */
+            const char *dest = op->dest;
+            size_t first_lower;
 
             if (op->source != NULL)
               {
-                cleanup_free char *upper_path = fdset_add_to_proc_path (&fds, steal_fd (&source_fd));
-                strappendf (&sb, "upperdir=%s,", upper_path);
+                upper_path = fdset_add_to_proc_path (&fds, steal_fd (&source_fd));
 
                 op = op->next;
                 int work_fd = openat_in_root ("/oldroot", op->source, O_PATH);
                 if (work_fd < 0)
                   die_with_error ("Can't open overlay workdir %s", op->source);
-                cleanup_free char *work_path = fdset_add_to_proc_path (&fds, work_fd);
-                strappendf (&sb, "workdir=%s,", work_path);
+                work_path = fdset_add_to_proc_path (&fds, work_fd);
               }
             else if (op->type == SETUP_TMP_OVERLAY_MOUNT)
-              strappendf (&sb, "upperdir=/tmp-overlay-upper-%1$d,workdir=/tmp-overlay-work-%1$d,",
-                          tmp_overlay_idx++);
+              {
+                upper_path = xasprintf ("/tmp-overlay-upper-%d", tmp_overlay_idx);
+                work_path = xasprintf ("/tmp-overlay-work-%d", tmp_overlay_idx);
+                tmp_overlay_idx++;
+              }
 
-            strappend (&sb, "lowerdir=");
+            first_lower = fds.len;
             while (op->next != NULL && op->next->type == SETUP_OVERLAY_SRC)
               {
                 op = op->next;
                 int lower_fd = openat_in_root ("/oldroot", op->source, O_PATH);
                 if (lower_fd < 0)
                   die_with_error ("Can't open overlay source %s", op->source);
-                cleanup_free char *lower_path = fdset_add_to_proc_path (&fds, lower_fd);
-                if (multi_src)
-                  strappend (&sb, ":");
-                strappend (&sb, lower_path);
-                multi_src = true;
+                fdset_add (&fds, lower_fd);
               }
 
-            strappend (&sb, ",userxattr");
-
-            if (mount ("overlay", dest_path, "overlay", MS_MGC_VAL | MS_NOSUID | MS_NODEV, sb.str) != 0)
+            if (!overlay_mount_fsconfig (dest_fd, upper_path, work_path,
+                                         fds.fds + first_lower, fds.len - first_lower))
               {
-                /* The standard message for ELOOP, "Too many levels of symbolic
-                 * links", is not helpful here. */
-                if (errno == ELOOP)
-                  die ("Can't make overlay mount on %s with options %s: "
-                       "Overlay directories may not overlap",
-                       op->dest, sb.str);
-                die_with_mount_error ("Can't make overlay mount on %s with options %s",
-                                      op->dest, sb.str);
+                debug ("fsopen() overlay on %s failed, falling back to mount()", dest);
+                overlay_mount_legacy (dest, dest_fd, upper_path, work_path,
+                                      fds.fds + first_lower, fds.len - first_lower);
               }
-
-            free (sb.str);
           }
           break;
 
@@ -2727,6 +2847,10 @@ parse_args_recurse (int          *argcp,
           else if (strcmp (val, "force-mount-setattr-fallback") == 0)
             {
               opt_force_mount_setattr_fallback = true;
+            }
+          else if (strcmp (val, "force-overlay-fallback") == 0)
+            {
+              opt_force_overlay_fallback = true;
             }
           else if (strcmp (val, "print-assumed-kernel") == 0)
             {
