@@ -14,6 +14,7 @@ _bwrap() {
 		--clearenv
 		--disable-userns
 		--help
+		--ignore-keyboard-signals
 		--new-session
 		--unshare-all
 		--unshare-cgroup
