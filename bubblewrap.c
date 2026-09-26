@@ -317,6 +317,7 @@ usage (int ecode, FILE *out)
            "    --clearenv                   Unset all environment variables\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
            "    --unsetenv VAR               Unset an environment variable\n"
+           "    --env VAR                    Inherit environment variable VAR from the caller\n"
            "    --lock-file DEST             Take a lock on DEST while sandbox is running\n"
            "    --sync-fd FD                 Keep this fd open while sandbox is running\n"
            "    --bind SRC DEST              Bind mount the host path SRC on DEST\n"
@@ -2506,6 +2507,18 @@ parse_args_recurse (int          *argcp,
             die ("--unsetenv takes an argument");
 
           xunsetenv (argv[1]);
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--env") == 0)
+        {
+          if (argc < 2)
+            die ("--env takes an argument");
+
+          const char *value = getenv (argv[1]);
+          if (value)
+            xsetenv (argv[1], value, 1);
 
           argv += 1;
           argc -= 1;
