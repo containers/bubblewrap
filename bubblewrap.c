@@ -549,6 +549,10 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
 
   debug ("monitor[%d] outside sandbox: watching child %d", getpid (), child_pid);
 
+  /* This is just nice-to-have, so don't crash out if this fails */
+  if (prctl (PR_SET_NAME, "bwrap monitor") < 0)
+    debug ("Unable to set process name: %s", strerror (errno));
+
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
   if (event_fd != -1)
@@ -641,6 +645,10 @@ do_init (int event_fd, pid_t initial_pid)
   LockFile *lock;
 
   debug ("init[%d] in sandbox: watching command %d", getpid (), initial_pid);
+
+  /* This is just nice-to-have, so don't crash out if this fails */
+  if (prctl (PR_SET_NAME, "bwrap init") < 0)
+    debug ("Unable to set process name: %s", strerror (errno));
 
   for (lock = lock_files; lock != NULL; lock = lock->next)
     {
