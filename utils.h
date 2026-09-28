@@ -37,7 +37,7 @@
 extern bool bwrap_is_debugging;
 #define debug(...) bwrap_log (LOG_DEBUG, __VA_ARGS__)
 #else
-#define debug(...)
+#define debug(...) do {} while (0)
 #endif
 
 #define UNUSED __attribute__((__unused__))
