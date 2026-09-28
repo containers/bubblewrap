@@ -3472,6 +3472,10 @@ main (int    argc,
     {
       if (setsid () == (pid_t) -1)
         die_with_error ("setsid");
+
+      /* The session ID, process group ID and process ID are all equal
+       * for a session leader */
+      debug ("became session leader, pgid %d in sandbox", getpgid (0));
     }
 
   if (label_exec (opt_exec_label) == -1)
