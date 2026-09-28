@@ -75,6 +75,7 @@ static bool opt_unshare_uts = false;
 static bool opt_unshare_cgroup = false;
 static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
+static bool opt_new_pgrp = false;
 static bool opt_new_session = false;
 static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
@@ -350,6 +351,7 @@ usage (int ecode, FILE *out)
            "    --userns-block-fd FD         Block on FD until the user namespace is ready\n"
            "    --info-fd FD                 Write information about the running container to FD\n"
            "    --json-status-fd FD          Write container status to FD as multiple JSON documents\n"
+           "    --new-pgrp                   Create a new process group\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
@@ -2567,6 +2569,10 @@ parse_args_recurse (int          *argcp,
           argv += 1;
           argc -= 1;
         }
+      else if (strcmp (arg, "--new-pgrp") == 0)
+        {
+          opt_new_pgrp = true;
+        }
       else if (strcmp (arg, "--new-session") == 0)
         {
           opt_new_session = true;
@@ -3476,6 +3482,13 @@ main (int    argc,
       /* The session ID, process group ID and process ID are all equal
        * for a session leader */
       debug ("became session leader, pgid %d in sandbox", getpgid (0));
+    }
+  else if (opt_new_pgrp)
+    {
+      if (setpgid (0, 0) == -1)
+        die_with_error ("setpgid(0, 0)");
+
+      debug ("became process group leader, pgid %d in sandbox", getpgid (0));
     }
 
   if (label_exec (opt_exec_label) == -1)

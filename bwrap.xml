@@ -584,6 +584,37 @@
       </para></listitem>
     </varlistentry>
     <varlistentry>
+      <term>
+        <option>--new-pgrp</option>
+      </term>
+      <listitem>
+        <para>
+          Create a new process group for the sandbox
+          (calls
+          <citerefentry>
+            <refentrytitle>setpgid</refentrytitle>
+            <manvolnum>2</manvolnum>
+          </citerefentry>).
+          Ignored if combined with <option>--new-session</option>,
+          because creating a new terminal session always creates a new
+          process group as a side-effect.
+        </para>
+        <para>
+          Note that if neither <option>--new-pgrp</option>
+          nor <option>--new-session</option> is used,
+          the sandboxed process is likely to be able to kill processes
+          outside its process ID namespace by using
+          <literal>kill (0, SIGTERM)</literal>
+          to signal its entire process group.
+          In this case,
+          the parent process invoking <command>bwrap</command> needs to
+          ensure that this will not cause denial of service,
+          for example by placing <command>bwrap</command> in a new
+          process group.
+        </para>
+      </listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--die-with-parent</option></term>
       <listitem><para>
     Ensures child process (COMMAND) dies when bwrap's parent dies. Kills (SIGKILL)
