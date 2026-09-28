@@ -3538,8 +3538,6 @@ main (int    argc,
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
 
-  debug ("forking for child");
-
   if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
     {
       /* We have to have a pid 1 in the pid namespace, because
@@ -3547,6 +3545,8 @@ main (int    argc,
        * them. Alternatively if we're using sync_fd or lock_files we
        * need some process to own these.
        */
+
+      debug ("forking init parent for command");
 
       pid = fork ();
       if (pid == -1)
@@ -3574,6 +3574,10 @@ main (int    argc,
 
           return do_init (event_fd, pid);
         }
+    }
+  else
+    {
+      debug ("init not needed, command will be a child of the monitor");
     }
 
   debug ("command[%d] in sandbox: launch executable %s", getpid (), argv[0]);
