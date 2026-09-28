@@ -547,6 +547,8 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   pid_t died_pid;
   int died_status;
 
+  debug ("monitor[%d] outside sandbox: watching child %d", getpid (), child_pid);
+
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
   if (event_fd != -1)
@@ -637,6 +639,8 @@ do_init (int event_fd, pid_t initial_pid)
 {
   int initial_exit_status = 1;
   LockFile *lock;
+
+  debug ("init[%d] in sandbox: watching command %d", getpid (), initial_pid);
 
   for (lock = lock_files; lock != NULL; lock = lock->next)
     {
@@ -3243,6 +3247,8 @@ main (int    argc,
 
   if (opt_pidns_fd != -1)
     {
+      debug ("switching to pid namespace from --pidns");
+
       if (setns (opt_pidns_fd, CLONE_NEWPID) != 0)
         die_with_error ("Setting pidns failed");
 
@@ -3252,6 +3258,8 @@ main (int    argc,
       /* We might both have specified an --pidns *and* --unshare-pid, so set up a new child pid namespace under the specified one */
       if (opt_unshare_pid)
         {
+          debug ("creating new pid namespace below --pidns");
+
           if (unshare (CLONE_NEWPID))
             die_with_error ("unshare pid ns");
 
@@ -3261,6 +3269,7 @@ main (int    argc,
 
       /* We're back, either in a child or grandchild, so message the actual pid to the monitor */
 
+      debug ("communicating sandboxed process's new pid to monitor");
       close (intermediate_pids_sockets[0]);
       send_pid_on_socket (intermediate_pids_sockets[1]);
       close (intermediate_pids_sockets[1]);
@@ -3287,6 +3296,7 @@ main (int    argc,
     close (opt_json_status_fd);
 
   /* Wait for the parent to init uid/gid maps and drop caps */
+  debug ("waiting for monitor to be ready");
   res = read (child_wait_fd, &val, 8);
   close (child_wait_fd);
 
@@ -3294,6 +3304,7 @@ main (int    argc,
    * required permitted caps. This allow us to do full setup as
    * the user uid, which makes e.g. fuse access work.
    */
+  debug ("setting up sandbox");
   switch_to_user_with_privs ();
 
   if (opt_unshare_net)
@@ -3478,6 +3489,7 @@ main (int    argc,
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
+  debug ("sandbox setup finished, dropping privileges");
   drop_privs (true);
 
   if (opt_block_fd != -1)
@@ -3564,7 +3576,7 @@ main (int    argc,
         }
     }
 
-  debug ("launch executable %s", argv[0]);
+  debug ("command[%d] in sandbox: launch executable %s", getpid (), argv[0]);
 
   if (proc_fd != -1)
     close (proc_fd);
