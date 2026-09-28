@@ -41,6 +41,57 @@
 #include "network.h"
 #include "bind-mount.h"
 
+/*
+ * PROCESS HIERARCHY
+ *
+ * In general the process hierarchy will look like this:
+ *
+ * MONITOR:
+ * original bwrap process outside sandbox blocks in monitor_child()
+ *     |
+ * - - | (clone) - - - sandbox boundary - - - - - - - - - - - -
+ *     |
+ *     \-- INIT: child in sandbox blocks in do_init()
+ *         |     (process 1 in new process ID namespace, if unshared)
+ *         |
+ *         | (fork)
+ *         |
+ *         \-- COMMAND: execve final "payload" process
+ *
+ * Exceptions to this:
+ *
+ * - If user passed --unshare-pid --as-pid-1, there is no separate
+ *     init process. The sandboxed command is a direct child of the monitor,
+ *     immediately below the sandbox boundary:
+ *
+ *     MONITOR: blocks in monitor_child()
+ *         |
+ *     - - | (clone) - - - sandbox boundary - - - - - - - - - - - -
+ *         |
+ *         \-- COMMAND: execve final "payload" process as pid 1
+ *
+ * - If user did not --unshare-pid and did not --lock-file or --sync-fd,
+ *     we don't need an init process.
+ *     Again the sandboxed command is a direct child of the monitor.
+ *
+ * - If user did not --unshare-pid but did use --lock-file or --sync-fd,
+ *     then the init process is not actually process 1,
+ *     but still reaps child processes and holds the locks/sync-fd open
+ *
+ * - If user specified --pidns, the child process of the clone() call
+ *     (the "intermediate child") will fork and then exit.
+ *     The process that becomes sandboxed is initially a grandchild of
+ *     the monitor, which is re-parented to the monitor, because in
+ *     this case the monitor is a subreaper.
+ *     After this re-parenting, the sandboxed process becomes either
+ *     init or the command, as above.
+ *
+ * - If user specified --pidns *and* --unshare-pid,
+ *     a second layer of intermediate child also forks and exits,
+ *     and the process that becomes sandboxed is initially a great-grandchild
+ *     of the monitor, which (again) is re-parented to the monitor.
+ */
+
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
 #endif
