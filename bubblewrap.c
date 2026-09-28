@@ -3468,9 +3468,11 @@ main (int    argc,
   xsetenv ("PWD", new_cwd, 1);
   free (old_cwd);
 
-  if (opt_new_session &&
-      setsid () == (pid_t) -1)
-    die_with_error ("setsid");
+  if (opt_new_session)
+    {
+      if (setsid () == (pid_t) -1)
+        die_with_error ("setsid");
+    }
 
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
