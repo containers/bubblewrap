@@ -41,6 +41,57 @@
 #include "network.h"
 #include "bind-mount.h"
 
+/*
+ * PROCESS HIERARCHY
+ *
+ * In general the process hierarchy will look like this:
+ *
+ * MONITOR:
+ * original bwrap process outside sandbox blocks in monitor_child()
+ *     |
+ * - - | (clone) - - - sandbox boundary - - - - - - - - - - - -
+ *     |
+ *     \-- INIT: child in sandbox blocks in do_init()
+ *         |     (process 1 in new process ID namespace, if unshared)
+ *         |
+ *         | (fork)
+ *         |
+ *         \-- COMMAND: execve final "payload" process
+ *
+ * Exceptions to this:
+ *
+ * - If user passed --unshare-pid --as-pid-1, there is no separate
+ *     init process. The sandboxed command is a direct child of the monitor,
+ *     immediately below the sandbox boundary:
+ *
+ *     MONITOR: blocks in monitor_child()
+ *         |
+ *     - - | (clone) - - - sandbox boundary - - - - - - - - - - - -
+ *         |
+ *         \-- COMMAND: execve final "payload" process as pid 1
+ *
+ * - If user did not --unshare-pid and did not --lock-file or --sync-fd,
+ *     we don't need an init process.
+ *     Again the sandboxed command is a direct child of the monitor.
+ *
+ * - If user did not --unshare-pid but did use --lock-file or --sync-fd,
+ *     then the init process is not actually process 1,
+ *     but still reaps child processes and holds the locks/sync-fd open
+ *
+ * - If user specified --pidns, the child process of the clone() call
+ *     (the "intermediate child") will fork and then exit.
+ *     The process that becomes sandboxed is initially a grandchild of
+ *     the monitor, which is re-parented to the monitor, because in
+ *     this case the monitor is a subreaper.
+ *     After this re-parenting, the sandboxed process becomes either
+ *     init or the command, as above.
+ *
+ * - If user specified --pidns *and* --unshare-pid,
+ *     a second layer of intermediate child also forks and exits,
+ *     and the process that becomes sandboxed is initially a great-grandchild
+ *     of the monitor, which (again) is re-parented to the monitor.
+ */
+
 #ifndef CLONE_NEWCGROUP
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
 #endif
@@ -496,6 +547,12 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   pid_t died_pid;
   int died_status;
 
+  debug ("monitor[%d] outside sandbox: watching child %d", getpid (), child_pid);
+
+  /* This is just nice-to-have, so don't crash out if this fails */
+  if (prctl (PR_SET_NAME, "bwrap monitor") < 0)
+    debug ("Unable to set process name: %s", strerror (errno));
+
   /* Close all extra fds in the monitoring process.
      Any passed in fds have been passed on to the child anyway. */
   if (event_fd != -1)
@@ -586,6 +643,12 @@ do_init (int event_fd, pid_t initial_pid)
 {
   int initial_exit_status = 1;
   LockFile *lock;
+
+  debug ("init[%d] in sandbox: watching command %d", getpid (), initial_pid);
+
+  /* This is just nice-to-have, so don't crash out if this fails */
+  if (prctl (PR_SET_NAME, "bwrap init") < 0)
+    debug ("Unable to set process name: %s", strerror (errno));
 
   for (lock = lock_files; lock != NULL; lock = lock->next)
     {
@@ -3192,6 +3255,8 @@ main (int    argc,
 
   if (opt_pidns_fd != -1)
     {
+      debug ("switching to pid namespace from --pidns");
+
       if (setns (opt_pidns_fd, CLONE_NEWPID) != 0)
         die_with_error ("Setting pidns failed");
 
@@ -3201,6 +3266,8 @@ main (int    argc,
       /* We might both have specified an --pidns *and* --unshare-pid, so set up a new child pid namespace under the specified one */
       if (opt_unshare_pid)
         {
+          debug ("creating new pid namespace below --pidns");
+
           if (unshare (CLONE_NEWPID))
             die_with_error ("unshare pid ns");
 
@@ -3210,6 +3277,7 @@ main (int    argc,
 
       /* We're back, either in a child or grandchild, so message the actual pid to the monitor */
 
+      debug ("communicating sandboxed process's new pid to monitor");
       close (intermediate_pids_sockets[0]);
       send_pid_on_socket (intermediate_pids_sockets[1]);
       close (intermediate_pids_sockets[1]);
@@ -3236,6 +3304,7 @@ main (int    argc,
     close (opt_json_status_fd);
 
   /* Wait for the parent to init uid/gid maps and drop caps */
+  debug ("waiting for monitor to be ready");
   res = read (child_wait_fd, &val, 8);
   close (child_wait_fd);
 
@@ -3243,6 +3312,7 @@ main (int    argc,
    * required permitted caps. This allow us to do full setup as
    * the user uid, which makes e.g. fuse access work.
    */
+  debug ("setting up sandbox");
   switch_to_user_with_privs ();
 
   if (opt_unshare_net)
@@ -3427,6 +3497,7 @@ main (int    argc,
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
+  debug ("sandbox setup finished, dropping privileges");
   drop_privs (true);
 
   if (opt_block_fd != -1)
@@ -3475,8 +3546,6 @@ main (int    argc,
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
 
-  debug ("forking for child");
-
   if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
     {
       /* We have to have a pid 1 in the pid namespace, because
@@ -3484,6 +3553,8 @@ main (int    argc,
        * them. Alternatively if we're using sync_fd or lock_files we
        * need some process to own these.
        */
+
+      debug ("forking init parent for command");
 
       pid = fork ();
       if (pid == -1)
@@ -3512,8 +3583,12 @@ main (int    argc,
           return do_init (event_fd, pid);
         }
     }
+  else
+    {
+      debug ("init not needed, command will be a child of the monitor");
+    }
 
-  debug ("launch executable %s", argv[0]);
+  debug ("command[%d] in sandbox: launch executable %s", getpid (), argv[0]);
 
   if (proc_fd != -1)
     close (proc_fd);
