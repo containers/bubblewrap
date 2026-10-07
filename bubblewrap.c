@@ -79,7 +79,8 @@ static bool opt_new_session = false;
 static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
-static int opt_sync_fd = -1;
+static int *opt_sync_fd = NULL;
+static int opt_sync_fd_count = 0;
 static int opt_block_fd = -1;
 static int opt_userns_block_fd = -1;
 static int opt_info_fd = -1;
@@ -2290,14 +2291,12 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--sync-fd takes an argument");
 
-          if (opt_sync_fd != -1)
-            warn_only_last_option ("--sync-fd");
-
           the_fd = strtol (argv[1], &endptr, 10);
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
-          opt_sync_fd = the_fd;
+          opt_sync_fd = xrealloc (opt_sync_fd, sizeof (&opt_sync_fd[0]) * (opt_sync_fd_count + 1));
+          opt_sync_fd[opt_sync_fd_count++] = the_fd;
 
           argv += 1;
           argc -= 1;
@@ -3477,7 +3476,7 @@ main (int    argc,
 
   debug ("forking for child");
 
-  if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
+  if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd_count > 0))
     {
       /* We have to have a pid 1 in the pid namespace, because
        * otherwise we'll get a bunch of zombies as nothing reaps
@@ -3499,14 +3498,16 @@ main (int    argc,
              process).
              Any other fds will been passed on to the child though. */
           {
-            int dont_close[3];
+            int *dont_close = xcalloc (opt_sync_fd_count + 2, sizeof (int));
             int j = 0;
+            int k;
             if (event_fd != -1)
               dont_close[j++] = event_fd;
-            if (opt_sync_fd != -1)
-              dont_close[j++] = opt_sync_fd;
+            for (k = 0; k < opt_sync_fd_count; k++)
+              dont_close[j++] = opt_sync_fd[k];
             dont_close[j++] = -1;
             fdwalk (close_extra_fds, dont_close);
+            free (dont_close);
           }
 
           return do_init (event_fd, pid);
@@ -3522,8 +3523,9 @@ main (int    argc,
      --sync-fd will still work unless the container process doesn't close this file.  */
   if (!opt_as_pid_1)
     {
-      if (opt_sync_fd != -1)
-        close (opt_sync_fd);
+      int k;
+      for (k = 0; k < opt_sync_fd_count; k++)
+        close (opt_sync_fd[k]);
     }
 
   /* We want sigchild in the child */
