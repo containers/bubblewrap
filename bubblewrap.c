@@ -921,25 +921,32 @@ write_uid_gid_map (uid_t sandbox_uid,
     die_with_error ("setting up gid map");
 }
 
-static void
+static bool
 setup_op_bind_mount_fd (bind_option_t options,
                         int           src_fd,
                         const char   *src_display,
                         int           dest_fd,
-                        const char   *dest_display)
+                        const char   *dest_display,
+                        bool          allow_notexist)
 {
   bind_mount_result bind_result;
-  char *failing_path = NULL;
+  cleanup_free char *failing_path = NULL;
 
   /* We always bind directories recursively, otherwise this would let us
      access files that are otherwise covered on the host */
   bind_result = bind_mount_fd (src_fd, dest_fd, BIND_RECURSIVE | options, &failing_path);
 
   if (bind_result != BIND_MOUNT_SUCCESS)
-    die_with_bind_result (bind_result, errno, failing_path,
-                          "Can't bind mount %s on %s", src_display, dest_display);
+    {
+      if (allow_notexist && bind_result == BIND_MOUNT_ERROR_MOUNT && errno == ENOENT)
+        return false;
+
+      die_with_bind_result (bind_result, errno, failing_path,
+                            "Can't bind mount %s on %s", src_display, dest_display);
+    }
 
   assert (failing_path == NULL);    /* otherwise we would have died */
+  return true;
 }
 
 /* Bind mount from path in /oldroot */
@@ -953,7 +960,7 @@ setup_op_bind_mount (bind_option_t options,
   if (src_fd < 0)
     die_with_error("Can't open source %s", src);
 
-  setup_op_bind_mount_fd (options, src_fd, src, dest_fd, dest_display);
+  setup_op_bind_mount_fd (options, src_fd, src, dest_fd, dest_display, false);
 }
 
 static void
@@ -1279,7 +1286,10 @@ setup_newroot (bool unshare_pid)
             if (op->type == SETUP_DEV_BIND_MOUNT)
               bind_flags |= BIND_DEVICES;
 
-            setup_op_bind_mount_fd (bind_flags, source_fd, op->source, dest_fd, op->dest);
+            if (!setup_op_bind_mount_fd (bind_flags, source_fd, op->source,
+                                         dest_fd, op->dest,
+                                         op->flags & ALLOW_NOTEXIST))
+              break;
 
             /* When using bind-fd, there is a race condition between resolving the fd as a magic symlink
              * and mounting it, where someone could replace what is at the symlink target. Ideally
@@ -1423,7 +1433,7 @@ setup_newroot (bool unshare_pid)
                 cleanup_free char *subdir_path = fd_to_proc_path (subdir_fd);
                 setup_op_bind_mount_fd (BIND_READONLY,
                                         subdir_fd, cover_proc_dirs[i],
-                                        subdir_fd, cover_proc_dirs[i]);
+                                        subdir_fd, cover_proc_dirs[i], false);
               }
 
             break;
@@ -1571,7 +1581,7 @@ setup_newroot (bool unshare_pid)
             op->fd = -1;
 
             setup_op_bind_mount_fd ((op->type == SETUP_MAKE_RO_BIND_FILE ? BIND_READONLY : 0),
-                                    tmp_fd, "tmpfile", dest_fd, op->dest);
+                                    tmp_fd, "tmpfile", dest_fd, op->dest, false);
 
             /* Remove the file so we're sure the app can't get to it in any other way.
                Its outside the container chroot, so it shouldn't be possible, but lets
