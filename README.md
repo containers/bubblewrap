@@ -171,6 +171,12 @@ execute commands via systemd. You can use
 [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) to filter
 D-Bus communication.
 
+- Writable bind mounts expose the same files as the host. If another process
+can write to the bound directory, it can create a hard link there to a file
+outside the sandbox. Writes to that link from inside the sandbox also modify
+the host file. If writable data needs to be isolated, put it on a separate
+filesystem so hard links cannot cross the boundary.
+
 - Some applications deploy their own sandboxing mechanisms, and these can be
 restricted by the constraints imposed by bubblewrap's sandboxing.
 For example, some web browsers which configure their child proccesses via
