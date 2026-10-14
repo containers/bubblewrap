@@ -171,6 +171,13 @@ execute commands via systemd. You can use
 [xdg-dbus-proxy](https://github.com/flatpak/xdg-dbus-proxy) to filter
 D-Bus communication.
 
+- Writable `--bind` mounts expose live directories. A process with write access
+  to the source directory can create hard links there to other files on the
+  same filesystem, including after `bwrap` starts. Writing through such a link
+  inside the sandbox also modifies the host file. Use a separate filesystem for
+  writable roots if they need to be isolated from host-side changes; hard links
+  cannot cross filesystem boundaries.
+
 - Some applications deploy their own sandboxing mechanisms, and these can be
 restricted by the constraints imposed by bubblewrap's sandboxing.
 For example, some web browsers which configure their child proccesses via
