@@ -71,3 +71,21 @@ foreach test_script : test_scripts
     )
   endif
 endforeach
+
+# Fault injection asserts use of the descriptor mount implementation.
+if have_fd_mounts
+  test_env.set('BWRAP_TEST_FILESYSTEM_MOUNTS', have_filesystem_mounts ? '1' : '0')
+  if meson.version().version_compare('>=0.50.0')
+    test('test-mount-api.py', python, args : [files('test-mount-api.py')],
+         env : test_env, protocol : 'tap', timeout : 120)
+  else
+    test('test-mount-api.py', python, args : [files('test-mount-api.py')],
+         env : test_env, timeout : 120)
+  endif
+endif
+
+# This script uses normal exit-status reporting, rather than TAP.
+if have_detached_mounts
+  test('test-single-pivot', python, args : [files('test-single-pivot.py')],
+       env : test_env, timeout : 120)
+endif

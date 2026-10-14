@@ -38,7 +38,15 @@ typedef enum
   BIND_MOUNT_ERROR_REMOUNT_SUBMOUNT,
   BIND_MOUNT_ERROR_OPEN_FD,
   BIND_MOUNT_ERROR_MOUNT_SETATTR,
+  BIND_MOUNT_UNSUPPORTED,
 } bind_mount_result;
+
+/* Clone, restrict and attach using only descriptors. UNSUPPORTED means that
+ * no mount was attached and the caller can use the traditional mount API.
+ * All other failures must be reported, without retrying with weaker rules. */
+bind_mount_result bind_mount_fd_new (int           src_fd,
+                                     int           dest_fd,
+                                     bind_option_t options);
 
 bind_mount_result bind_mount (const char   *src,
                               const char   *dest,
