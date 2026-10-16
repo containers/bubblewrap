@@ -384,6 +384,12 @@
           version of 4.0 or later.
         </para>
         <para>
+          On Linux 6.7 or later the number of
+          <option>--overlay-src</option> layers is limited only by overlayfs
+          itself. Before that, every layer has to fit in a single mount option
+          string of one page, which allows roughly 200 layers.
+        </para>
+        <para>
           Due to limitations of overlayfs, no host directory given via
           <arg choice="plain">--overlay-src</arg> or
           <arg choice="plain">--overlay</arg> may be an ancestor of another,
