@@ -77,6 +77,7 @@ static bool opt_unshare_cgroup_try = false;
 static bool opt_needs_devpts = false;
 static bool opt_new_session = false;
 static bool opt_die_with_parent = false;
+static bool opt_forward_signals = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
 static int *opt_sync_fd = NULL;
@@ -353,6 +354,7 @@ usage (int ecode, FILE *out)
            "    --json-status-fd FD          Write container status to FD as multiple JSON documents\n"
            "    --new-session                Create a new terminal session\n"
            "    --die-with-parent            Kills with SIGKILL child process (COMMAND) when bwrap or bwrap's parent dies.\n"
+           "    --forward-signals            Forward SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGUSR1, SIGUSR2 and SIGWINCH to COMMAND\n"
            "    --as-pid-1                   Do not install a reaper process with PID=1\n"
            "    --cap-add CAP                Add cap CAP when running as privileged user\n"
            "    --cap-drop CAP               Drop cap CAP when running as privileged user\n"
@@ -375,14 +377,39 @@ handle_die_with_parent (void)
     die_with_error ("prctl");
 }
 
+/* Signals that --forward-signals passes on to the command */
+static const int forwarded_signals[] = { SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGUSR1, SIGUSR2, SIGWINCH };
+
 static void
-block_sigchild (void)
+add_forwarded_signals (sigset_t *mask)
+{
+  size_t i;
+
+  if (!opt_forward_signals)
+    return;
+
+  for (i = 0; i < N_ELEMENTS (forwarded_signals); i++)
+    sigaddset (mask, forwarded_signals[i]);
+}
+
+/* SIGCHLD, plus the signals --forward-signals passes on */
+static void
+monitored_signals (sigset_t *mask)
+{
+  sigemptyset (mask);
+  sigaddset (mask, SIGCHLD);
+  add_forwarded_signals (mask);
+}
+
+/* The sandbox inherits the mask, so a signal arriving during setup stays
+ * pending until the command is ready for it. */
+static void
+block_signals (void)
 {
   sigset_t mask;
   int status;
 
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
+  monitored_signals (&mask);
 
   if (sigprocmask (SIG_BLOCK, &mask, NULL) == -1)
     die_with_error ("sigprocmask");
@@ -393,13 +420,68 @@ block_sigchild (void)
 }
 
 static void
-unblock_sigchild (void)
+unblock_signals (void)
 {
   sigset_t mask;
 
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
+  monitored_signals (&mask);
 
+  if (sigprocmask (SIG_UNBLOCK, &mask, NULL) == -1)
+    die_with_error ("sigprocmask");
+}
+
+/* A signal the kernel sent to our process group has already reached pid if it
+ * is in that group, so forwarding it would deliver it twice. Also called from
+ * a signal handler: getpgid() is a bare system call on Linux. */
+static bool
+should_forward_signal (pid_t pid, int code)
+{
+  pid_t pgid;
+
+  if (pid <= 0)
+    return false;
+
+  if (code != SI_KERNEL)
+    return true;
+
+  pgid = getpgid (pid);
+  return pgid != -1 && pgid != getpgrp ();
+}
+
+/* The command, while init forwards to it; 0 once init has reaped it, as its
+ * pid can be reused after that */
+static volatile sig_atomic_t forward_signals_pid = 0;
+
+static void
+forward_signal_handler (int sig, siginfo_t *info, void *context UNUSED)
+{
+  int saved_errno = errno;
+  pid_t pid = forward_signals_pid;
+
+  if (should_forward_signal (pid, info->si_code))
+    kill (pid, sig);
+
+  errno = saved_errno;
+}
+
+/* Used in init: as pid 1 of a pid namespace it only receives signals it has a
+ * handler for, so it cannot use a signalfd like the monitor does. */
+static void
+install_forward_signal_handlers (pid_t pid)
+{
+  struct sigaction act = { 0 };
+  sigset_t mask;
+  size_t i;
+
+  forward_signals_pid = pid;
+  act.sa_sigaction = forward_signal_handler;
+  act.sa_flags = SA_SIGINFO | SA_RESTART;
+  for (i = 0; i < N_ELEMENTS (forwarded_signals); i++)
+    if (sigaction (forwarded_signals[i], &act, NULL) != 0)
+      die_with_error ("sigaction");
+
+  sigemptyset (&mask);
+  add_forwarded_signals (&mask);
   if (sigprocmask (SIG_UNBLOCK, &mask, NULL) == -1)
     die_with_error ("sigprocmask");
 }
@@ -508,8 +590,7 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
   assert (j < sizeof(dont_close)/sizeof(*dont_close));
   fdwalk (close_extra_fds, dont_close);
 
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
+  monitored_signals (&mask);
 
   signal_fd = signalfd (-1, &mask, SFD_CLOEXEC | SFD_NONBLOCK);
   if (signal_fd == -1)
@@ -549,11 +630,16 @@ monitor_child (int event_fd, pid_t child_pid, int setup_finished_fd)
         }
 
       /* We need to read the signal_fd, or it will keep polling as read,
-       * however we ignore the details as we get them from waitpid
+       * however we ignore the details of SIGCHLD as we get them from waitpid
        * below anyway */
       s = read (signal_fd, &fdsi, sizeof (struct signalfd_siginfo));
       if (s == -1 && errno != EINTR && errno != EAGAIN)
         die_with_error ("read signalfd");
+
+      /* With --forward-signals, pass the signal on */
+      if (s == (ssize_t) sizeof (struct signalfd_siginfo) && fdsi.ssi_signo != SIGCHLD &&
+          should_forward_signal (child_pid, fdsi.ssi_code))
+        kill (child_pid, fdsi.ssi_signo);
 
       /* We may actually get several sigchld compressed into one
          SIGCHLD, so we have to handle all of them. */
@@ -611,6 +697,9 @@ do_init (int event_fd, pid_t initial_pid)
   /* Optionally bind our lifecycle to that of the caller */
   handle_die_with_parent ();
 
+  if (opt_forward_signals)
+    install_forward_signal_handlers (initial_pid);
+
   seccomp_programs_apply ();
 
   while (true)
@@ -621,6 +710,7 @@ do_init (int event_fd, pid_t initial_pid)
       child = TEMP_FAILURE_RETRY (wait (&status));
       if (child == initial_pid)
         {
+          forward_signals_pid = 0;
           initial_exit_status = propagate_exit_status (status);
 
           if(event_fd != -1)
@@ -2574,6 +2664,10 @@ parse_args_recurse (int          *argcp,
         {
           opt_die_with_parent = true;
         }
+      else if (strcmp (arg, "--forward-signals") == 0)
+        {
+          opt_forward_signals = true;
+        }
       else if (strcmp (arg, "--as-pid-1") == 0)
         {
           opt_as_pid_1 = true;
@@ -3051,8 +3145,8 @@ main (int    argc,
         die_with_error ("eventfd()");
     }
 
-  /* We block sigchild here so that we can use signalfd in the monitor. */
-  block_sigchild ();
+  /* We block sigchild (and forwarded signals) here so that we can use signalfd in the monitor. */
+  block_signals ();
 
   clone_flags = SIGCHLD | CLONE_NEWNS;
   if (opt_unshare_user)
@@ -3528,8 +3622,8 @@ main (int    argc,
         close (opt_sync_fd[k]);
     }
 
-  /* We want sigchild in the child */
-  unblock_sigchild ();
+  /* We want sigchild and forwarded signals in the child */
+  unblock_signals ();
 
   /* Optionally bind our lifecycle */
   handle_die_with_parent ();

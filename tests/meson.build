@@ -16,6 +16,8 @@ executable(
 )
 
 test_scripts = [
+  'test-forward-signals-tty.py',
+  'test-forward-signals.sh',
   'test-run.sh',
   'test-sandbox.py',
   'test-seccomp.py',

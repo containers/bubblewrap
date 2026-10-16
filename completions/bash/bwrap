@@ -47,6 +47,7 @@ _bwrap() {
 		--exec-label
 		--file
 		--file-label
+		--forward-signals
 		--gid
 		--hostname
 		--info-fd
