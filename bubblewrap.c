@@ -1390,7 +1390,17 @@ setup_newroot (bool unshare_pid)
               {
                 /* Our own procfs */
                 if (mount ("proc", dest_path, "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0)
-                  die_with_mount_error ("Can't mount proc on %s", op->dest);
+                  {
+                    if (errno == EPERM)
+                      die_with_error ("Can't mount proc on %s\n"
+                        "A nested container's seccomp/LSM policy, missing mount permission, "
+                        "or masked paths below /proc may prevent this private procfs mount. "
+                        "Bubblewrap will not fall back to a shared PID namespace, "
+                        "to prevent exposing other processes",
+                        op->dest);
+
+                    die_with_mount_error ("Can't mount proc on %s", op->dest);
+                  }
               }
             else
               {

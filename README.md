@@ -26,6 +26,23 @@ The original bubblewrap code existed before user namespaces - it inherits code f
 which in turn distantly derives from
 [linux-user-chroot](https://git.gnome.org/browse/linux-user-chroot).
 
+Nested and rootless containers
+------------------------------
+
+When `--unshare-pid` or `--pidns` is used, bubblewrap must mount a procfs for
+that PID namespace. A nested container's seccomp or LSM policy, missing mount
+permission, or masked paths below `/proc` can prevent that mount. In particular,
+the kernel may reject a new procfs mount with `EPERM` if it could reveal paths
+hidden by the outer container. Bubblewrap cannot safely override these
+restrictions and fails rather than silently downgrading PID isolation.
+
+If you control the outer runtime, diagnose its mount policy and procfs masking
+before changing them; do not use `--privileged` or blanket procfs unmasking as a
+workaround. Running bubblewrap on the host or in a dedicated VM avoids this
+nested procfs boundary. Omitting `--unshare-pid`/`--pidns` instead shares the
+outer PID namespace and exposes its process list, so it is an explicit reduction
+in isolation, not an equivalent fallback.
+
 System security
 ---------------
 
