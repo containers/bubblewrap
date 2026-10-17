@@ -177,7 +177,7 @@ BASE_BWRAP_ARGS = ['--ro-bind', '/', '/', '--dev', '/dev',
                    '--proc', '/proc', '--tmpfs', '/tmp']
 
 
-def run_bwrap(*extra_args, pass_fds=()):
+def run_bwrap(*extra_args, pass_fds=(), env=None):
     """Run bwrap with base sandbox args plus extra_args, return CompletedProcess.
 
     Args may include DataFd instances, which are resolved to pipe fds.
@@ -201,6 +201,7 @@ def run_bwrap(*extra_args, pass_fds=()):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             pass_fds=(*pass_fds, *opened_fds),
+            env=env,
         )
     finally:
         for fd in opened_fds:
