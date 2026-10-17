@@ -11,6 +11,7 @@ import ctypes
 import ctypes.util
 import importlib.util
 import os
+import shlex
 import stat
 import subprocess
 import sys
@@ -533,6 +534,26 @@ class TestSandbox(unittest.TestCase):
     @in_sandbox('--ro-bind-try', lambda self: self.src.file, '/tmp/f')
     def test_ro_bind_try_existing(self):
         self.assertFileContent('/tmp/f', 'hello')
+
+    def test_bind_try_deleted_file(self):
+        source = os.path.join(self.tmp, 'source')
+        target = os.path.join(self.tmp, 'target')
+        with open(source, 'w') as f:
+            f.write('source')
+        with open(target, 'w') as f:
+            f.write('target')
+
+        bind_try_args = [BWRAP, '--bind-try', 'target', '/x',
+                         '--ro-bind', '/', '/', 'echo']
+        bind_try = ' '.join(map(shlex.quote, bind_try_args))
+        command = f'{bind_try} before; rm source; {bind_try} after'
+        result = subprocess.run(
+            [BWRAP, '--bind', '/', '/', '--ro-bind', source, target,
+             '--chdir', self.tmp, 'sh', '-ec', command],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout.splitlines(), [b'before', b'after'])
 
     # ------ overlay ------
 
