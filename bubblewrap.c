@@ -2295,7 +2295,7 @@ parse_args_recurse (int          *argcp,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
-          opt_sync_fd = xrealloc (opt_sync_fd, sizeof (&opt_sync_fd[0]) * (opt_sync_fd_count + 1));
+          opt_sync_fd = xrealloc (opt_sync_fd, sizeof (opt_sync_fd[0]) * (opt_sync_fd_count + 1));
           opt_sync_fd[opt_sync_fd_count++] = the_fd;
 
           argv += 1;
