@@ -87,6 +87,10 @@ if selinux_dep.found()
   endif
 endif
 
+if cc.has_function('explicit_bzero', prefix : '#include <string.h>')
+  cdata.set('HAVE_EXPLICIT_BZERO', 1)
+endif
+
 if get_option('debug_logging')
   cdata.set('BWRAP_DEBUG', 1)
 endif
