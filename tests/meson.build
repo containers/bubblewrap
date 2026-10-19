@@ -1,4 +1,15 @@
 test_programs = [
+  ['test-network', executable(
+    'test-network',
+    'test-network.c',
+    '../network.c',
+    include_directories : common_include_directories,
+    link_args : [
+      '-Wl,--wrap=socket',
+      '-Wl,--wrap=ioctl',
+      '-Wl,--wrap=if_nametoindex',
+    ],
+  )],
   ['test-utils', executable(
     'test-utils',
     'test-utils.c',

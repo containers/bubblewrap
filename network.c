@@ -25,6 +25,7 @@
 #include <linux/loop.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <sys/ioctl.h>
 
 #include "utils.h"
 #include "network.h"
@@ -133,6 +134,31 @@ rtnl_setup_request (char  *buffer,
   return header;
 }
 
+static bool
+loopback_is_configured (void)
+{
+  cleanup_fd int fd = socket (AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+  struct ifreq flags = { .ifr_name = "lo" };
+  struct ifreq address_query = { .ifr_name = "lo", .ifr_addr.sa_family = AF_INET };
+  struct ifreq mask_query = { .ifr_name = "lo", .ifr_netmask.sa_family = AF_INET };
+  struct sockaddr_in *address;
+
+  if (fd < 0 || ioctl (fd, SIOCGIFFLAGS, &flags) != 0 ||
+      (flags.ifr_flags & (IFF_UP | IFF_LOOPBACK)) != (IFF_UP | IFF_LOOPBACK))
+    return false;
+
+  if (ioctl (fd, SIOCGIFADDR, &address_query) != 0 || address_query.ifr_addr.sa_family != AF_INET)
+    return false;
+  address = (struct sockaddr_in *) &address_query.ifr_addr;
+  if (address->sin_addr.s_addr != htonl (INADDR_LOOPBACK))
+    return false;
+
+  if (ioctl (fd, SIOCGIFNETMASK, &mask_query) != 0 || mask_query.ifr_netmask.sa_family != AF_INET)
+    return false;
+  address = (struct sockaddr_in *) &mask_query.ifr_netmask;
+  return address->sin_addr.s_addr == htonl (0xff000000);
+}
+
 void
 loopback_setup (void)
 {
@@ -144,6 +170,10 @@ loopback_setup (void)
   struct ifaddrmsg *addmsg;
   struct ifinfomsg *infomsg;
   struct in_addr *ip_addr;
+
+  /* Some runtimes, such as gVisor, bring up lo in a fresh network namespace. */
+  if (loopback_is_configured ())
+    return;
 
   src_addr.nl_pid = getpid ();
 
