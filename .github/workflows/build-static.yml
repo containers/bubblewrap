@@ -9,7 +9,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -48,8 +48,13 @@ jobs:
           docker run --rm bwrap-static:${{ matrix.arch }} cat /bwrap > dist/bwrap-${{ matrix.arch }}
           chmod +x dist/bwrap-${{ matrix.arch }}
 
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: bwap-${{ matrix.arch }}
-          path: dist/bwrap-${{ matrix.arch }}
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE="${{ github.event.release.tag_name || github.ref_name }}"
+          if gh release view "$RELEASE" --json id >/dev/null 2>&1; then
+            gh release upload "$RELEASE" dist/bwrap-${{ matrix.arch }} --clobber
+          else
+            gh release create "$RELEASE" dist/bwrap-${{ matrix.arch }} --generate-notes --title "$RELEASE"
+          fi
