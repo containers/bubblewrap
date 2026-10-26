@@ -3129,9 +3129,6 @@ main (int    argc,
       die_with_error ("Creating new namespace failed");
     }
 
-  ns_uid = opt_sandbox_uid;
-  ns_gid = opt_sandbox_gid;
-
   if (pid != 0)
     {
       /* Parent, outside sandbox, privileged (initially) */
