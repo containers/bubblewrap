@@ -1,13 +1,12 @@
 name: Build static bwrap binaries
 
 on:
+  release:
+    types:
+      - published
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  merge_group:
+    tags:
+      - 'v*'
 
 permissions:
   contents: read
@@ -48,3 +47,9 @@ jobs:
           mkdir -p dist
           docker run --rm bwrap-static:${{ matrix.arch }} cat /bwrap > dist/bwrap-${{ matrix.arch }}
           chmod +x dist/bwrap-${{ matrix.arch }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bwap-${{ matrix.arch }}
+          path: dist/bwrap-${{ matrix.arch }}
