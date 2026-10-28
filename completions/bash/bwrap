@@ -52,6 +52,7 @@ _bwrap() {
 		--info-fd
 		--lock-file
 		--overlay
+		--overlay-opt
 		--overlay-src
 		--perms
 		--proc
