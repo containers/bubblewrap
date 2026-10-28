@@ -174,7 +174,7 @@ class BwrapSandbox:
 
 
 BASE_BWRAP_ARGS = ['--ro-bind', '/', '/', '--dev', '/dev',
-                   '--proc', '/proc', '--tmpfs', '/tmp']
+                   '--proc', '/proc', '--bind', '/tmp', '/tmp']
 
 
 def run_bwrap(*extra_args, pass_fds=()):
