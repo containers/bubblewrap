@@ -316,6 +316,14 @@
       <listitem><para>Equal to <option>--ro-bind</option> but ignores non-existent <arg choice="plain">SRC</arg></para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--bind-fd <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
+      <listitem><para>Bind the open file or directory referred to by file descriptor <arg choice="plain">FD</arg> on <arg choice="plain">DEST</arg></para></listitem>
+    </varlistentry>
+    <varlistentry>
+      <term><option>--ro-bind-fd <arg choice="plain">FD</arg> <arg choice="plain">DEST</arg></option></term>
+      <listitem><para>Bind the open file or directory referred to by file descriptor <arg choice="plain">FD</arg> read-only on <arg choice="plain">DEST</arg></para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--remount-ro <arg choice="plain">DEST</arg></option></term>
       <listitem><para>Remount the path <arg choice="plain">DEST</arg> as readonly.  It works only on the specified mount point, without changing any other mount point under the specified path</para></listitem>
     </varlistentry>
