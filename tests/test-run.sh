@@ -289,6 +289,13 @@ printf '%s--dir\0/tmp/hello/world3\0' '' > test.args3
 $RUN --args 3 --args 4 --args 5 /bin/sh -c 'test -d /tmp/hello/world && test -d /tmp/hello/world2 && test -d /tmp/hello/world3' 3<test.args 4<test.args2 5<test.args3
 ok "we can parse arguments from a fd"
 
+printf '%s--overlay\0/rw\0/work\0/dest\0' '' > test-overlay-src.args
+if $RUN --overlay-src /usr --args 3 true 3<test-overlay-src.args 2>err.txt; then
+    assert_not_reached "--overlay-src before --args should be rejected"
+fi
+assert_file_has_content err.txt "^bwrap: --overlay-src must be followed by"
+ok "--overlay-src is not carried over into --args"
+
 mkdir bin
 echo "#!/bin/sh" > bin/--inadvisable-executable-name--
 echo "echo hello" >> bin/--inadvisable-executable-name--
