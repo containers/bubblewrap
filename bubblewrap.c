@@ -1799,6 +1799,12 @@ parse_args_recurse (int          *argcp,
           if (in_file)
             die ("--args not supported in arguments file");
 
+          /* make_setup_overlay_src_ops() reads the --overlay-src paths back
+           * from argv, just before the --overlay option, so they can't be
+           * split from it by an --args boundary. */
+          if (next_overlay_src_count > 0)
+            die ("--overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay");
+
           if (argc < 2)
             die ("--args takes an argument");
 
