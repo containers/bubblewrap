@@ -723,4 +723,12 @@ fi
 $RUN --not-a-security-boundary true
 ok "Accepts --not-a-security-boundary"
 
+# A closed --userns-block-fd is rejected while parsing, so its number can't
+# be reused for an internal descriptor and hang (#826)
+if $RUN --unshare-user --info-fd 43 --userns-block-fd 42 true 42<&- 43>/dev/null 2>err.txt; then
+    assert_not_reached "--userns-block-fd accepted a closed descriptor"
+fi
+assert_file_has_content err.txt "^bwrap: Invalid fd: 42: Bad file descriptor"
+ok "--userns-block-fd rejects a closed descriptor"
+
 done_testing
