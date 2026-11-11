@@ -2336,6 +2336,12 @@ parse_args_recurse (int          *argcp,
           if (argv[1][0] == 0 || endptr[0] != 0 || the_fd < 0)
             die ("Invalid fd: %s", argv[1]);
 
+          /* A closed descriptor's number could later be reused for one of
+           * our own (child_wait_fd or setup_finished_pipe), and waiting on
+           * that would hang both processes. */
+          if (fcntl (the_fd, F_GETFD) < 0)
+            die_with_error ("Invalid fd: %s", argv[1]);
+
           opt_userns_block_fd = the_fd;
 
           argv += 1;
