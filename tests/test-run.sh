@@ -87,11 +87,68 @@ else
 fi
 ok "--symlink doesn't overwrite a conflicting symlink"
 
-# A nosymfollow source must stay nosymfollow across the fixup remount
-if unshare -rm sh -c 'mount -t tmpfs -o nosymfollow tmpfs /tmp && : >/tmp/x && ln -s x /tmp/l && '"$BWRAP"' --ro-bind / / cat /tmp/l' 2>/dev/null; then
-    assert_not_reached "nosymfollow dropped by bind fixup; symlink was followed"
+# A bind fixup must preserve nosymfollow.
+assumed_kernel=$("$BWRAP" --debug-opt=print-assumed-kernel) ||
+    fatal "could not read Bubblewrap's assumed kernel"
+IFS=. read -r assumed_major assumed_minor _ <<< "$assumed_kernel"
+fallback_opt=--debug-opt=force-mount-setattr-fallback
+if (( assumed_major > 5 || (assumed_major == 5 && assumed_minor >= 12) )); then
+    fallback_opt=
 fi
-ok "bind mount preserves nosymfollow"
+
+if ! unshare -rm true >/dev/null 2>&1; then
+    ok_skip "a nested user and mount namespace is unavailable"
+elif unshare -rm sh -ec '
+    bwrap=$1
+    fallback_opt=$2
+    export LC_ALL=C
+    mountpoint=$(mktemp -d /var/tmp/bwrap-nosymfollow.XXXXXX)
+    if ! mount -t tmpfs -o nosymfollow tmpfs "$mountpoint" 2>/dev/null; then
+        rmdir "$mountpoint"
+        exit 77
+    fi
+    trap '\''umount "$mountpoint"; rmdir "$mountpoint"'\'' EXIT
+    : > "$mountpoint/target"
+    ln -s target "$mountpoint/link"
+    if output=$(cat "$mountpoint/link" 2>&1); then
+        echo "nosymfollow host control followed the symlink" >&2
+        exit 77
+    fi
+    case "$output" in
+        *"Too many levels of symbolic links"*) ;;
+        *) echo "nosymfollow host control failed unexpectedly: $output" >&2; exit 1 ;;
+    esac
+    check_path () {
+        mode=$1
+        shift
+        if output=$("$bwrap" "$@" --ro-bind / / /bin/sh -c '\''printf "BWRAP-CHILD-STARTED\\n"; exec /bin/cat "$1"'\'' sh "$mountpoint/link" 2>&1); then
+            echo "$mode path followed a nosymfollow symlink" >&2
+            return 1
+        fi
+        case "$output" in
+            *"BWRAP-CHILD-STARTED"*"Too many levels of symbolic links"*) ;;
+            *) echo "$mode path did not reach cat ELOOP: $output" >&2; return 1 ;;
+        esac
+    }
+    check_path normal
+    if [ -n "$fallback_opt" ]; then
+        check_path fallback "$fallback_opt"
+    fi
+' sh "$BWRAP" "$fallback_opt"; then
+    ok "host control and normal path preserve nosymfollow"
+    if [ -n "$fallback_opt" ]; then
+        ok "forced mount_setattr fallback preserves nosymfollow"
+    else
+        ok_skip "forced mount_setattr fallback is compiled out (assumed kernel $assumed_kernel)"
+    fi
+else
+    rc=$?
+    if [ "$rc" = 77 ]; then
+        ok_skip "nosymfollow mount or host control is unavailable"
+    else
+        fatal "nosymfollow bind test failed with status $rc"
+    fi
+fi
 
 # Test devices
 $RUN --unshare-pid --dev /dev ls -al /dev/{stdin,stdout,stderr,null,random,urandom,fd,core} >/dev/null
