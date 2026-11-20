@@ -511,28 +511,28 @@ else
 fi
 
 $RUN \
-    --file 0 /tmp/file \
-    stat -c '%a' /tmp/file < /dev/null > file-permissions
+    --file 3 /tmp/file \
+    stat -c '%a' /tmp/file 3< /dev/null > file-permissions
 assert_file_has_content file-permissions '^666$'
 $RUN \
-    --perms 0640 --file 0 /tmp/file \
-    stat -c '%a' /tmp/file < /dev/null > file-permissions
+    --perms 0640 --file 3 /tmp/file \
+    stat -c '%a' /tmp/file 3< /dev/null > file-permissions
 assert_file_has_content file-permissions '^640$'
 $RUN \
-    --bind-data 0 /tmp/file \
-    stat -c '%a' /tmp/file < /dev/null > file-permissions
+    --bind-data 3 /tmp/file \
+    stat -c '%a' /tmp/file 3< /dev/null > file-permissions
 assert_file_has_content file-permissions '^600$'
 $RUN \
-    --perms 0640 --bind-data 0 /tmp/file \
-    stat -c '%a' /tmp/file < /dev/null > file-permissions
+    --perms 0640 --bind-data 3 /tmp/file \
+    stat -c '%a' /tmp/file 3< /dev/null > file-permissions
 assert_file_has_content file-permissions '^640$'
 $RUN \
-    --ro-bind-data 0 /tmp/file \
-    stat -c '%a' /tmp/file < /dev/null > file-permissions
+    --ro-bind-data 3 /tmp/file \
+    stat -c '%a' /tmp/file 3< /dev/null > file-permissions
 assert_file_has_content file-permissions '^600$'
 $RUN \
-    --perms 0640 --ro-bind-data 0 /tmp/file \
-    stat -c '%a' /tmp/file < /dev/null > file-permissions
+    --perms 0640 --ro-bind-data 3 /tmp/file \
+    stat -c '%a' /tmp/file 3< /dev/null > file-permissions
 assert_file_has_content file-permissions '^640$'
 ok "files have expected permissions"
 
