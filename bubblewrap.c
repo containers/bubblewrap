@@ -981,6 +981,26 @@ setup_op_tmpfs_mount (uint32_t    perms,
     die_with_mount_error ("Can't mount tmpfs on %s", dest_display);
 }
 
+/* Like mkdirat(), but an existing node of any type is not an error.
+ * We check for it first, as ensure_dir() does: on some filesystems
+ * (such as NFS) mkdir on a read-only mount can fail with EROFS instead
+ * of EEXIST when the directory exists but hasn't been looked up yet. */
+static int
+mkdirat_allow_existing (int         dirfd,
+                        const char *name,
+                        mode_t      mode)
+{
+  struct stat buf;
+
+  if (fstatat (dirfd, name, &buf, AT_SYMLINK_NOFOLLOW) == 0)
+    return 0;
+
+  if (mkdirat (dirfd, name, mode) < 0 && errno != EEXIST)
+    return -1;
+
+  return 0;
+}
+
 /* This creates a file node as required for the new destination of an
  * operation if one is not existing, and returns an O_NOFOLLOW|O_PATH fd
  * to it (except if return_writable is passed, then we return a regular
@@ -994,7 +1014,7 @@ ensure_node_at (int parent_fd, const char *name, NodeType node_type, int perms,
 
   if (node_type == NODE_TYPE_DIR)
     {
-      if (mkdirat (parent_fd, name, perms >= 0 ? perms : 0755) < 0 && errno != EEXIST)
+      if (mkdirat_allow_existing (parent_fd, name, perms >= 0 ? perms : 0755) < 0)
         return -1;
       cleanup_fd int fd = TEMP_FAILURE_RETRY (
         openat (parent_fd, name, O_PATH | O_NOFOLLOW | O_CLOEXEC));
@@ -1002,7 +1022,12 @@ ensure_node_at (int parent_fd, const char *name, NodeType node_type, int perms,
     }
   else
     {
-      if (node_type == NODE_TYPE_FILE)
+      struct stat buf;
+
+      /* As for directories: creating a node that already exists on a
+       * read-only NFS mount can fail with EROFS instead of EEXIST. */
+      if (node_type == NODE_TYPE_FILE &&
+          (return_writable || fstatat (parent_fd, name, &buf, AT_SYMLINK_NOFOLLOW) != 0))
         {
           /* Ensure there is a file node */
           cleanup_fd int fd = TEMP_FAILURE_RETRY (
@@ -1068,7 +1093,7 @@ ensure_newroot_parents_at (const char *path,
           break;
         }
 
-      if (mkdirat (parent_fd, component, mode) < 0 && errno != EEXIST)
+      if (mkdirat_allow_existing (parent_fd, component, mode) < 0)
         return -1;
 
       char saved = *after_component;
