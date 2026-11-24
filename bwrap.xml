@@ -221,6 +221,16 @@
       <listitem><para>Change directory to <arg choice="plain">DIR</arg></para></listitem>
     </varlistentry>
     <varlistentry>
+      <term><option>--umask <arg choice="plain">OCTAL</arg></option></term>
+      <listitem><para>
+        Set the initial file creation mask of the sandboxed command to an
+        octal value from <literal>0000</literal> through <literal>0777</literal>.
+        By default, the command inherits the caller's umask. Use
+        <option>--perms</option> to set permissions for paths created by
+        <command>bwrap</command> during sandbox setup.
+      </para></listitem>
+    </varlistentry>
+    <varlistentry>
       <term><option>--setenv <arg choice="plain">VAR</arg> <arg choice="plain">VALUE</arg></option></term>
       <listitem><para>Set an environment variable</para></listitem>
     </varlistentry>
