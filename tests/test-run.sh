@@ -34,7 +34,7 @@ for ALT in "" "--unshare-user-try" "--unshare-pid" "--unshare-user-try --unshare
         ok_skip "no FUSE support"
     fi
     # no --dev => no devpts => no map_root workaround
-    $RUN $ALT --proc /proc true
+    $NODEVRUN $ALT --proc /proc true
     ok "can mount /proc with $ALT"
     # No network
     $RUN $ALT --unshare-net --proc /proc --dev /dev true
