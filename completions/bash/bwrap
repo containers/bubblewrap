@@ -65,6 +65,7 @@ _bwrap() {
 		--sync-fd
 		--tmp-overlay
 		--uid
+		--umask
 		--unsetenv
 		--userns-block-fd
 	"

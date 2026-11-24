@@ -590,6 +590,29 @@ $RUN --argv0 right sh -c 'echo $0' > stdout
 assert_file_has_content stdout right
 ok "argv0 manipulation"
 
+(umask 027; $RUN sh -c ': > /tmp/created; stat -c %a /tmp/created') > stdout
+assert_file_has_content stdout '^640$'
+(umask 027; $RUN --unshare-pid --umask 077 --dir /tmp/setup \
+    sh -c ': > /tmp/created; stat -c "%a %n" /tmp/created /tmp/setup') > stdout
+assert_file_has_content stdout '^600 /tmp/created$'
+assert_file_has_content stdout '^755 /tmp/setup$'
+(umask 027; $RUN --umask 077 --umask 000 sh -c ': > /tmp/created; stat -c %a /tmp/created') > stdout 2>err.txt
+assert_file_has_content stdout '^666$'
+assert_file_has_content err.txt '^bwrap: Only the last --umask option will take effect$'
+ok "umask inheritance and override"
+
+for mask in '' 008 1000 -0 +077 ' 077' 077x 777777777777777777777777; do
+    if $RUN --umask "$mask" true 2>err.txt; then
+        assert_not_reached "Invalid umask accepted: $mask"
+    fi
+    assert_file_has_content err.txt '^bwrap: --umask takes an octal argument <= 0777$'
+done
+if $RUN --umask 2>err.txt; then
+    assert_not_reached "Missing umask accepted"
+fi
+assert_file_has_content err.txt '^bwrap: --umask takes an argument$'
+ok "invalid umasks are rejected"
+
 echo "foobar" > file-data
 $RUN --proc /proc --dev /dev --bind / / --bind-fd 100 /tmp cat /tmp/file-data 100< . > stdout
 assert_file_has_content stdout foobar

@@ -79,6 +79,7 @@ static bool opt_new_session = false;
 static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
+static int opt_umask = -1;
 static int *opt_sync_fd = NULL;
 static int opt_sync_fd_count = 0;
 static int opt_block_fd = -1;
@@ -315,6 +316,7 @@ usage (int ecode, FILE *out)
            "    --gid GID                    Custom gid in the sandbox (requires --unshare-user or --userns)\n"
            "    --hostname NAME              Custom hostname in the sandbox (requires --unshare-uts)\n"
            "    --chdir DIR                  Change directory to DIR\n"
+           "    --umask OCTAL                Set the initial umask of the sandboxed command\n"
            "    --clearenv                   Unset all environment variables\n"
            "    --setenv VAR VALUE           Set an environment variable\n"
            "    --unsetenv VAR               Unset an environment variable\n"
@@ -1923,6 +1925,25 @@ parse_args_recurse (int          *argcp,
             warn_only_last_option ("--chdir");
 
           opt_chdir_path = path_argument (arg, argv[1]);
+          argv++;
+          argc--;
+        }
+      else if (strcmp (arg, "--umask") == 0)
+        {
+          unsigned long mask;
+          char *endptr;
+
+          if (argc < 2)
+            die ("--umask takes an argument");
+
+          mask = strtoul (argv[1], &endptr, 8);
+          if (argv[1][0] < '0' || argv[1][0] > '7' || *endptr != '\0' || mask > 0777)
+            die ("--umask takes an octal argument <= 0777");
+
+          if (opt_umask != -1)
+            warn_only_last_option ("--umask");
+
+          opt_umask = (int) mask;
           argv++;
           argc--;
         }
@@ -3535,6 +3556,9 @@ main (int    argc,
   handle_die_with_parent ();
 
   set_ambient_capabilities ();
+
+  if (opt_umask != -1)
+    umask ((mode_t) opt_umask);
 
   /* Should be the last thing before execve() so that filters don't
    * need to handle anything above */
