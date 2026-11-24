@@ -104,7 +104,8 @@ else
 fi
 
 # Default arg, bind whole host fs to /, tmpfs on /tmp
-RUN="${BWRAP} --bind / / --tmpfs /tmp"
+RUN="${BWRAP} --dev-bind / / --tmpfs /tmp"
+NODEVRUN="${BWRAP} --bind / / --tmpfs /tmp"
 
 if [ -z "${BWRAP_MUST_WORK-}" ] && ! $RUN true; then
     skip Seems like bwrap is not working at all. Maybe setuid is not working
