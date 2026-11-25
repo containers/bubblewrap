@@ -671,6 +671,20 @@ die_with_bind_result (bind_mount_result res,
   exit (1);
 }
 
+/* Static copy of openat_in_root() from bubblewrap.c (where it is also
+ * static and therefore not visible to this translation unit).  Kept
+ * local to this file to keep the fix minimal; a shared helper would be
+ * the cleaner long-term design. */
+static int
+openat_in_root (const char *root, const char *path, int flags)
+{
+  /* We have reopen the root dir, because we typically mount on top of
+   * /newroot (e.g. with --bind / /), which an old O_PATH fd will not
+   * pick up */
+  cleanup_fd int root_fd = TEMP_FAILURE_RETRY (open (root, O_PATH | O_NOCTTY | O_CLOEXEC));
+  return safe_openat (root_fd, root, path, flags, 0);
+}
+
 static bind_mount_result
 mount_setattr_setup (const char *resolved_dest,
                      bind_option_t options,
@@ -707,7 +721,7 @@ mount_setattr_setup (const char *resolved_dest,
 
       /* reopen dest_fd after mount() */
       cleanup_fd int resolved_dest_fd =
-        TEMP_FAILURE_RETRY(open(resolved_dest, O_PATH | O_CLOEXEC));
+        TEMP_FAILURE_RETRY(openat_in_root ("/newroot", resolved_dest, O_PATH | O_NOFOLLOW | O_CLOEXEC));
       if (resolved_dest_fd < 0)
         {
           if (failing_path != NULL)
@@ -715,6 +729,27 @@ mount_setattr_setup (const char *resolved_dest,
 
           return BIND_MOUNT_ERROR_OPEN_FD;
         }
+
+      /* Verify the target is a mount root to ensure we're applying attributes
+       * to the correct mount and not a symlink-to somewhere else. */
+      {
+        struct statx st;
+        if (statx (resolved_dest_fd, "", 0, AT_STATX_SYNC_AS_STAT, &st) != 0)
+          {
+            if (failing_path != NULL)
+              *failing_path = xstrdup (resolved_dest);
+
+            return BIND_MOUNT_ERROR_OPEN_FD;
+          }
+        if (!(st.stx_mask & STATX_ATTR_MOUNT_ROOT))
+          {
+            if (failing_path != NULL)
+              *failing_path = xstrdup (resolved_dest);
+
+            errno = ENOTDIR;
+            return BIND_MOUNT_ERROR_FIND_DEST_MOUNT;
+          }
+      }
 
       if (mount_setattr_wrapper (resolved_dest_fd, "", setattr_flags, &attr, sizeof(attr)) == 0)
         {
