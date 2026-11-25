@@ -716,6 +716,35 @@ class TestSandbox(unittest.TestCase):
     def test_proc_symlink_escape_blocked_fallback(self):
         self._test_proc_symlink_escape(['--debug-opt=force-openat-fallback'])
 
+    # ------ Removed env vars must not leak via /proc/1/environ ------
+
+    _READ_PID1_ENVIRON = ['--unshare-pid', 'cat', '/proc/1/environ']
+
+    def _pid1_environ(self, *bwrap_args, env):
+        result = run_bwrap(*bwrap_args, *self._READ_PID1_ENVIRON, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.split(b'\0')
+
+    def test_clearenv_not_in_pid1_environ(self):
+        env = dict(os.environ, BWRAP_TEST_SECRET='hunter2')
+        environ = self._pid1_environ('--clearenv', env=env)
+        self.assertNotIn(b'BWRAP_TEST_SECRET=hunter2', environ)
+        self.assertFalse(any(e.startswith(b'PATH=') for e in environ))
+
+    def test_unsetenv_not_in_pid1_environ(self):
+        env = dict(os.environ, BWRAP_TEST_SECRET='hunter2',
+                   BWRAP_TEST_KEEP='visible')
+        environ = self._pid1_environ('--unsetenv', 'BWRAP_TEST_SECRET',
+                                     env=env)
+        self.assertNotIn(b'BWRAP_TEST_SECRET=hunter2', environ)
+        self.assertIn(b'BWRAP_TEST_KEEP=visible', environ)
+
+    def test_setenv_overwrite_not_in_pid1_environ(self):
+        env = dict(os.environ, BWRAP_TEST_SECRET='hunter2')
+        environ = self._pid1_environ('--setenv', 'BWRAP_TEST_SECRET', 'new',
+                                     env=env)
+        self.assertNotIn(b'BWRAP_TEST_SECRET=hunter2', environ)
+
 
 if __name__ == '__main__':
     run_tap_tests(sys.modules[__name__])
