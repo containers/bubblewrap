@@ -24,6 +24,11 @@
 #include "utils.h"
 #include "bind-mount.h"
 
+/* MS_NOSYMFOLLOW was added in Linux 5.10 */
+#ifndef MS_NOSYMFOLLOW
+#define MS_NOSYMFOLLOW 256
+#endif
+
 #if ASSUMED_KERNEL < BWRAP_KERNEL_VERSION (5, 12, 0)
 #  define USE_MOUNT_SETATTR_FALLBACK 1
 #else
@@ -110,6 +115,7 @@ decode_mountoptions (const char *options)
     { MS_NOSUID, "nosuid" },
     { MS_NODEV, "nodev" },
     { MS_NOEXEC, "noexec" },
+    { MS_NOSYMFOLLOW, "nosymfollow" },
     { MS_NOATIME, "noatime" },
     { MS_NODIRATIME, "nodiratime" },
     { MS_RELATIME, "relatime" },
